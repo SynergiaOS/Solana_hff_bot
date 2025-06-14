@@ -1,0 +1,63 @@
+[package]
+name = "snipercor"
+version = "0.1.0"
+edition = "2021"
+authors = ["SNIPERCOR Team"]
+description = "High-frequency trading system for Solana blockchain"
+license = "MIT"
+repository = "https://github.com/your-org/snipercor"
+
+[dependencies]
+# Core async runtime
+tokio = { version = "1.35", features = ["full"] }
+
+# Solana blockchain
+solana-sdk = "1.18"
+solana-client = "1.18"
+
+# Web framework
+axum = "0.7"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Database (commented out due to dependency conflicts - will be added later)
+# sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid"] }
+
+# HTTP client
+reqwest = { version = "0.11", features = ["json"] }
+
+# WebSocket
+tokio-tungstenite = "0.21"
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# UUID
+uuid = { version = "1.0", features = ["v4", "serde"] }
+
+# Environment
+dotenvy = "0.15"
+
+# Random number generation
+rand = "0.8"
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+opt-level = 3
+
+[profile.contabo]
+inherits = "release"
+opt-level = 3
+lto = "fat"
