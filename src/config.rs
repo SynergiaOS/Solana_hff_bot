@@ -58,6 +58,7 @@ pub struct LoggingConfig {
     pub level: String,
 }
 
+#[allow(dead_code)]
 impl Config {
     /// Load configuration from environment variables
     pub fn from_env() -> Result<Self> {

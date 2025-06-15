@@ -13,6 +13,7 @@ pub enum PersistenceMessage {
     HealthCheck,
 }
 
+#[allow(dead_code)]
 pub struct PersistenceManager {
     message_receiver: mpsc::UnboundedReceiver<PersistenceMessage>,
     execution_result_receiver: mpsc::UnboundedReceiver<ExecutionResult>,
@@ -20,6 +21,7 @@ pub struct PersistenceManager {
     is_running: bool,
 }
 
+#[allow(dead_code)]
 impl PersistenceManager {
     pub fn new(
         message_receiver: mpsc::UnboundedReceiver<PersistenceMessage>,

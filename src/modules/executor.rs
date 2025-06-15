@@ -28,6 +28,7 @@ pub enum ExecutionStatus {
     Cancelled,
 }
 
+#[allow(dead_code)]
 pub struct Executor {
     signal_receiver: mpsc::UnboundedReceiver<ApprovedSignal>,
     persistence_sender: mpsc::UnboundedSender<ExecutionResult>,
@@ -37,6 +38,7 @@ pub struct Executor {
     is_running: bool,
 }
 
+#[allow(dead_code)]
 impl Executor {
     pub fn new(
         signal_receiver: mpsc::UnboundedReceiver<ApprovedSignal>,

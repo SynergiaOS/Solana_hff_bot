@@ -1,73 +1,130 @@
-# SNIPERCOR User Guidelines
+# 🎯 USER GUIDELINES - THE OVERMIND PROTOCOL
 
-## 🎯 Purpose
+## 📋 **OVERVIEW**
 
-This document provides guidelines for operators and developers working with the SNIPERCOR high-frequency trading system. These guidelines ensure safe, efficient, and profitable operation of the trading system.
+This document provides comprehensive guidelines for operators and developers working with THE OVERMIND PROTOCOL - the ultimate 5-layer autonomous AI trading system. These guidelines ensure safe, efficient, and profitable operation of the AI-enhanced trading system.
 
-## 👥 Roles and Responsibilities
+**Motto:** "Czytaj → Planuj → Testuj → Implementuj → Weryfikuj"
+**Status:** PRODUCTION GUIDELINES
+**Use Case:** Safe Operation of THE OVERMIND PROTOCOL
 
-### System Operator (Captain)
-- **Strategic Decisions**: Market selection, trading parameters, risk limits
-- **System Monitoring**: Performance metrics, position management, P&L tracking
-- **Risk Management**: Setting and adjusting risk parameters
-- **Final Authority**: All trading decisions and system configuration
+## 👥 **ROLES AND RESPONSIBILITIES**
 
-### AI Assistant (Co-Pilot)
-- **Code Generation**: Implementing features, bug fixes, optimizations
-- **Testing**: Writing and executing unit and integration tests
-- **Analysis**: Performance analysis, log analysis, system diagnostics
-- **Documentation**: Code documentation, technical specifications
+### **System Operator (Captain) - THE OVERMIND COMMANDER**
+- **Strategic Decisions**: AI model selection, trading parameters, risk limits
+- **System Monitoring**: 5-layer architecture performance, AI decision quality
+- **Risk Management**: AI safety parameters, position limits, emergency stops
+- **Final Authority**: All AI decisions validation and system configuration
+- **AI Oversight**: Monitor AI Brain performance and vector memory health
 
-## 🚀 Operational Procedures
+### **AI Assistant (Co-Pilot) - AUGMENT AGENT**
+- **Code Generation**: THE OVERMIND PROTOCOL implementation, TensorZero integration
+- **Testing**: Comprehensive testing of AI-enhanced trading modules
+- **Analysis**: AI performance analysis, vector memory optimization
+- **Documentation**: THE OVERMIND PROTOCOL documentation, AI integration guides
+- **MANDATORY**: Always read documentation and memory before any task
 
-### Daily Startup Checklist
+## 🚀 **THE OVERMIND PROTOCOL OPERATIONAL PROCEDURES**
 
-1. **System Health Check**
+### **📚 MANDATORY PRE-TASK CHECKLIST**
+
+#### **BEFORE ANY TASK - ALWAYS:**
+
+1. **Read Documentation**
 ```bash
-# Check system resources
-htop
-df -h
+# ZAWSZE zacznij od przeczytania odpowiedniej dokumentacji
+cat library/README.md                    # Przegląd bibliotek
+cat library/ai/overmind-protocol.md      # Główna architektura
+cat RULES.md                             # Zasady rozwoju
+```
 
-# Verify network connectivity
+2. **Check Memory & Context**
+```bash
+# Sprawdź co system już wie
+- THE OVERMIND PROTOCOL architecture (5 warstw)
+- Existing codebase structure
+- Previous decisions and patterns
+- Known issues and solutions
+```
+
+3. **Formulate Precise Tasks**
+```
+❌ ZŁE: "napraw bug"
+✅ DOBRE: "W pliku src/modules/executor.rs, w funkcji send_transaction,
+          dodaj obsługę RpcError::TransactionError i implementuj retry logic
+          3 razy z exponential backoff"
+```
+
+### **Daily Startup Checklist - THE OVERMIND PROTOCOL**
+
+1. **5-Layer System Health Check**
+```bash
+# Warstwa 1: Infrastructure
+docker-compose ps
+docker stats
+
+# Warstwa 2: Intelligence
 ping -c 3 api.mainnet-beta.solana.com
-ping -c 3 api.helius.xyz
+curl -s http://localhost:8000/health  # Chroma Vector DB
+
+# Warstwa 3: AI Brain
+curl -s http://localhost:3000/health  # TensorZero
+python -c "import ai_hedge_fund; print('AI Brain OK')"
+
+# Warstwa 4: Executor
+cargo check
+curl -s http://localhost:8080/health  # Rust HFT
+
+# Warstwa 5: Control
+curl -s http://localhost:9090/health  # Prometheus
 ```
 
 2. **Configuration Verification**
 ```bash
-# Verify environment variables
+# Verify OVERMIND environment variables
+env | grep OVERMIND_
 env | grep SNIPER_
 
 # Check trading mode (MUST be paper for initial testing)
 echo $SNIPER_TRADING_MODE
+echo $OVERMIND_AI_MODE
 ```
 
-3. **Start System**
+3. **Start THE OVERMIND PROTOCOL**
 ```bash
-# Start in paper trading mode
-SNIPER_TRADING_MODE=paper cargo run --profile contabo
+# Start in paper trading mode with AI
+SNIPER_TRADING_MODE=paper OVERMIND_AI_MODE=enabled cargo run --profile contabo
 
-# Monitor logs
-tail -f logs/snipercor.log
+# Monitor OVERMIND logs
+tail -f logs/overmind.log
+tail -f logs/ai-brain.log
 ```
 
-### Pre-Live Trading Checklist
+### **Pre-Live Trading Checklist - THE OVERMIND PROTOCOL**
 
-⚠️ **CRITICAL**: Complete ALL items before enabling live trading
+⚠️ **CRITICAL**: Complete ALL items before enabling live AI trading
 
-- [ ] System running stable in paper trading for 24+ hours
-- [ ] All risk limits properly configured and tested
-- [ ] Emergency stop procedures tested and verified
+- [ ] THE OVERMIND PROTOCOL running stable in paper trading for 48+ hours
+- [ ] All 5 layers functioning correctly and monitored
+- [ ] AI Brain making consistent profitable decisions
+- [ ] Vector memory populated with sufficient historical data
+- [ ] TensorZero optimization showing performance gains
+- [ ] All risk limits properly configured and AI-tested
+- [ ] Emergency stop procedures tested for AI scenarios
 - [ ] Sufficient account balance for trading + safety margin
 - [ ] Network connectivity stable and redundant
-- [ ] Monitoring systems active and alerting
+- [ ] All monitoring systems active and alerting
 - [ ] Backup systems tested and ready
+- [ ] AI model performance validated on devnet
 
-### Live Trading Activation
+### **Live Trading Activation - THE OVERMIND PROTOCOL**
 
 ```bash
 # ONLY after completing pre-live checklist
-SNIPER_TRADING_MODE=live cargo run --profile contabo
+SNIPER_TRADING_MODE=live OVERMIND_AI_MODE=enabled cargo run --profile contabo
+
+# Monitor AI decision quality
+tail -f logs/ai-decisions.log
 ```
 
 ## 📊 Monitoring and Alerting
@@ -274,6 +331,103 @@ pkill -TERM snipercor
 - **Development Team**: dev@company.com
 - **Emergency Hotline**: +1-XXX-XXX-XXXX
 
+## 🎯 **SYSTEMATIC TASK EXECUTION TEMPLATE**
+
+### **Template for Every Task:**
+
+#### **STEP 1: Information Gathering**
+```
+📚 DOCUMENTATION READ:
+- [ ] Relevant library/*.md files
+- [ ] Existing code patterns
+- [ ] Architecture decisions
+
+🧠 MEMORY CHECK:
+- [ ] Previous implementations
+- [ ] Known patterns
+- [ ] User preferences
+
+🌐 RESEARCH (if needed):
+- [ ] Latest solutions
+- [ ] Best practices
+- [ ] Security considerations
+```
+
+#### **STEP 2: Planning**
+```
+🎯 TASK BREAKDOWN:
+1. [ ] Specific goal definition
+2. [ ] File-by-file change list
+3. [ ] Dependency analysis
+4. [ ] Risk assessment
+
+📋 IMPLEMENTATION PLAN:
+1. [ ] Module A: [specific changes]
+2. [ ] Module B: [specific changes]
+3. [ ] Tests: [test strategy]
+4. [ ] Integration: [integration points]
+```
+
+#### **STEP 3: Implementation (Rozdział po Rozdziale)**
+```
+🔧 DEVELOPMENT:
+- [ ] Implement Module A
+- [ ] Write tests for Module A
+- [ ] Verify Module A works
+- [ ] Get user approval ✅
+- [ ] Proceed to Module B
+
+🧪 TESTING:
+- [ ] Unit tests pass
+- [ ] Integration tests pass
+- [ ] Performance acceptable
+- [ ] No regressions
+```
+
+#### **STEP 4: Verification**
+```
+✅ FINAL CHECKS:
+- [ ] All tests pass
+- [ ] Code follows patterns
+- [ ] Documentation updated
+- [ ] User approval received
+```
+
+## 🎯 **PRZYKŁAD DOBREGO PROMPTA:**
+
+```
+Bazując na wiedzy z RULES.md i library/ai/overmind-protocol.md, wykonaj następujące zadanie:
+
+W pliku src/main.rs, zaktualizuj system do THE OVERMIND PROTOCOL:
+
+1. Zmień komentarze z "SNIPERCOR" na "THE OVERMIND PROTOCOL"
+2. Dodaj ai_connector module import
+3. Dodaj kanał komunikacji z AI Brain
+4. Zintegruj TensorZero gateway
+5. Dodaj vector memory connector
+
+Po wprowadzeniu zmian, uruchom 'cargo test --workspace' żeby potwierdzić
+że wszystkie testy przechodzą. Przedstaw mi finalny diff do akceptacji.
+```
+
+## 🎯 **FINAL CHECKLIST**
+
+### **Before Marking Task Complete:**
+- [ ] Information gathering completed
+- [ ] Detailed plan approved
+- [ ] Implementation tested thoroughly
+- [ ] All tests passing
+- [ ] Performance verified
+- [ ] Security reviewed
+- [ ] Documentation updated
+- [ ] User final approval received
+
 ---
 
-**⚡ Success in HFT requires discipline, preparation, and constant vigilance. Follow these guidelines religiously.**
+**🎯 REMEMBER: "Czytaj → Planuj → Testuj → Implementuj → Weryfikuj"**
+
+**🧠 ALWAYS start with documentation and memory**
+**🤝 NEVER proceed without user approval at key decision points**
+**🛡️ SAFETY FIRST in critical trading modules**
+
+**⚡ Success in THE OVERMIND PROTOCOL requires discipline, preparation, AI oversight, and constant vigilance. Follow these guidelines religiously.**

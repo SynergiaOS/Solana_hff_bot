@@ -8,9 +8,9 @@ pub mod risk;
 pub mod strategy;
 
 // Advanced strategy modules based on Solana knowledge
-pub mod soul_meteor;
-pub mod meteora_damm;
 pub mod dev_tracker;
+pub mod meteora_damm;
+pub mod soul_meteor;
 
 // Re-export main types for easier access
 // Note: Exports commented out to avoid unused import warnings in skeleton

@@ -11,7 +11,6 @@ use tracing::{error, info, warn};
 // use uuid::Uuid; // Commented out to avoid unused import warning
 
 use config::Config;
-use monitoring::{MonitoringState, create_monitoring_router};
 use modules::{
     data_ingestor::{DataIngestor, MarketData},
     executor::{ExecutionResult, Executor},
@@ -19,6 +18,7 @@ use modules::{
     risk::{ApprovedSignal, RiskManager, RiskParameters},
     strategy::{StrategyEngine, TradingSignal},
 };
+use monitoring::{create_monitoring_router, MonitoringState};
 
 #[tokio::main(worker_threads = 6)]
 async fn main() -> Result<()> {
@@ -48,7 +48,7 @@ async fn main() -> Result<()> {
     let (signal_tx, signal_rx) = mpsc::unbounded_channel::<TradingSignal>();
     let (execution_tx, execution_rx) = mpsc::unbounded_channel::<ApprovedSignal>();
     let (execution_result_tx, execution_result_rx) = mpsc::unbounded_channel::<ExecutionResult>();
-    let (persistence_tx, persistence_rx) = mpsc::unbounded_channel::<PersistenceMessage>();
+    let (_persistence_tx, persistence_rx) = mpsc::unbounded_channel::<PersistenceMessage>();
 
     info!("📡 Communication channels established");
 

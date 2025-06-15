@@ -1,13 +1,7 @@
 // Monitoring and health check endpoints for SNIPERCOR
 // Provides observability for HFT system performance
 
-use axum::{
-    extract::State,
-    http::StatusCode,
-    response::Json,
-    routing::get,
-    Router,
-};
+use axum::{extract::State, http::StatusCode, response::Json, routing::get, Router};
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -87,10 +81,11 @@ pub struct MonitoringState {
     pub metrics: Arc<Mutex<Metrics>>,
 }
 
+#[allow(dead_code)]
 impl MonitoringState {
     pub fn new() -> Self {
         let now = chrono::Utc::now();
-        
+
         Self {
             start_time: Instant::now(),
             health: Arc::new(Mutex::new(ComponentHealth {
@@ -155,10 +150,16 @@ impl MonitoringState {
         }
     }
 
-    pub fn update_component_health(&self, component: &str, status: &str, message_count: u64, error_count: u64) {
+    pub fn update_component_health(
+        &self,
+        component: &str,
+        status: &str,
+        message_count: u64,
+        error_count: u64,
+    ) {
         if let Ok(mut health) = self.health.lock() {
             let now = chrono::Utc::now();
-            
+
             match component {
                 "data_ingestor" => {
                     health.data_ingestor.status = status.to_string();
@@ -197,20 +198,24 @@ impl MonitoringState {
 }
 
 // Health check endpoint
-pub async fn health_check(State(state): State<MonitoringState>) -> Result<Json<HealthStatus>, StatusCode> {
+pub async fn health_check(
+    State(state): State<MonitoringState>,
+) -> Result<Json<HealthStatus>, StatusCode> {
     let uptime = state.start_time.elapsed().as_secs();
-    
-    let health = state.health.lock()
+
+    let health = state
+        .health
+        .lock()
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .clone();
-    
+
     // Determine overall status
     let overall_status = if is_system_healthy(&health) {
         "healthy"
     } else {
         "unhealthy"
     };
-    
+
     let health_status = HealthStatus {
         status: overall_status.to_string(),
         timestamp: chrono::Utc::now(),
@@ -218,17 +223,21 @@ pub async fn health_check(State(state): State<MonitoringState>) -> Result<Json<H
         version: env!("CARGO_PKG_VERSION").to_string(),
         components: health,
     };
-    
+
     info!("Health check requested - Status: {}", overall_status);
-    
+
     Ok(Json(health_status))
 }
 
 // Readiness check endpoint
-pub async fn readiness_check(State(state): State<MonitoringState>) -> Result<StatusCode, StatusCode> {
-    let health = state.health.lock()
+pub async fn readiness_check(
+    State(state): State<MonitoringState>,
+) -> Result<StatusCode, StatusCode> {
+    let health = state
+        .health
+        .lock()
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    
+
     if is_system_ready(&health) {
         Ok(StatusCode::OK)
     } else {
@@ -243,19 +252,27 @@ pub async fn liveness_check() -> StatusCode {
 }
 
 // Metrics endpoint
-pub async fn metrics_endpoint(State(state): State<MonitoringState>) -> Result<Json<Metrics>, StatusCode> {
-    let metrics = state.metrics.lock()
+pub async fn metrics_endpoint(
+    State(state): State<MonitoringState>,
+) -> Result<Json<Metrics>, StatusCode> {
+    let metrics = state
+        .metrics
+        .lock()
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .clone();
-    
+
     Ok(Json(metrics))
 }
 
 // Prometheus metrics endpoint
-pub async fn prometheus_metrics(State(state): State<MonitoringState>) -> Result<String, StatusCode> {
-    let metrics = state.metrics.lock()
+pub async fn prometheus_metrics(
+    State(state): State<MonitoringState>,
+) -> Result<String, StatusCode> {
+    let metrics = state
+        .metrics
+        .lock()
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    
+
     let prometheus_format = format!(
         "# HELP sniper_total_signals Total number of trading signals generated\n\
          # TYPE sniper_total_signals counter\n\
@@ -282,14 +299,14 @@ pub async fn prometheus_metrics(State(state): State<MonitoringState>) -> Result<
         metrics.trading_metrics.total_pnl,
         metrics.trading_metrics.success_rate
     );
-    
+
     Ok(prometheus_format)
 }
 
 fn is_system_healthy(health: &ComponentHealth) -> bool {
     let now = chrono::Utc::now();
     let max_age = chrono::Duration::seconds(30); // 30 seconds max age for heartbeat
-    
+
     let components = [
         &health.data_ingestor,
         &health.strategy_engine,
@@ -297,16 +314,17 @@ fn is_system_healthy(health: &ComponentHealth) -> bool {
         &health.executor,
         &health.persistence,
     ];
-    
+
     for component in components {
         // Check if component is running and heartbeat is recent
-        if component.status != "running" || 
-           (now - component.last_heartbeat) > max_age ||
-           component.error_count > 10 {
+        if component.status != "running"
+            || (now - component.last_heartbeat) > max_age
+            || component.error_count > 10
+        {
             return false;
         }
     }
-    
+
     true
 }
 
@@ -318,13 +336,13 @@ fn is_system_ready(health: &ComponentHealth) -> bool {
         &health.executor,
         &health.persistence,
     ];
-    
+
     for component in components {
         if component.status == "starting" || component.status == "error" {
             return false;
         }
     }
-    
+
     true
 }
 

@@ -21,6 +21,7 @@ pub enum DataSource {
     QuickNode,
 }
 
+#[allow(dead_code)]
 pub struct DataIngestor {
     market_data_sender: mpsc::UnboundedSender<MarketData>,
     helius_api_key: String,
@@ -28,6 +29,7 @@ pub struct DataIngestor {
     is_running: bool,
 }
 
+#[allow(dead_code)]
 impl DataIngestor {
     pub fn new(
         market_data_sender: mpsc::UnboundedSender<MarketData>,

@@ -30,6 +30,7 @@ pub struct RiskManager {
     is_running: bool,
 }
 
+#[allow(dead_code)]
 impl RiskManager {
     pub fn new(
         signal_receiver: mpsc::UnboundedReceiver<TradingSignal>,

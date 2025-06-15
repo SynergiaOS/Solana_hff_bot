@@ -47,7 +47,8 @@ async fn test_concurrent_channels() -> anyhow::Result<()> {
     let mut numbers = Vec::new();
     let mut received_string = None;
 
-    for _ in 0..11 { // 10 numbers + 1 string
+    for _ in 0..11 {
+        // 10 numbers + 1 string
         tokio::select! {
             Some(num) = rx1.recv() => {
                 numbers.push(num);
@@ -84,7 +85,7 @@ async fn test_channel_throughput() -> anyhow::Result<()> {
     // Receive all messages
     let receiver_task = tokio::spawn(async move {
         let mut count = 0;
-        while let Some(_) = rx.recv().await {
+        while (rx.recv().await).is_some() {
             count += 1;
             if count >= 1000 {
                 break;
@@ -100,7 +101,11 @@ async fn test_channel_throughput() -> anyhow::Result<()> {
 
     assert_eq!(received_count, 1000);
     // Should be very fast for unbounded channels
-    assert!(duration.as_millis() < 100, "Channel throughput too slow: {:?}", duration);
+    assert!(
+        duration.as_millis() < 100,
+        "Channel throughput too slow: {:?}",
+        duration
+    );
 
     Ok(())
 }
