@@ -1,11 +1,11 @@
 // Persistence Module
 // Handles data storage and retrieval
 
+use crate::modules::executor::ExecutionResult;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
-use tracing::{info, error, debug};
-use crate::modules::executor::ExecutionResult;
+use tracing::{debug, info};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PersistenceMessage {
@@ -65,10 +65,10 @@ impl PersistenceManager {
         match message {
             PersistenceMessage::ExecutionResult(result) => {
                 self.store_execution_result(result).await?;
-            },
+            }
             PersistenceMessage::HealthCheck => {
                 debug!("💓 Persistence health check");
-            },
+            }
         }
         Ok(())
     }
@@ -78,7 +78,7 @@ impl PersistenceManager {
 
         // TODO: Implement actual database storage
         // sqlx::query!(
-        //     "INSERT INTO execution_results (signal_id, transaction_id, status, executed_quantity, executed_price, fees, timestamp, error_message) 
+        //     "INSERT INTO execution_results (signal_id, transaction_id, status, executed_quantity, executed_price, fees, timestamp, error_message)
         //      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
         //     result.signal_id,
         //     result.transaction_id,
@@ -93,7 +93,10 @@ impl PersistenceManager {
         // .await?;
 
         // For now, just log the storage
-        info!("📊 Stored execution result: {} ({})", result.transaction_id, result.signal_id);
+        info!(
+            "📊 Stored execution result: {} ({})",
+            result.transaction_id, result.signal_id
+        );
 
         Ok(())
     }
@@ -108,11 +111,7 @@ mod tests {
         let (_tx, rx) = mpsc::unbounded_channel();
         let (_exec_tx, exec_rx) = mpsc::unbounded_channel();
 
-        let manager = PersistenceManager::new(
-            rx,
-            exec_rx,
-            "postgresql://test".to_string(),
-        );
+        let manager = PersistenceManager::new(rx, exec_rx, "postgresql://test".to_string());
 
         assert!(!manager.is_running);
     }

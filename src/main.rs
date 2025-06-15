@@ -3,19 +3,21 @@
 
 mod config;
 mod modules;
+mod monitoring;
 
 use anyhow::Result;
 use tokio::sync::mpsc;
-use tracing::{info, error, warn};
-use uuid::Uuid;
+use tracing::{error, info, warn};
+// use uuid::Uuid; // Commented out to avoid unused import warning
 
 use config::Config;
+use monitoring::{MonitoringState, create_monitoring_router};
 use modules::{
     data_ingestor::{DataIngestor, MarketData},
-    strategy::{StrategyEngine, TradingSignal},
-    risk::{RiskManager, RiskParameters, ApprovedSignal},
-    executor::{Executor, ExecutionResult},
+    executor::{ExecutionResult, Executor},
     persistence::{PersistenceManager, PersistenceMessage},
+    risk::{ApprovedSignal, RiskManager, RiskParameters},
+    strategy::{StrategyEngine, TradingSignal},
 };
 
 #[tokio::main(worker_threads = 6)]
@@ -34,7 +36,7 @@ async fn main() -> Result<()> {
     match config.trading.mode {
         config::TradingMode::Paper => {
             info!("📝 Running in PAPER TRADING mode - No real transactions");
-        },
+        }
         config::TradingMode::Live => {
             warn!("🔴 LIVE TRADING MODE ENABLED - Real money at risk!");
             warn!("🔴 Ensure all risk parameters are properly configured");
@@ -50,6 +52,22 @@ async fn main() -> Result<()> {
 
     info!("📡 Communication channels established");
 
+    // Initialize monitoring
+    let monitoring_state = MonitoringState::new();
+    let monitoring_router = create_monitoring_router(monitoring_state.clone());
+
+    // Start monitoring server
+    let monitoring_port = config.server.port;
+    let _monitoring_server = tokio::spawn(async move {
+        let addr = format!("0.0.0.0:{}", monitoring_port);
+        let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
+        info!("🔍 Monitoring server listening on http://{}", addr);
+        info!("📊 Health: http://{}/health", addr);
+        info!("📈 Metrics: http://{}/metrics", addr);
+        info!("🎯 Prometheus: http://{}/metrics/prometheus", addr);
+        axum::serve(listener, monitoring_router).await.unwrap();
+    });
+
     // Initialize all modules
     let mut data_ingestor = DataIngestor::new(
         market_data_tx,
@@ -57,10 +75,7 @@ async fn main() -> Result<()> {
         config.api.quicknode_api_key.clone(),
     );
 
-    let mut strategy_engine = StrategyEngine::new(
-        market_data_rx,
-        signal_tx,
-    );
+    let mut strategy_engine = StrategyEngine::new(market_data_rx, signal_tx);
 
     let risk_params = RiskParameters {
         max_position_size: config.trading.max_position_size,
@@ -68,11 +83,7 @@ async fn main() -> Result<()> {
         min_confidence_threshold: 0.6, // Default confidence threshold
     };
 
-    let mut risk_manager = RiskManager::new(
-        signal_rx,
-        execution_tx,
-        risk_params,
-    );
+    let mut risk_manager = RiskManager::new(signal_rx, execution_tx, risk_params);
 
     let mut executor = Executor::new(
         execution_rx,
@@ -126,7 +137,10 @@ async fn main() -> Result<()> {
     info!("✅ All modules started successfully");
     info!("🎯 SNIPERCOR is now operational and monitoring markets");
     info!("📊 Trading Mode: {}", config.trading_mode_str());
-    info!("💰 Max Position Size: ${}", config.trading.max_position_size);
+    info!(
+        "💰 Max Position Size: ${}",
+        config.trading.max_position_size
+    );
     info!("🛡️ Max Daily Loss: ${}", config.trading.max_daily_loss);
 
     // Wait for all tasks to complete (or fail)

@@ -4,7 +4,7 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
-use tracing::{info, error, debug};
+use tracing::{error, info};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MarketData {
@@ -60,14 +60,23 @@ impl DataIngestor {
 
     async fn simulate_market_data(&self) -> Result<()> {
         let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(100));
-        
-        while self.is_running {
+
+        let mut price_base = 100.0;
+
+        loop {
+            if !self.is_running {
+                break;
+            }
+
             interval.tick().await;
-            
+
+            // Simple price simulation with small variations
+            price_base += (chrono::Utc::now().timestamp_millis() % 10) as f64 * 0.1 - 0.5;
+
             let market_data = MarketData {
                 symbol: "SOL/USDC".to_string(),
-                price: 100.0 + (0.5 - 0.5) * 10.0, // Simplified for now
-                volume: 1000.0, // Fixed value for now
+                price: price_base,
+                volume: 1000.0 + (chrono::Utc::now().timestamp_millis() % 500) as f64,
                 timestamp: chrono::Utc::now(),
                 source: DataSource::Helius,
             };
@@ -94,7 +103,7 @@ mod tests {
             "test_helius_key".to_string(),
             "test_quicknode_key".to_string(),
         );
-        
+
         assert!(!ingestor.is_running);
     }
 }

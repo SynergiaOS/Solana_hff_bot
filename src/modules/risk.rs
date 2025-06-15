@@ -1,11 +1,11 @@
 // Risk Manager Module
 // Evaluates trading signals against risk parameters
 
+use crate::modules::strategy::TradingSignal;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
-use tracing::{info, error, debug, warn};
-use crate::modules::strategy::TradingSignal;
+use tracing::{debug, error, info, warn};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RiskParameters {
@@ -46,7 +46,10 @@ impl RiskManager {
     }
 
     pub async fn start(&mut self) -> Result<()> {
-        info!("🛡️ RiskManager starting with params: {:?}", self.risk_params);
+        info!(
+            "🛡️ RiskManager starting with params: {:?}",
+            self.risk_params
+        );
         self.is_running = true;
 
         while self.is_running {
@@ -68,21 +71,29 @@ impl RiskManager {
 
         // Check confidence threshold
         if signal.confidence < self.risk_params.min_confidence_threshold {
-            warn!("Signal {} rejected: confidence {} below threshold {}", 
-                  signal.signal_id, signal.confidence, self.risk_params.min_confidence_threshold);
+            warn!(
+                "Signal {} rejected: confidence {} below threshold {}",
+                signal.signal_id, signal.confidence, self.risk_params.min_confidence_threshold
+            );
             return Ok(());
         }
 
         // Check position size limits
         let approved_quantity = self.check_position_limits(&signal)?;
         if approved_quantity <= 0.0 {
-            warn!("Signal {} rejected: position size limits exceeded", signal.signal_id);
+            warn!(
+                "Signal {} rejected: position size limits exceeded",
+                signal.signal_id
+            );
             return Ok(());
         }
 
         // Check daily loss limits
         if !self.check_daily_loss_limits()? {
-            warn!("Signal {} rejected: daily loss limits exceeded", signal.signal_id);
+            warn!(
+                "Signal {} rejected: daily loss limits exceeded",
+                signal.signal_id
+            );
             return Ok(());
         }
 
@@ -98,7 +109,10 @@ impl RiskManager {
         };
 
         self.send_approved_signal(approved_signal).await?;
-        info!("✅ Signal {} approved with quantity {}", signal.signal_id, approved_quantity);
+        info!(
+            "✅ Signal {} approved with quantity {}",
+            signal.signal_id, approved_quantity
+        );
 
         Ok(())
     }
@@ -129,6 +143,10 @@ impl RiskManager {
             crate::modules::strategy::StrategyType::TokenSniping => 0.3,
             crate::modules::strategy::StrategyType::Arbitrage => 0.1,
             crate::modules::strategy::StrategyType::MomentumTrading => 0.2,
+            crate::modules::strategy::StrategyType::SoulMeteorSniping => 0.25,
+            crate::modules::strategy::StrategyType::MeteoraDAMM => 0.8, // Very high risk
+            crate::modules::strategy::StrategyType::DeveloperTracking => 0.7, // High risk
+            crate::modules::strategy::StrategyType::AxiomMemeCoin => 0.9, // Extreme risk
         };
 
         Ok(risk_score.min(1.0))
@@ -154,19 +172,19 @@ impl RiskManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::modules::strategy::{TradeAction, StrategyType};
+    // use crate::modules::strategy::{StrategyType, TradeAction};
 
     #[tokio::test]
     async fn test_risk_manager_creation() {
         let (_signal_tx, signal_rx) = mpsc::unbounded_channel();
         let (execution_tx, _execution_rx) = mpsc::unbounded_channel();
-        
+
         let risk_params = RiskParameters {
             max_position_size: 1000.0,
             max_daily_loss: 500.0,
             min_confidence_threshold: 0.6,
         };
-        
+
         let manager = RiskManager::new(signal_rx, execution_tx, risk_params);
         assert!(!manager.is_running);
         assert_eq!(manager.daily_pnl, 0.0);

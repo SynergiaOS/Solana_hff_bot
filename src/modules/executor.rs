@@ -1,12 +1,12 @@
 // Executor Module
 // Handles trade execution on Solana blockchain
 
+use crate::config::TradingMode;
+use crate::modules::risk::ApprovedSignal;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
-use tracing::{info, error, debug, warn};
-use crate::modules::risk::ApprovedSignal;
-use crate::config::TradingMode;
+use tracing::{debug, error, info, warn};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecutionResult {
@@ -57,7 +57,7 @@ impl Executor {
 
     pub async fn start(&mut self) -> Result<()> {
         info!("⚡ Executor starting in {:?} mode...", self.trading_mode);
-        
+
         // Safety warning for live trading
         if matches!(self.trading_mode, TradingMode::Live) {
             warn!("🔴 LIVE TRADING MODE ENABLED - Real transactions will be executed!");
@@ -81,7 +81,10 @@ impl Executor {
 
     async fn execute_signal(&self, signal: ApprovedSignal) -> Result<()> {
         let signal_id = signal.original_signal.signal_id.clone();
-        info!("🎯 Executing signal: {} with quantity: {}", signal_id, signal.approved_quantity);
+        info!(
+            "🎯 Executing signal: {} with quantity: {}",
+            signal_id, signal.approved_quantity
+        );
 
         let result = match self.trading_mode {
             TradingMode::Paper => self.execute_paper_trade(signal).await?,
@@ -99,7 +102,10 @@ impl Executor {
     }
 
     async fn execute_paper_trade(&self, signal: ApprovedSignal) -> Result<ExecutionResult> {
-        debug!("📝 Executing paper trade for signal: {}", signal.original_signal.signal_id);
+        debug!(
+            "📝 Executing paper trade for signal: {}",
+            signal.original_signal.signal_id
+        );
 
         // Simulate execution delay
         tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
@@ -119,7 +125,10 @@ impl Executor {
     }
 
     async fn execute_live_trade(&self, signal: ApprovedSignal) -> Result<ExecutionResult> {
-        warn!("🔴 EXECUTING LIVE TRADE - Signal ID: {}", signal.original_signal.signal_id);
+        warn!(
+            "🔴 EXECUTING LIVE TRADE - Signal ID: {}",
+            signal.original_signal.signal_id
+        );
 
         // TODO: Implement actual Solana transaction execution
         // This would involve:
@@ -130,9 +139,9 @@ impl Executor {
 
         // For now, simulate with higher latency and potential failures
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-        
+
         let success = true; // Always succeed for now
-        
+
         let result = if success {
             ExecutionResult {
                 signal_id: signal.original_signal.signal_id,
@@ -163,19 +172,27 @@ impl Executor {
     fn log_execution_result(&self, result: &ExecutionResult) {
         match result.status {
             ExecutionStatus::Confirmed => {
-                info!("✅ Transaction confirmed: {} - Quantity: {}, Price: {}, Fees: {}", 
-                      result.transaction_id, result.executed_quantity, result.executed_price, result.fees);
-            },
+                info!(
+                    "✅ Transaction confirmed: {} - Quantity: {}, Price: {}, Fees: {}",
+                    result.transaction_id,
+                    result.executed_quantity,
+                    result.executed_price,
+                    result.fees
+                );
+            }
             ExecutionStatus::Failed => {
-                error!("❌ Transaction failed: {} - Error: {}", 
-                       result.transaction_id, result.error_message.as_deref().unwrap_or("Unknown error"));
-            },
+                error!(
+                    "❌ Transaction failed: {} - Error: {}",
+                    result.transaction_id,
+                    result.error_message.as_deref().unwrap_or("Unknown error")
+                );
+            }
             ExecutionStatus::Pending => {
                 debug!("⏳ Transaction pending: {}", result.transaction_id);
-            },
+            }
             ExecutionStatus::Cancelled => {
                 warn!("🚫 Transaction cancelled: {}", result.transaction_id);
-            },
+            }
         }
     }
 }
@@ -183,14 +200,14 @@ impl Executor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::modules::strategy::{TradingSignal, TradeAction, StrategyType};
-    use crate::modules::risk::ApprovedSignal;
+    // use crate::modules::risk::ApprovedSignal;
+    // use crate::modules::strategy::{StrategyType, TradeAction, TradingSignal};
 
     #[tokio::test]
     async fn test_executor_creation() {
         let (_signal_tx, signal_rx) = mpsc::unbounded_channel();
         let (persistence_tx, _persistence_rx) = mpsc::unbounded_channel();
-        
+
         let executor = Executor::new(
             signal_rx,
             persistence_tx,
@@ -198,7 +215,7 @@ mod tests {
             "https://api.mainnet-beta.solana.com".to_string(),
             "test_key".to_string(),
         );
-        
+
         assert!(!executor.is_running);
     }
 }

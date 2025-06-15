@@ -37,7 +37,10 @@ pub struct SolanaConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApiConfig {
     pub helius_api_key: String,
+    pub helius_rpc_url: String,
+    pub helius_ws_url: String,
     pub quicknode_api_key: String,
+    pub quicknode_ws_url: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -90,12 +93,17 @@ impl Config {
             api: ApiConfig {
                 helius_api_key: env::var("SNIPER_HELIUS_API_KEY")
                     .context("SNIPER_HELIUS_API_KEY is required")?,
+                helius_rpc_url: env::var("SNIPER_HELIUS_RPC_URL")
+                    .context("SNIPER_HELIUS_RPC_URL is required")?,
+                helius_ws_url: env::var("SNIPER_HELIUS_WS_URL")
+                    .context("SNIPER_HELIUS_WS_URL is required")?,
                 quicknode_api_key: env::var("SNIPER_QUICKNODE_API_KEY")
                     .context("SNIPER_QUICKNODE_API_KEY is required")?,
+                quicknode_ws_url: env::var("SNIPER_QUICKNODE_WS_URL")
+                    .context("SNIPER_QUICKNODE_WS_URL is required")?,
             },
             database: DatabaseConfig {
-                url: env::var("SNIPER_DATABASE_URL")
-                    .context("SNIPER_DATABASE_URL is required")?,
+                url: env::var("SNIPER_DATABASE_URL").context("SNIPER_DATABASE_URL is required")?,
             },
             server: ServerConfig {
                 port: env::var("SNIPER_SERVER_PORT")
@@ -104,8 +112,7 @@ impl Config {
                     .context("Invalid SNIPER_SERVER_PORT")?,
             },
             logging: LoggingConfig {
-                level: env::var("SNIPER_LOG_LEVEL")
-                    .unwrap_or_else(|_| "info".to_string()),
+                level: env::var("SNIPER_LOG_LEVEL").unwrap_or_else(|_| "info".to_string()),
             },
         };
 
@@ -149,7 +156,7 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::env;
+    // use std::env; // Commented out to avoid unused import warning
 
     #[test]
     fn test_config_validation() {
@@ -165,7 +172,10 @@ mod tests {
             },
             api: ApiConfig {
                 helius_api_key: "test_key".to_string(),
+                helius_rpc_url: "https://devnet.helius-rpc.com".to_string(),
+                helius_ws_url: "wss://devnet.helius-rpc.com".to_string(),
                 quicknode_api_key: "test_key".to_string(),
+                quicknode_ws_url: "wss://test.quiknode.pro".to_string(),
             },
             database: DatabaseConfig {
                 url: "postgresql://test".to_string(),
@@ -197,7 +207,10 @@ mod tests {
             },
             api: ApiConfig {
                 helius_api_key: "test".to_string(),
+                helius_rpc_url: "https://devnet.helius-rpc.com".to_string(),
+                helius_ws_url: "wss://devnet.helius-rpc.com".to_string(),
                 quicknode_api_key: "test".to_string(),
+                quicknode_ws_url: "wss://test.quiknode.pro".to_string(),
             },
             database: DatabaseConfig {
                 url: "test".to_string(),
