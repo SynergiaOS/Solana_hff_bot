@@ -6,6 +6,8 @@ pub mod executor;
 pub mod persistence;
 pub mod risk;
 pub mod strategy;
+// THE OVERMIND PROTOCOL - HFT Engine
+pub mod hft_engine;
 
 // Advanced strategy modules based on Solana knowledge
 pub mod dev_tracker;

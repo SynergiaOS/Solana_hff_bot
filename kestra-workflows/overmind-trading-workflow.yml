@@ -1,0 +1,246 @@
+id: overmind-trading-workflow
+namespace: trading.overmind
+
+description: |
+  THE OVERMIND PROTOCOL - AI-Enhanced Trading Workflow
+  Orchestrates the complete trading pipeline with AI decision making
+
+labels:
+  system: overmind
+  type: trading
+  environment: "{{ vars.environment }}"
+
+inputs:
+  - id: trading_mode
+    type: STRING
+    defaults: paper
+    description: Trading mode (paper or live)
+  
+  - id: ai_confidence_threshold
+    type: FLOAT
+    defaults: 0.7
+    description: Minimum AI confidence for trade execution
+
+variables:
+  environment: "{{ inputs.trading_mode == 'live' ? 'production' : 'development' }}"
+  overmind_api_url: "http://overmind-trading:8080"
+  tensorzero_url: "http://tensorzero-gateway:3000"
+
+tasks:
+  # ============================================================================
+  # Market Data Ingestion
+  # ============================================================================
+  
+  - id: ingest-market-data
+    type: io.kestra.core.tasks.flows.Parallel
+    description: Parallel market data ingestion from multiple sources
+    tasks:
+      - id: solana-data
+        type: io.kestra.plugin.core.http.Request
+        uri: "{{ vars.overmind_api_url }}/api/market-data/solana"
+        method: GET
+        headers:
+          Content-Type: application/json
+        
+      - id: dex-data
+        type: io.kestra.plugin.core.http.Request
+        uri: "{{ vars.overmind_api_url }}/api/market-data/dex"
+        method: GET
+        headers:
+          Content-Type: application/json
+
+  # ============================================================================
+  # AI Decision Engine
+  # ============================================================================
+  
+  - id: ai-analysis
+    type: io.kestra.plugin.core.http.Request
+    description: Get AI trading decision from TensorZero
+    uri: "{{ vars.tensorzero_url }}/inference"
+    method: POST
+    headers:
+      Content-Type: application/json
+    body: |
+      {
+        "function_name": "overmind_trading_decision",
+        "input": {
+          "market_data": "{{ outputs['ingest-market-data']['solana-data']['body'] }}"
+        },
+        "tags": {
+          "workflow_id": "{{ flow.id }}",
+          "execution_id": "{{ execution.id }}",
+          "trading_mode": "{{ inputs.trading_mode }}"
+        }
+      }
+
+  # ============================================================================
+  # Decision Validation
+  # ============================================================================
+  
+  - id: validate-ai-decision
+    type: io.kestra.plugin.core.flow.If
+    description: Validate AI confidence and decision quality
+    condition: "{{ outputs['ai-analysis']['body']['confidence'] >= inputs.ai_confidence_threshold }}"
+    then:
+      - id: log-approved-decision
+        type: io.kestra.core.tasks.log.Log
+        message: |
+          🧠 AI Decision APPROVED:
+          Confidence: {{ outputs['ai-analysis']['body']['confidence'] }}
+          Action: {{ outputs['ai-analysis']['body']['action'] }}
+          Estimated Profit: ${{ outputs['ai-analysis']['body']['estimated_profit'] }}
+    else:
+      - id: log-rejected-decision
+        type: io.kestra.core.tasks.log.Log
+        message: |
+          ⚠️ AI Decision REJECTED:
+          Confidence: {{ outputs['ai-analysis']['body']['confidence'] }} < {{ inputs.ai_confidence_threshold }}
+          Skipping trade execution
+
+  # ============================================================================
+  # Risk Management
+  # ============================================================================
+  
+  - id: risk-assessment
+    type: io.kestra.plugin.core.http.Request
+    description: Perform risk assessment
+    condition: "{{ outputs['ai-analysis']['body']['confidence'] >= inputs.ai_confidence_threshold }}"
+    uri: "{{ vars.overmind_api_url }}/api/risk/assess"
+    method: POST
+    headers:
+      Content-Type: application/json
+    body: |
+      {
+        "signal": {{ outputs['ai-analysis']['body'] }},
+        "trading_mode": "{{ inputs.trading_mode }}",
+        "timestamp": "{{ execution.startDate }}"
+      }
+
+  # ============================================================================
+  # Trade Execution
+  # ============================================================================
+  
+  - id: execute-trade
+    type: io.kestra.plugin.core.flow.If
+    description: Execute trade if risk assessment passes
+    condition: |
+      {{ 
+        outputs['ai-analysis']['body']['confidence'] >= inputs.ai_confidence_threshold 
+        and outputs['risk-assessment']['body']['approved'] == true 
+      }}
+    then:
+      - id: submit-trade
+        type: io.kestra.plugin.core.http.Request
+        description: Submit trade to OVERMIND executor
+        uri: "{{ vars.overmind_api_url }}/api/execute"
+        method: POST
+        headers:
+          Content-Type: application/json
+        body: |
+          {
+            "signal": {{ outputs['ai-analysis']['body'] }},
+            "risk_approval": {{ outputs['risk-assessment']['body'] }},
+            "trading_mode": "{{ inputs.trading_mode }}",
+            "execution_id": "{{ execution.id }}"
+          }
+        
+      - id: log-execution
+        type: io.kestra.core.tasks.log.Log
+        message: |
+          ⚡ TRADE EXECUTED:
+          Execution ID: {{ execution.id }}
+          Signal: {{ outputs['ai-analysis']['body']['action'] }}
+          Amount: ${{ outputs['ai-analysis']['body']['amount'] }}
+          Mode: {{ inputs.trading_mode }}
+    else:
+      - id: log-skipped
+        type: io.kestra.core.tasks.log.Log
+        message: |
+          🛑 TRADE SKIPPED:
+          Reason: {{ outputs['risk-assessment']['body']['rejection_reason'] | default('Low confidence') }}
+
+  # ============================================================================
+  # Monitoring and Alerting
+  # ============================================================================
+  
+  - id: update-metrics
+    type: io.kestra.plugin.core.http.Request
+    description: Update trading metrics
+    uri: "{{ vars.overmind_api_url }}/api/metrics/update"
+    method: POST
+    headers:
+      Content-Type: application/json
+    body: |
+      {
+        "execution_id": "{{ execution.id }}",
+        "ai_confidence": {{ outputs['ai-analysis']['body']['confidence'] }},
+        "trade_executed": {{ outputs['execute-trade'] is defined }},
+        "timestamp": "{{ execution.startDate }}",
+        "workflow_duration_ms": {{ execution.duration }}
+      }
+
+  # ============================================================================
+  # Error Handling and Notifications
+  # ============================================================================
+  
+  - id: error-notification
+    type: io.kestra.plugin.core.flow.If
+    description: Send notification if critical error occurred
+    condition: "{{ execution.state.current == 'FAILED' }}"
+    then:
+      - id: send-alert
+        type: io.kestra.core.tasks.log.Log
+        level: ERROR
+        message: |
+          🚨 OVERMIND WORKFLOW FAILED:
+          Execution ID: {{ execution.id }}
+          Error: {{ execution.state.histories | last | json }}
+          Timestamp: {{ execution.startDate }}
+
+# ============================================================================
+# Triggers and Scheduling
+# ============================================================================
+
+triggers:
+  # High-frequency trigger for active trading
+  - id: hft-trigger
+    type: io.kestra.core.models.triggers.types.Schedule
+    cron: "*/5 * * * * *"  # Every 5 seconds
+    conditions:
+      - type: io.kestra.core.models.conditions.types.VariableCondition
+        expression: "{{ vars.environment == 'production' and inputs.trading_mode == 'live' }}"
+
+  # Lower frequency for paper trading
+  - id: paper-trigger
+    type: io.kestra.core.models.triggers.types.Schedule
+    cron: "*/30 * * * * *"  # Every 30 seconds
+    conditions:
+      - type: io.kestra.core.models.conditions.types.VariableCondition
+        expression: "{{ inputs.trading_mode == 'paper' }}"
+
+# ============================================================================
+# Error Handling
+# ============================================================================
+
+errors:
+  - id: ai-service-error
+    type: io.kestra.plugin.core.flow.If
+    condition: "{{ outputs['ai-analysis'] is not defined or outputs['ai-analysis']['status'] != 200 }}"
+    then:
+      - id: fallback-decision
+        type: io.kestra.core.tasks.log.Log
+        level: WARN
+        message: "AI service unavailable, falling back to conservative strategy"
+
+  - id: execution-error
+    type: io.kestra.plugin.core.flow.If
+    condition: "{{ outputs['execute-trade']['status'] is defined and outputs['execute-trade']['status'] != 200 }}"
+    then:
+      - id: retry-execution
+        type: io.kestra.core.tasks.flows.Retry
+        maxAttempt: 3
+        task:
+          id: retry-trade
+          type: io.kestra.plugin.core.http.Request
+          uri: "{{ vars.overmind_api_url }}/api/execute/retry"
+          method: POST

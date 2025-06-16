@@ -13,6 +13,8 @@ pub struct Config {
     pub database: DatabaseConfig,
     pub server: ServerConfig,
     pub logging: LoggingConfig,
+    // THE OVERMIND PROTOCOL - HFT Engine Configuration
+    pub overmind: OvermindConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -56,6 +58,16 @@ pub struct ServerConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LoggingConfig {
     pub level: String,
+}
+
+// THE OVERMIND PROTOCOL - HFT Engine Configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OvermindConfig {
+    pub enabled: bool,
+    pub tensorzero_gateway_url: String,
+    pub jito_endpoint: String,
+    pub max_execution_latency_ms: u64,
+    pub ai_confidence_threshold: f64,
 }
 
 #[allow(dead_code)]
@@ -115,6 +127,25 @@ impl Config {
             logging: LoggingConfig {
                 level: env::var("SNIPER_LOG_LEVEL").unwrap_or_else(|_| "info".to_string()),
             },
+            // THE OVERMIND PROTOCOL - HFT Engine Configuration
+            overmind: OvermindConfig {
+                enabled: env::var("OVERMIND_ENABLED")
+                    .unwrap_or_else(|_| "false".to_string())
+                    .parse()
+                    .unwrap_or(false),
+                tensorzero_gateway_url: env::var("OVERMIND_TENSORZERO_URL")
+                    .unwrap_or_else(|_| "http://localhost:3000".to_string()),
+                jito_endpoint: env::var("OVERMIND_JITO_ENDPOINT")
+                    .unwrap_or_else(|_| "https://mainnet.block-engine.jito.wtf".to_string()),
+                max_execution_latency_ms: env::var("OVERMIND_MAX_LATENCY_MS")
+                    .unwrap_or_else(|_| "25".to_string())
+                    .parse()
+                    .unwrap_or(25),
+                ai_confidence_threshold: env::var("OVERMIND_AI_CONFIDENCE_THRESHOLD")
+                    .unwrap_or_else(|_| "0.7".to_string())
+                    .parse()
+                    .unwrap_or(0.7),
+            },
         };
 
         // Validate configuration
@@ -152,6 +183,20 @@ impl Config {
             TradingMode::Live => "live",
         }
     }
+
+    /// Check if THE OVERMIND PROTOCOL is enabled
+    pub fn is_overmind_enabled(&self) -> bool {
+        self.overmind.enabled
+    }
+
+    /// Get OVERMIND mode description
+    pub fn overmind_mode_str(&self) -> &'static str {
+        if self.overmind.enabled {
+            "THE OVERMIND PROTOCOL (AI-Enhanced)"
+        } else {
+            "Standard Mode"
+        }
+    }
 }
 
 #[cfg(test)]
@@ -184,6 +229,13 @@ mod tests {
             server: ServerConfig { port: 8080 },
             logging: LoggingConfig {
                 level: "info".to_string(),
+            },
+            overmind: OvermindConfig {
+                enabled: false,
+                tensorzero_gateway_url: "http://localhost:3000".to_string(),
+                jito_endpoint: "https://mainnet.block-engine.jito.wtf".to_string(),
+                max_execution_latency_ms: 25,
+                ai_confidence_threshold: 0.7,
             },
         };
 
@@ -219,6 +271,13 @@ mod tests {
             server: ServerConfig { port: 8080 },
             logging: LoggingConfig {
                 level: "info".to_string(),
+            },
+            overmind: OvermindConfig {
+                enabled: false,
+                tensorzero_gateway_url: "http://localhost:3000".to_string(),
+                jito_endpoint: "https://mainnet.block-engine.jito.wtf".to_string(),
+                max_execution_latency_ms: 25,
+                ai_confidence_threshold: 0.7,
             },
         };
 

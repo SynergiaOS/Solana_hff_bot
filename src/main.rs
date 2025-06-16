@@ -1,5 +1,5 @@
-// SNIPERCOR - High-Frequency Trading System for Solana
-// Main entry point for the monolithic trading application
+// THE OVERMIND PROTOCOL - AI-Enhanced High-Frequency Trading System for Solana
+// Main entry point for the monolithic trading application with TensorZero optimization
 
 mod config;
 mod modules;
@@ -14,6 +14,7 @@ use config::Config;
 use modules::{
     data_ingestor::{DataIngestor, MarketData},
     executor::{ExecutionResult, Executor},
+    hft_engine::HFTConfig,
     persistence::{PersistenceManager, PersistenceMessage},
     risk::{ApprovedSignal, RiskManager, RiskParameters},
     strategy::{StrategyEngine, TradingSignal},
@@ -27,7 +28,7 @@ async fn main() -> Result<()> {
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
 
-    info!("🚀 Starting SNIPERCOR - Solana HFT Trading System");
+    info!("🧠 Starting THE OVERMIND PROTOCOL - AI-Enhanced Solana HFT Trading System");
 
     // Load configuration
     let config = Config::from_env()?;
@@ -41,6 +42,18 @@ async fn main() -> Result<()> {
             warn!("🔴 LIVE TRADING MODE ENABLED - Real money at risk!");
             warn!("🔴 Ensure all risk parameters are properly configured");
         }
+    }
+
+    // THE OVERMIND PROTOCOL status
+    if config.is_overmind_enabled() {
+        info!("🧠 THE OVERMIND PROTOCOL: ENABLED");
+        info!("🤖 TensorZero Gateway: {}", config.overmind.tensorzero_gateway_url);
+        info!("⚡ Jito Endpoint: {}", config.overmind.jito_endpoint);
+        info!("⏱️ Max Latency Target: {}ms", config.overmind.max_execution_latency_ms);
+        info!("🎯 AI Confidence Threshold: {:.1}%", config.overmind.ai_confidence_threshold * 100.0);
+        warn!("🧠 AI-ENHANCED EXECUTION ACTIVE - TensorZero optimization enabled");
+    } else {
+        info!("🤖 THE OVERMIND PROTOCOL: DISABLED (Standard mode)");
     }
 
     // Create communication channels between modules
@@ -85,13 +98,48 @@ async fn main() -> Result<()> {
 
     let mut risk_manager = RiskManager::new(signal_rx, execution_tx, risk_params);
 
-    let mut executor = Executor::new(
-        execution_rx,
-        execution_result_tx,
-        config.trading.mode.clone(),
-        config.solana.rpc_url.clone(),
-        config.solana.wallet_private_key.clone(),
-    );
+    // Initialize Executor with optional HFT Engine
+    let mut executor = if config.is_overmind_enabled() {
+        info!("🧠 Initializing THE OVERMIND PROTOCOL Executor with AI enhancement...");
+
+        let hft_config = HFTConfig {
+            tensorzero_gateway_url: config.overmind.tensorzero_gateway_url.clone(),
+            jito_endpoint: config.overmind.jito_endpoint.clone(),
+            max_execution_latency_ms: config.overmind.max_execution_latency_ms,
+            max_bundle_size: 5,
+            retry_attempts: 3,
+            ai_confidence_threshold: config.overmind.ai_confidence_threshold,
+        };
+
+        // Create HFT-enabled executor
+        match Executor::new_with_hft(
+            execution_rx,
+            execution_result_tx,
+            config.trading.mode.clone(),
+            config.solana.rpc_url.clone(),
+            config.solana.wallet_private_key.clone(),
+            hft_config,
+        ) {
+            Ok(executor) => {
+                info!("✅ THE OVERMIND PROTOCOL Executor initialized successfully");
+                executor
+            }
+            Err(e) => {
+                error!("❌ Failed to initialize HFT Engine: {}", e);
+                error!("🛑 Cannot start THE OVERMIND PROTOCOL without HFT Engine");
+                return Err(e);
+            }
+        }
+    } else {
+        info!("⚡ Initializing standard Executor...");
+        Executor::new(
+            execution_rx,
+            execution_result_tx,
+            config.trading.mode.clone(),
+            config.solana.rpc_url.clone(),
+            config.solana.wallet_private_key.clone(),
+        )
+    };
 
     let mut persistence_manager = PersistenceManager::new(
         persistence_rx,
@@ -135,8 +183,17 @@ async fn main() -> Result<()> {
     });
 
     info!("✅ All modules started successfully");
-    info!("🎯 SNIPERCOR is now operational and monitoring markets");
+
+    if config.is_overmind_enabled() {
+        info!("🧠 THE OVERMIND PROTOCOL is now operational and monitoring markets");
+        info!("🤖 AI-Enhanced execution with TensorZero optimization: ACTIVE");
+        info!("⚡ Jito Bundle execution for MEV protection: ACTIVE");
+    } else {
+        info!("🎯 SNIPERCOR is now operational and monitoring markets");
+    }
+
     info!("📊 Trading Mode: {}", config.trading_mode_str());
+    info!("🤖 AI Mode: {}", config.overmind_mode_str());
     info!(
         "💰 Max Position Size: ${}",
         config.trading.max_position_size
@@ -152,6 +209,10 @@ async fn main() -> Result<()> {
         persistence_task,
     )?;
 
-    info!("🛑 SNIPERCOR shutdown complete");
+    if config.is_overmind_enabled() {
+        info!("🛑 THE OVERMIND PROTOCOL shutdown complete");
+    } else {
+        info!("🛑 SNIPERCOR shutdown complete");
+    }
     Ok(())
 }
