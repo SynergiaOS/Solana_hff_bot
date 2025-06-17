@@ -123,7 +123,7 @@ impl MultiWalletConfig {
             let max_allocation: f64 = parts[4].parse()
                 .context("Invalid allocation percentage")?;
 
-            if max_allocation < 0.0 || max_allocation > 1.0 {
+            if !(0.0..=1.0).contains(&max_allocation) {
                 return Err(anyhow!("Allocation must be between 0.0 and 1.0, got: {}", max_allocation));
             }
 

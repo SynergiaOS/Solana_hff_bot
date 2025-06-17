@@ -82,6 +82,12 @@ pub struct MonitoringState {
 }
 
 #[allow(dead_code)]
+impl Default for MonitoringState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MonitoringState {
     pub fn new() -> Self {
         let now = chrono::Utc::now();

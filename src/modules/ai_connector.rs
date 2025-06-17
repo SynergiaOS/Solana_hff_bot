@@ -617,8 +617,8 @@ mod tests {
             vector_memory_context: None,
         };
 
-        let (tx, rx) = mpsc::unbounded_channel::<AIDecision>();
-        let config = AIConnectorConfig::default();
+        let (_tx, _rx) = mpsc::unbounded_channel::<AIDecision>();
+        let _config = AIConnectorConfig::default();
         
         // Note: This test would need a mock DragonflyDB connection
         // For now, we just test the conversion logic

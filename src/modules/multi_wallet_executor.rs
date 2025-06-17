@@ -75,6 +75,7 @@ impl MultiWalletExecutor {
     }
 
     /// Create new multi-wallet executor with HFT engine
+    #[allow(clippy::too_many_arguments)]
     pub fn new_with_hft(
         signal_receiver: mpsc::UnboundedReceiver<ApprovedSignal>,
         persistence_sender: mpsc::UnboundedSender<ExecutionResult>,
