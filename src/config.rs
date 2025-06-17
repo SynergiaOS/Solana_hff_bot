@@ -223,6 +223,8 @@ mod tests {
             solana: SolanaConfig {
                 rpc_url: "https://api.mainnet-beta.solana.com".to_string(),
                 wallet_private_key: "test_key".to_string(),
+                multi_wallet_enabled: false,
+                default_wallet_id: None,
             },
             api: ApiConfig {
                 helius_api_key: "test_key".to_string(),
@@ -265,6 +267,8 @@ mod tests {
             solana: SolanaConfig {
                 rpc_url: "test".to_string(),
                 wallet_private_key: "test".to_string(),
+                multi_wallet_enabled: false,
+                default_wallet_id: None,
             },
             api: ApiConfig {
                 helius_api_key: "test".to_string(),

@@ -215,7 +215,7 @@ impl AIConnector {
         
         let mut conn = self.dragonfly_client.clone();
         let decision_sender = self.decision_sender.clone();
-        let config = self.config.clone();
+        let _config = self.config.clone();
 
         loop {
             match self.listen_for_ai_decisions(&mut conn).await {
@@ -433,7 +433,7 @@ impl AIConnector {
     }
 
     async fn run_health_monitor(
-        config: AIConnectorConfig,
+        _config: AIConnectorConfig,
         dragonfly_client: ConnectionManager,
         is_connected: Arc<RwLock<bool>>,
     ) -> Result<()> {
@@ -617,7 +617,7 @@ mod tests {
             vector_memory_context: None,
         };
 
-        let (tx, rx) = mpsc::unbounded_channel();
+        let (tx, rx) = mpsc::unbounded_channel::<AIDecision>();
         let config = AIConnectorConfig::default();
         
         // Note: This test would need a mock DragonflyDB connection

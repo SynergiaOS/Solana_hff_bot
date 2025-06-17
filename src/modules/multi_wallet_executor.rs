@@ -39,7 +39,7 @@ pub struct MultiWalletExecutor {
 }
 
 /// Execution statistics per wallet
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct ExecutionStats {
     pub total_executions: u64,
     pub successful_executions: u64,
@@ -292,8 +292,9 @@ impl MultiWalletExecutor {
     ) -> Result<ExecutionResult> {
         debug!("🧠 Executing AI-enhanced paper trade with wallet {}", wallet_id);
 
+        let market_data = self.routed_signal_to_market_data(routed_signal);
+
         if let Some(ref mut hft_engine) = self.hft_engine {
-            let market_data = self.routed_signal_to_market_data(routed_signal);
             
             match hft_engine.execute_ai_signal(&market_data).await {
                 Ok(hft_result) => {
@@ -364,13 +365,14 @@ impl MultiWalletExecutor {
     ) -> Result<ExecutionResult> {
         warn!("🧠 EXECUTING AI-ENHANCED LIVE TRADE with wallet {}", wallet_id);
 
+        let market_data = self.routed_signal_to_market_data(routed_signal);
+
         if let Some(ref mut hft_engine) = self.hft_engine {
-            let market_data = self.routed_signal_to_market_data(routed_signal);
             
             match hft_engine.execute_ai_signal(&market_data).await {
                 Ok(hft_result) => {
                     match hft_result {
-                        HFTExecutionResult::Executed { bundle_id, latency_ms, estimated_profit, ai_confidence } => {
+                        HFTExecutionResult::Executed { bundle_id, latency_ms, estimated_profit, ai_confidence, signal_id: _ } => {
                             info!(
                                 "🧠 AI live trade executed with wallet {} - Bundle: {}, Latency: {}ms, Confidence: {:.2}, Profit: ${:.2}",
                                 wallet_id, bundle_id, latency_ms, ai_confidence, estimated_profit

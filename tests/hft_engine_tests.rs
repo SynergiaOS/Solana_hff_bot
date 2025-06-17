@@ -39,7 +39,7 @@ impl OvermindHFTEngine {
 mod test_utils;
 mod mock_tensorzero_server;
 mod mock_jito_server;
-use snipercor::modules::hft_engine::{HFTConfig, OvermindHFTEngine, ExecutionResult};
+use snipercor::modules::hft_engine::{HFTConfig as SniperHFTConfig, OvermindHFTEngine as SniperHFTEngine, HFTExecutionResult};
 use test_utils::{TestEnvironment, TestHFTConfigBuilder, PerformanceMeasurer, TestAssertions};
 
 /// Test HFT Engine creation and initialization

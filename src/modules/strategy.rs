@@ -26,7 +26,7 @@ pub enum TradeAction {
     Hold,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Hash, Eq, PartialEq)]
 pub enum StrategyType {
     TokenSniping,
     Arbitrage,

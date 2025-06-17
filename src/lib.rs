@@ -14,6 +14,6 @@ pub use modules::{
     hft_engine::{HFTConfig, OvermindHFTEngine, ExecutionResult as HFTExecutionResult},
     persistence::{PersistenceManager, PersistenceMessage},
     risk::{ApprovedSignal, RiskManager, RiskParameters},
-    strategy::{StrategyEngine, TradingSignal, StrategyType, TradingAction},
+    strategy::{StrategyEngine, TradingSignal, StrategyType, TradeAction},
 };
 pub use monitoring::{create_monitoring_router, MonitoringState};

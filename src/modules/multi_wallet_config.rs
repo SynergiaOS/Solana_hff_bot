@@ -6,11 +6,11 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::env;
 use std::path::Path;
-use tracing::{debug, info, warn};
+use tracing::info;
 
 use crate::modules::strategy::StrategyType;
 use crate::modules::wallet_manager::{
-    WalletConfig, WalletConfigBuilder, WalletRiskLimits, WalletStatus, WalletType,
+    WalletConfig, WalletConfigBuilder, WalletRiskLimits, WalletType,
 };
 
 /// Multi-wallet configuration for THE OVERMIND PROTOCOL

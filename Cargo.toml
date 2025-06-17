@@ -62,6 +62,9 @@ dotenvy = "0.15"
 # Random number generation
 rand = "0.8"
 
+# Base58 encoding/decoding for Solana
+bs58 = "0.5"
+
 # THE OVERMIND PROTOCOL - TensorZero Integration (HTTP client approach)
 # tensorzero = { git = "https://github.com/tensorzero/tensorzero", package = "tensorzero" }
 # Using HTTP client for TensorZero Gateway communication
