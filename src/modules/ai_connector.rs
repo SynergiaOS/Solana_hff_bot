@@ -97,6 +97,7 @@ impl std::fmt::Display for MarketEventType {
 // AI CONNECTOR MAIN STRUCTURE
 // ============================================================================
 
+#[allow(dead_code)]
 pub struct AIConnector {
     /// DragonflyDB connection for communication with Python Brain
     dragonfly_client: ConnectionManager,
@@ -139,6 +140,7 @@ pub struct AIMetrics {
 // IMPLEMENTATION
 // ============================================================================
 
+#[allow(dead_code)]
 impl AIConnector {
     pub async fn new(
         config: AIConnectorConfig,

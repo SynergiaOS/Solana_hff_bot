@@ -28,6 +28,7 @@ pub struct MultiWalletExecutor {
     persistence_sender: mpsc::UnboundedSender<ExecutionResult>,
     wallet_manager: Arc<RwLock<WalletManager>>,
     trading_mode: TradingMode,
+    #[allow(dead_code)]
     solana_rpc_url: String,
     is_running: bool,
     hft_engine: Option<OvermindHFTEngine>,
