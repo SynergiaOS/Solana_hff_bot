@@ -1,0 +1,177 @@
+# THE OVERMIND PROTOCOL - Prometheus Alert Rules
+# Critical alerts for AI-enhanced HFT trading system
+
+groups:
+  - name: overmind_critical_alerts
+    rules:
+      # Trading System Health
+      - alert: OvermindTradingSystemDown
+        expr: up{job="overmind-trading"} == 0
+        for: 30s
+        labels:
+          severity: critical
+          component: trading
+        annotations:
+          summary: "OVERMIND Trading System is down"
+          description: "The main trading system has been down for more than 30 seconds"
+
+      - alert: OvermindHighLatency
+        expr: overmind_execution_latency_seconds > 0.050
+        for: 1m
+        labels:
+          severity: warning
+          component: trading
+        annotations:
+          summary: "OVERMIND execution latency is high"
+          description: "Trading execution latency is {{ $value }}s, above 50ms threshold"
+
+      # AI Brain Health
+      - alert: OvermindAIBrainDown
+        expr: up{job="overmind-brain"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: ai
+        annotations:
+          summary: "OVERMIND AI Brain is down"
+          description: "The AI Brain component has been down for more than 1 minute"
+
+      - alert: OvermindLowAIConfidence
+        expr: overmind_ai_confidence_score < 0.5
+        for: 5m
+        labels:
+          severity: warning
+          component: ai
+        annotations:
+          summary: "OVERMIND AI confidence is low"
+          description: "AI confidence score is {{ $value }}, below 50% threshold"
+
+      # Database Health
+      - alert: OvermindDatabaseDown
+        expr: up{job="postgres-overmind"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: database
+        annotations:
+          summary: "OVERMIND Database is down"
+          description: "PostgreSQL database has been down for more than 2 minutes"
+
+      - alert: OvermindRedisDown
+        expr: up{job="redis-overmind"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: cache
+        annotations:
+          summary: "OVERMIND Redis/Dragonfly is down"
+          description: "Redis/Dragonfly cache has been down for more than 1 minute"
+
+      # Financial Risk Alerts
+      - alert: OvermindDailyLossLimit
+        expr: overmind_daily_pnl < -500
+        for: 0s
+        labels:
+          severity: critical
+          component: risk
+        annotations:
+          summary: "OVERMIND daily loss limit reached"
+          description: "Daily P&L is {{ $value }}, exceeding -$500 loss limit"
+
+      - alert: OvermindPositionSizeLimit
+        expr: overmind_position_size > 1000
+        for: 0s
+        labels:
+          severity: critical
+          component: risk
+        annotations:
+          summary: "OVERMIND position size limit exceeded"
+          description: "Position size is {{ $value }}, exceeding $1000 limit"
+
+      # System Resource Alerts
+      - alert: OvermindHighMemoryUsage
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "OVERMIND system memory usage is high"
+          description: "Memory usage is {{ $value | humanizePercentage }}"
+
+      - alert: OvermindHighCPUUsage
+        expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "OVERMIND system CPU usage is high"
+          description: "CPU usage is {{ $value }}%"
+
+      # Network and Connectivity
+      - alert: OvermindSolanaRPCDown
+        expr: overmind_solana_rpc_success_rate < 0.95
+        for: 2m
+        labels:
+          severity: critical
+          component: network
+        annotations:
+          summary: "OVERMIND Solana RPC connectivity issues"
+          description: "Solana RPC success rate is {{ $value | humanizePercentage }}"
+
+      - alert: OvermindTensorZeroDown
+        expr: up{job="tensorzero-gateway"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: ai
+        annotations:
+          summary: "OVERMIND TensorZero Gateway is down"
+          description: "TensorZero AI Gateway has been down for more than 1 minute"
+
+  - name: overmind_performance_alerts
+    rules:
+      # Performance Degradation
+      - alert: OvermindSlowTrades
+        expr: rate(overmind_trades_executed_total[5m]) < 0.1
+        for: 10m
+        labels:
+          severity: warning
+          component: performance
+        annotations:
+          summary: "OVERMIND trade execution rate is low"
+          description: "Trade execution rate is {{ $value }} trades/second"
+
+      - alert: OvermindHighErrorRate
+        expr: rate(overmind_errors_total[5m]) / rate(overmind_requests_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          component: performance
+        annotations:
+          summary: "OVERMIND error rate is high"
+          description: "Error rate is {{ $value | humanizePercentage }}"
+
+  - name: overmind_security_alerts
+    rules:
+      # Security Monitoring
+      - alert: OvermindUnauthorizedAccess
+        expr: increase(overmind_unauthorized_requests_total[5m]) > 10
+        for: 0s
+        labels:
+          severity: critical
+          component: security
+        annotations:
+          summary: "OVERMIND unauthorized access attempts detected"
+          description: "{{ $value }} unauthorized access attempts in the last 5 minutes"
+
+      - alert: OvermindWalletBalanceLow
+        expr: overmind_wallet_balance_sol < 0.1
+        for: 1m
+        labels:
+          severity: warning
+          component: wallet
+        annotations:
+          summary: "OVERMIND wallet balance is low"
+          description: "Wallet balance is {{ $value }} SOL, below 0.1 SOL threshold"

@@ -1,0 +1,391 @@
+# THE OVERMIND PROTOCOL - Hardened Production Docker Compose
+# Infrastructure hardening with security and resilience improvements
+
+version: '3.8'
+
+services:
+  # ============================================================================
+  # THE OVERMIND PROTOCOL - Core Services (Hardened)
+  # ============================================================================
+  
+  # TensorZero Gateway - AI Decision Engine
+  tensorzero-gateway:
+    image: tensorzero/gateway:latest
+    container_name: overmind-tensorzero
+    ports:
+      - "127.0.0.1:3000:3000"  # HARDENED: Bind to localhost only
+    environment:
+      - TENSORZERO_DATABASE_URL=postgresql://tensorzero:${TENSORZERO_DB_PASSWORD:-tensorzero123}@tensorzero-db:5432/tensorzero
+      - TENSORZERO_REDIS_URL=redis://tensorzero-dragonfly:6379
+      - TENSORZERO_LOG_LEVEL=info
+      - TENSORZERO_OPENAI_API_KEY=${OPENAI_API_KEY}
+    depends_on:
+      tensorzero-db:
+        condition: service_healthy
+      tensorzero-dragonfly:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - overmind-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+
+  # TensorZero Database
+  tensorzero-db:
+    image: postgres:15-alpine
+    container_name: overmind-tensorzero-db
+    environment:
+      - POSTGRES_DB=tensorzero
+      - POSTGRES_USER=tensorzero
+      - POSTGRES_PASSWORD=${TENSORZERO_DB_PASSWORD:-tensorzero123}
+    volumes:
+      - tensorzero-db-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tensorzero"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - overmind-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.25'
+
+  # TensorZero Dragonfly Cache
+  tensorzero-dragonfly:
+    image: docker.dragonflydb.io/dragonflydb/dragonfly:latest
+    container_name: overmind-tensorzero-dragonfly
+    command: dragonfly --logtostderr --requirepass=${REDIS_PASSWORD:-dragonfly123}
+    volumes:
+      - tensorzero-dragonfly-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - overmind-network
+    ulimits:
+      memlock: -1
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.25'
+
+  # ============================================================================
+  # THE OVERMIND PROTOCOL - AI Brain (Python) - HARDENED
+  # ============================================================================
+
+  # Chroma Vector Database - AI Memory Storage
+  chroma:
+    image: chromadb/chroma:latest
+    container_name: overmind-chroma
+    ports:
+      - "127.0.0.1:8000:8000"  # HARDENED: Bind to localhost only
+    volumes:
+      - chroma_data:/chroma/chroma
+    environment:
+      - CHROMA_SERVER_HOST=0.0.0.0
+      - CHROMA_SERVER_HTTP_PORT=8000
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - overmind-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+
+  # AI Brain - Python Brain (using existing brain directory)
+  overmind-brain:
+    build:
+      context: ./brain
+      dockerfile: Dockerfile
+    container_name: overmind-python-brain
+    ports:
+      - "127.0.0.1:8001:8001"  # HARDENED: Bind to localhost only
+    environment:
+      # AI Configuration
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY:-}
+
+      # Communication
+      - DRAGONFLY_URL=redis://:${REDIS_PASSWORD:-dragonfly123}@overmind-dragonfly:6379
+      - VECTOR_DB_URL=http://chroma:8000
+      - TENSORZERO_URL=http://tensorzero-gateway:3000
+
+      # OVERMIND Configuration
+      - OVERMIND_MODE=enabled
+      - OVERMIND_AI_MODE=enabled
+      - PYTHONPATH=/app/src
+    volumes:
+      - ./brain:/app
+      - ./library:/app/library
+    depends_on:
+      overmind-dragonfly:
+        condition: service_healthy
+      chroma:
+        condition: service_healthy
+      tensorzero-gateway:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - overmind-network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+
+  # ============================================================================
+  # THE OVERMIND PROTOCOL - Main Trading System (Rust) - HARDENED
+  # ============================================================================
+
+  # OVERMIND Executor - Rust Trading System
+  overmind-executor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: overmind-executor
+    ports:
+      - "127.0.0.1:8080:8080"  # HARDENED: Bind to localhost only
+    environment:
+      # Trading Configuration
+      - SNIPER_TRADING_MODE=paper
+      - SNIPER_MAX_POSITION_SIZE=1000.0
+      - SNIPER_MAX_DAILY_LOSS=500.0
+      
+      # THE OVERMIND PROTOCOL Configuration
+      - OVERMIND_ENABLED=true
+      - OVERMIND_TENSORZERO_URL=http://tensorzero-gateway:3000
+      - OVERMIND_MAX_LATENCY_MS=25
+      - OVERMIND_AI_CONFIDENCE_THRESHOLD=0.7
+      
+      # Solana Configuration (DEVNET for testing)
+      - SNIPER_SOLANA_RPC_URL=${SNIPER_SOLANA_RPC_URL:-https://api.devnet.solana.com}
+      - SNIPER_SOLANA_WSS_URL=${SNIPER_SOLANA_WSS_URL:-wss://api.devnet.solana.com}
+      - SNIPER_WALLET_PRIVATE_KEY=${SNIPER_WALLET_PRIVATE_KEY}
+      
+      # Database
+      - SNIPER_DATABASE_URL=postgresql://sniper:${SNIPER_DB_PASSWORD:-sniper123}@overmind-db:5432/snipercor
+      
+      # Server
+      - SNIPER_SERVER_PORT=8080
+      - SNIPER_LOG_LEVEL=info
+    depends_on:
+      overmind-db:
+        condition: service_healthy
+      overmind-dragonfly:
+        condition: service_healthy
+      chroma:
+        condition: service_healthy
+      tensorzero-gateway:
+        condition: service_healthy
+      overmind-brain:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - overmind-network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2.0'
+
+  # ============================================================================
+  # Database Services - HARDENED
+  # ============================================================================
+  
+  # Main Database for SNIPERCOR
+  overmind-db:
+    image: postgres:15-alpine
+    container_name: overmind-database
+    environment:
+      - POSTGRES_DB=snipercor
+      - POSTGRES_USER=sniper
+      - POSTGRES_PASSWORD=${SNIPER_DB_PASSWORD:-sniper123}
+    volumes:
+      - overmind-db-data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"  # HARDENED: Bind to localhost only
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sniper"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - overmind-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+
+  # Dragonfly - High-Performance Redis Replacement
+  overmind-dragonfly:
+    image: docker.dragonflydb.io/dragonflydb/dragonfly:latest
+    container_name: overmind-dragonfly
+    command: dragonfly --logtostderr --requirepass=${REDIS_PASSWORD:-dragonfly123}
+    volumes:
+      - overmind-dragonfly-data:/data
+    ports:
+      - "127.0.0.1:6379:6379"  # HARDENED: Bind to localhost only
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - overmind-network
+    ulimits:
+      memlock: -1
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+
+  # ============================================================================
+  # Monitoring and Observability - HARDENED
+  # ============================================================================
+  
+  # Prometheus - Metrics Collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: overmind-prometheus
+    ports:
+      - "127.0.0.1:9090:9090"  # HARDENED: Bind to localhost only
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - overmind-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+
+  # Grafana - Visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: overmind-grafana
+    ports:
+      - "127.0.0.1:3001:3000"  # HARDENED: Bind to localhost only
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-overmind123}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SECURITY_DISABLE_GRAVATAR=true
+      - GF_SECURITY_COOKIE_SECURE=true
+    volumes:
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - overmind-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.25'
+
+# ============================================================================
+# Networks and Volumes - HARDENED
+# ============================================================================
+
+networks:
+  overmind-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.25.0.0/16
+    driver_opts:
+      com.docker.network.bridge.enable_icc: "true"
+      com.docker.network.bridge.enable_ip_masquerade: "true"
+      com.docker.network.driver.mtu: "1500"
+
+volumes:
+  # TensorZero Data
+  tensorzero-db-data:
+    driver: local
+  tensorzero-dragonfly-data:
+    driver: local
+
+  # AI Brain Data
+  chroma_data:
+    driver: local
+
+  # Main System Data
+  overmind-db-data:
+    driver: local
+  overmind-dragonfly-data:
+    driver: local
+
+  # Monitoring Data
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local

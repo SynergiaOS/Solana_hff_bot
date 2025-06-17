@@ -7,6 +7,14 @@ description = "High-frequency trading system for Solana blockchain"
 license = "MIT"
 repository = "https://github.com/your-org/snipercor"
 
+[lib]
+name = "snipercor"
+path = "src/lib.rs"
+
+[[bin]]
+name = "snipercor"
+path = "src/main.rs"
+
 [dependencies]
 # Core async runtime
 tokio = { version = "1.35", features = ["full"] }

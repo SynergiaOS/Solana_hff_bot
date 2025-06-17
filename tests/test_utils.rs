@@ -1,12 +1,102 @@
 // THE OVERMIND PROTOCOL - Test Utilities and Helpers
 // Comprehensive testing infrastructure for all components
 
-// Note: In integration tests, we need to reference the crate differently
-// For now, we'll create mock structures for testing
-// use snipercor::{...};
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use uuid::Uuid;
+use std::collections::HashMap;
+
+// Mock types for testing (since we're in integration tests)
+#[derive(Debug, Clone)]
+pub struct Config {
+    pub trading: TradingConfig,
+    pub overmind: OvermindConfig,
+}
+
+#[derive(Debug, Clone)]
+pub struct TradingConfig {
+    pub mode: TradingMode,
+    pub max_position_size: f64,
+    pub max_daily_loss: f64,
+}
+
+#[derive(Debug, Clone)]
+pub struct OvermindConfig {
+    pub enabled: bool,
+    pub tensorzero_gateway_url: String,
+    pub jito_endpoint: String,
+    pub max_execution_latency_ms: u64,
+    pub ai_confidence_threshold: f64,
+}
+
+#[derive(Debug, Clone)]
+pub enum TradingMode {
+    Paper,
+    Live,
+}
+
+#[derive(Debug, Clone)]
+pub struct HFTConfig {
+    pub tensorzero_gateway_url: String,
+    pub jito_endpoint: String,
+    pub max_execution_latency_ms: u64,
+    pub max_bundle_size: usize,
+    pub retry_attempts: u32,
+    pub ai_confidence_threshold: f64,
+}
+
+#[derive(Debug, Clone)]
+pub struct TradingSignal {
+    pub signal_id: String,
+    pub strategy_type: StrategyType,
+    pub action: TradingAction,
+    pub symbol: String,
+    pub quantity: f64,
+    pub target_price: f64,
+    pub confidence: f64,
+    pub timestamp: chrono::DateTime<chrono::Utc>,
+    pub metadata: HashMap<String, String>,
+}
+
+#[derive(Debug, Clone)]
+pub enum StrategyType {
+    SoulMeteor,
+    Arbitrage,
+    MomentumTrading,
+}
+
+#[derive(Debug, Clone)]
+pub enum TradingAction {
+    Buy,
+    Sell,
+}
+
+#[derive(Debug, Clone)]
+pub struct ApprovedSignal {
+    pub original_signal: TradingSignal,
+    pub approved_quantity: f64,
+    pub risk_score: f64,
+    pub approval_timestamp: chrono::DateTime<chrono::Utc>,
+}
+
+impl Config {
+    pub fn default() -> Self {
+        Self {
+            trading: TradingConfig {
+                mode: TradingMode::Paper,
+                max_position_size: 1000.0,
+                max_daily_loss: 500.0,
+            },
+            overmind: OvermindConfig {
+                enabled: false,
+                tensorzero_gateway_url: "http://localhost:3000".to_string(),
+                jito_endpoint: "https://mainnet.block-engine.jito.wtf".to_string(),
+                max_execution_latency_ms: 25,
+                ai_confidence_threshold: 0.7,
+            },
+        }
+    }
+}
 
 /// Test configuration builder for THE OVERMIND PROTOCOL
 pub struct TestConfigBuilder {

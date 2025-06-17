@@ -1,9 +1,23 @@
 # 🧠 THE OVERMIND PROTOCOL - AI-Enhanced Solana HFT Trading System
 
-**Status:** ✅ **DEPLOYED & OPERATIONAL** - Advanced AI-Enhanced High-Frequency Trading System
+## 🚨 **CRITICAL SECURITY WARNING - READ FIRST**
+
+**⚠️ SECURITY STATUS:** CRITICAL ISSUES RESOLVED - SAFE FOR EDUCATIONAL USE ONLY
+**🚫 PRODUCTION STATUS:** NOT READY FOR LIVE TRADING
+**📚 INTENDED USE:** EDUCATIONAL AND RESEARCH PURPOSES ONLY
+
+### **BEFORE USING THIS SOFTWARE:**
+1. **🔒 READ:** [SECURITY_WARNING.md](SECURITY_WARNING.md) - MANDATORY
+2. **⚖️ LEGAL:** Obtain proper licenses for automated trading in your jurisdiction
+3. **💰 FINANCIAL:** Use only test wallets with NO REAL FUNDS
+4. **🧪 TESTING:** Start with paper trading mode ONLY
+
+---
+
+**Status:** ⚠️ **EDUCATIONAL USE ONLY** - Advanced AI-Enhanced Trading System Framework
 **Version:** 0.1.0
 **Architecture:** 5-Layer Autonomous AI Trading Protocol
-**Deployment Date:** June 16, 2025
+**Last Security Update:** June 17, 2025
 
 ## 🎯 Overview
 
@@ -171,9 +185,30 @@ open http://localhost:9091  # Prometheus
 4. Push to branch: `git push origin feature/amazing-feature`
 5. Open a Pull Request
 
-## ⚠️ Disclaimer
+## ⚠️ **CRITICAL DISCLAIMER AND LEGAL WARNING**
 
-This software is for educational and research purposes. Trading cryptocurrencies involves substantial risk of loss. The authors are not responsible for any financial losses incurred through the use of this software.
+### **🚨 SECURITY AND LEGAL NOTICE:**
+
+**THIS SOFTWARE IS PROVIDED FOR EDUCATIONAL AND RESEARCH PURPOSES ONLY.**
+
+1. **🚫 NOT FOR PRODUCTION USE:** This system is NOT ready for live trading
+2. **⚖️ LEGAL COMPLIANCE:** Users must obtain all required licenses for automated trading
+3. **💰 FINANCIAL RISK:** Trading cryptocurrencies involves substantial risk of total loss
+4. **🔒 SECURITY:** Use only test wallets with NO REAL FUNDS
+5. **📚 EDUCATIONAL ONLY:** Intended for learning about trading system architecture
+
+### **DEVELOPER LIABILITY:**
+- Authors provide NO WARRANTY of any kind
+- Authors are NOT RESPONSIBLE for any financial losses
+- Authors are NOT RESPONSIBLE for legal compliance
+- Users assume ALL RISKS associated with use
+- Users are SOLELY RESPONSIBLE for compliance with applicable laws
+
+### **BEFORE ANY USE:**
+- Read [SECURITY_WARNING.md](SECURITY_WARNING.md) completely
+- Consult legal counsel regarding trading regulations
+- Consult financial advisors regarding risk management
+- Use only in paper trading mode with test funds
 
 ## 📄 License
 
