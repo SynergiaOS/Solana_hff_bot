@@ -7,17 +7,83 @@
 **📚 INTENDED USE:** EDUCATIONAL AND RESEARCH PURPOSES ONLY
 
 ### **BEFORE USING THIS SOFTWARE:**
-1. **🔒 READ:** [SECURITY_WARNING.md](SECURITY_WARNING.md) - MANDATORY
+1. **🔒 READ:** [docs/security/SECURITY_WARNING.md](docs/security/SECURITY_WARNING.md) - MANDATORY
 2. **⚖️ LEGAL:** Obtain proper licenses for automated trading in your jurisdiction
 3. **💰 FINANCIAL:** Use only test wallets with NO REAL FUNDS
 4. **🧪 TESTING:** Start with paper trading mode ONLY
 
 ---
 
-**Status:** ⚠️ **EDUCATIONAL USE ONLY** - Advanced AI-Enhanced Trading System Framework
+**Status:** ✅ **LIVE AND OPERATIONAL ON DEVNET** - Advanced AI-Enhanced Trading System
 **Version:** 0.1.0
 **Architecture:** 5-Layer Autonomous AI Trading Protocol
-**Last Security Update:** June 17, 2025
+**Last Update:** June 17, 2025
+**Devnet Status:** 2 successful transactions executed
+
+## 📁 **PROJECT STRUCTURE - NAVIGATION MAP**
+
+```
+THE_OVERMIND_PROTOCOL/
+├── 📚 docs/                          # 📖 COMPLETE DOCUMENTATION
+│   ├── 🏗️ architecture/              # System architecture & design
+│   ├── 🔒 security/                  # Security guides & warnings
+│   ├── 🚀 deployment/                # Deployment & infrastructure
+│   ├── 🧪 testing/                   # Test reports & validation
+│   ├── 📋 guides/                    # User guides & tutorials
+│   └── 📊 reports/                   # Analysis & project reports
+├── 🦀 src/                           # 🔥 RUST CORE (HFT Engine)
+│   ├── modules/                      # Trading system modules
+│   ├── config.rs                     # Configuration management
+│   ├── main.rs                       # System entry point
+│   └── lib.rs                        # Library exports
+├── 🐍 brain/                         # 🤖 PYTHON AI BRAIN
+│   ├── src/overmind_brain/           # AI decision engine
+│   ├── scripts/                      # AI utility scripts
+│   └── tests/                        # AI system tests
+├── 🐳 infrastructure/                # 🏗️ DEPLOYMENT & MONITORING
+│   ├── docker/                       # Docker configurations
+│   ├── monitoring/                   # Prometheus & Grafana
+│   └── deployment/                   # Deployment scripts
+├── ⚙️ config/                        # 🔧 CONFIGURATION
+│   ├── environments/                 # Environment configs (.env)
+│   └── templates/                    # Configuration templates
+├── 🧪 tests/                         # 🔬 RUST TESTS
+├── 🔐 wallets/                       # 💰 WALLET FILES (gitignored)
+└── 📊 logs/                          # 📝 SYSTEM LOGS
+```
+
+## 🚀 **QUICK START GUIDE**
+
+### **📖 1. READ DOCUMENTATION FIRST**
+- **Security:** [docs/security/SECURITY_WARNING.md](docs/security/SECURITY_WARNING.md)
+- **Architecture:** [docs/architecture/TECHNICAL_SPECIFICATIONS.md](docs/architecture/TECHNICAL_SPECIFICATIONS.md)
+- **Deployment:** [docs/deployment/DEPLOYMENT-GUIDE.md](docs/deployment/DEPLOYMENT-GUIDE.md)
+
+### **🔧 2. SETUP ENVIRONMENT**
+```bash
+# Copy configuration template
+cp config/environments/.env.template .env
+
+# Edit configuration (NEVER use real funds!)
+nano .env
+
+# Build the system
+cargo build --release
+```
+
+### **🧪 3. RUN ON DEVNET (SAFE TESTING)**
+```bash
+# Load devnet configuration
+export $(cat config/environments/.env.devnet | grep -v '^#' | xargs)
+
+# Start system in paper trading mode
+./target/release/snipercor
+```
+
+### **📊 4. MONITOR SYSTEM**
+- **Health:** http://localhost:8080/health
+- **Metrics:** http://localhost:8080/metrics
+- **Logs:** tail -f logs/overmind_devnet.log
 
 ## 🎯 Overview
 

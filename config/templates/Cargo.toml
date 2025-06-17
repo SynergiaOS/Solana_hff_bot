@@ -1,0 +1,106 @@
+[package]
+name = "snipercor"
+version = "0.1.0"
+edition = "2021"
+authors = ["SNIPERCOR Team"]
+description = "High-frequency trading system for Solana blockchain"
+license = "MIT"
+repository = "https://github.com/your-org/snipercor"
+
+[lib]
+name = "snipercor"
+path = "src/lib.rs"
+
+[[bin]]
+name = "snipercor"
+path = "src/main.rs"
+
+[dependencies]
+# Core async runtime
+tokio = { version = "1.35", features = ["full"] }
+
+# Solana blockchain
+solana-sdk = "1.18"
+solana-client = "1.18"
+
+# Web framework
+axum = "0.7"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Database (commented out due to dependency conflicts - will be added later)
+# sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid"] }
+
+# HTTP client
+reqwest = { version = "0.11", features = ["json"] }
+
+# WebSocket
+tokio-tungstenite = "0.21"
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# UUID
+uuid = { version = "1.0", features = ["v4", "serde"] }
+
+# Futures
+futures = "0.3"
+
+# Environment
+dotenvy = "0.15"
+
+# Random number generation
+rand = "0.8"
+
+# Base58 encoding/decoding for Solana
+bs58 = "0.5"
+
+# THE OVERMIND PROTOCOL - TensorZero Integration (HTTP client approach)
+# tensorzero = { git = "https://github.com/tensorzero/tensorzero", package = "tensorzero" }
+# Using HTTP client for TensorZero Gateway communication
+
+# THE OVERMIND PROTOCOL - Jito Bundle Execution
+jito-sdk-rust = "0.2.1"
+base64 = "0.22"
+bincode = "1.3"
+
+# THE OVERMIND PROTOCOL - DragonflyDB Communication
+redis = { version = "0.24", features = ["tokio-comp", "connection-manager", "streams", "aio"] }
+
+[dev-dependencies]
+# Testing framework
+tokio-test = "0.4"
+proptest = "1.0"
+mockall = "0.12"
+criterion = { version = "0.5", features = ["html_reports"] }
+# tarpaulin = "0.27" # Install separately: cargo install cargo-tarpaulin
+
+# Test utilities
+tempfile = "3.0"
+wiremock = "0.5"
+
+# THE OVERMIND PROTOCOL - Testing dependencies
+axum = "0.7"
+futures = "0.3"
+anyhow = "1.0"
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+opt-level = 3
+
+[profile.contabo]
+inherits = "release"
+opt-level = 3
+lto = "fat"
