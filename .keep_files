@@ -1,0 +1,5 @@
+overmind-protocol/
+.git/
+.gitignore
+.env.example
+pixi.toml

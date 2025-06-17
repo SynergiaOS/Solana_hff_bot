@@ -1,0 +1,390 @@
+# THE OVERMIND PROTOCOL - Production Cloud Deployment
+# Optimized for Contabo VDS (24GB RAM) with full monitoring
+
+version: '3.8'
+
+services:
+  # ============================================================================
+  # INFRASTRUCTURE LAYER - Databases and Message Brokers
+  # ============================================================================
+  
+  # DragonflyDB - High-performance Redis-compatible message broker
+  overmind-dragonfly:
+    image: docker.dragonflydb.io/dragonflydb/dragonfly:latest
+    container_name: overmind-dragonfly-prod
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6379:6379"  # Bind to localhost only
+    volumes:
+      - dragonfly_data:/data
+    command: [
+      "dragonfly",
+      "--logtostderr",
+      "--alsologtostderr",
+      "--maxmemory=2gb",
+      "--cache_mode=true"
+    ]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - overmind-network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+
+  # Chroma Vector Database - AI Memory Storage
+  overmind-chroma:
+    image: chromadb/chroma:latest
+    container_name: overmind-chroma-prod
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8000:8000"  # Bind to localhost only
+    volumes:
+      - chroma_data:/chroma/chroma
+    environment:
+      - CHROMA_SERVER_HOST=0.0.0.0
+      - CHROMA_SERVER_HTTP_PORT=8000
+      - CHROMA_SERVER_CORS_ALLOW_ORIGINS=["*"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - overmind-network
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2.0'
+
+  # PostgreSQL - Main System Database
+  overmind-postgres:
+    image: postgres:15-alpine
+    container_name: overmind-postgres-prod
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=overmind
+      - POSTGRES_USER=overmind
+      - POSTGRES_PASSWORD=${SNIPER_DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U overmind"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - overmind-network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+
+  # ============================================================================
+  # AI OPTIMIZATION LAYER - TensorZero
+  # ============================================================================
+
+  # ClickHouse - Analytics Database for TensorZero
+  tensorzero-clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    container_name: tensorzero-clickhouse-prod
+    restart: unless-stopped
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    environment:
+      - CLICKHOUSE_DB=tensorzero
+      - CLICKHOUSE_USER=default
+      - CLICKHOUSE_PASSWORD=${TENSORZERO_DB_PASSWORD}
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8123/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - overmind-network
+    deploy:
+      resources:
+        limits:
+          memory: 3G
+          cpus: '1.5'
+
+  # TensorZero Gateway - AI Optimization Engine
+  tensorzero-gateway:
+    image: tensorzero/gateway:latest
+    container_name: tensorzero-gateway-prod
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"  # Bind to localhost only
+    volumes:
+      - ./infrastructure/config/tensorzero:/app/config
+    environment:
+      - CLICKHOUSE_URL=http://tensorzero-clickhouse:8123
+      - TENSORZERO_REDIS_URL=redis://overmind-dragonfly:6379
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+    depends_on:
+      - tensorzero-clickhouse
+      - overmind-dragonfly
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - overmind-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+
+  # ============================================================================
+  # AI BRAIN LAYER - Python Strategic Intelligence
+  # ============================================================================
+
+  # OVERMIND Python Brain - Strategic Decision Making
+  overmind-brain:
+    build:
+      context: ./brain
+      dockerfile: Dockerfile
+    container_name: overmind-brain-prod
+    restart: unless-stopped
+    environment:
+      # AI Configuration
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY}
+      - FINANCIAL_DATASETS_API_KEY=${FINANCIAL_DATASETS_API_KEY}
+      
+      # Communication
+      - DRAGONFLY_URL=redis://overmind-dragonfly:6379
+      - VECTOR_DB_URL=http://overmind-chroma:8000
+      - TENSORZERO_URL=http://tensorzero-gateway:3000
+      
+      # OVERMIND Configuration
+      - OVERMIND_MODE=enabled
+      - OVERMIND_AI_MODE=enabled
+      - OVERMIND_CONFIDENCE_THRESHOLD=0.7
+      - PYTHONPATH=/app/src
+    volumes:
+      - ./brain/src:/app/src
+      - brain_logs:/app/logs
+    depends_on:
+      - overmind-dragonfly
+      - overmind-chroma
+      - tensorzero-gateway
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - overmind-network
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2.0'
+
+  # ============================================================================
+  # EXECUTION LAYER - Rust HFT Trading Engine
+  # ============================================================================
+
+  # OVERMIND Rust Executor - High-Frequency Trading
+  overmind-executor:
+    build:
+      context: ./core
+      dockerfile: Dockerfile.core
+    container_name: overmind-executor-prod
+    restart: unless-stopped
+    ports:
+      - "8080:8080"  # Public API endpoint
+    environment:
+      # Trading Configuration
+      - SNIPER_TRADING_MODE=${SNIPER_TRADING_MODE:-paper}
+      - OVERMIND_MODE=enabled
+      - OVERMIND_AI_MODE=enabled
+      
+      # Communication
+      - DRAGONFLY_URL=redis://overmind-dragonfly:6379
+      - TENSORZERO_URL=http://tensorzero-gateway:3000
+      - DATABASE_URL=postgresql://overmind:${SNIPER_DB_PASSWORD}@overmind-postgres:5432/overmind
+      
+      # Solana Configuration
+      - SOLANA_RPC_URL=${SOLANA_DEVNET_RPC_URL}
+      - SOLANA_WSS_URL=${SOLANA_DEVNET_WSS_URL}
+      - HELIUS_API_KEY=${HELIUS_API_KEY}
+      - QUICKNODE_API_KEY=${QUICKNODE_API_KEY}
+      - SOLANA_WALLET_PRIVATE_KEY=${SOLANA_WALLET_PRIVATE_KEY}
+      
+      # Risk Management
+      - SNIPER_MAX_POSITION_SIZE=10000
+      - SNIPER_MAX_DAILY_LOSS=1000
+      - OVERMIND_AI_CONFIDENCE_THRESHOLD=0.7
+      
+      # Performance
+      - RUST_LOG=info
+      - TOKIO_WORKER_THREADS=6
+    volumes:
+      - executor_logs:/app/logs
+    depends_on:
+      - overmind-dragonfly
+      - overmind-postgres
+      - tensorzero-gateway
+      - overmind-brain
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    networks:
+      - overmind-network
+    deploy:
+      resources:
+        limits:
+          memory: 6G
+          cpus: '4.0'
+
+  # ============================================================================
+  # MONITORING LAYER - Observability and Alerting
+  # ============================================================================
+
+  # Prometheus - Metrics Collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: overmind-prometheus-prod
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:9090:9090"  # Bind to localhost only
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./monitoring/prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+    networks:
+      - overmind-network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+
+  # Grafana - Visualization Dashboard
+  grafana:
+    image: grafana/grafana:latest
+    container_name: overmind-grafana-prod
+    restart: unless-stopped
+    ports:
+      - "3001:3000"  # Public dashboard
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+      - GF_SERVER_ROOT_URL=http://localhost:3001
+    depends_on:
+      - prometheus
+    networks:
+      - overmind-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+
+  # Node Exporter - System Metrics
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: overmind-node-exporter-prod
+    restart: unless-stopped
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    networks:
+      - overmind-network
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.2'
+
+  # AlertManager - Alert Routing
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: overmind-alertmanager-prod
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+      - alertmanager_data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.external-url=http://localhost:9093'
+    networks:
+      - overmind-network
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.2'
+
+# ============================================================================
+# NETWORKS AND VOLUMES
+# ============================================================================
+
+networks:
+  overmind-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.0.0/16
+
+volumes:
+  # Database volumes
+  dragonfly_data:
+    driver: local
+  chroma_data:
+    driver: local
+  postgres_data:
+    driver: local
+  clickhouse_data:
+    driver: local
+  
+  # Application volumes
+  brain_logs:
+    driver: local
+  executor_logs:
+    driver: local
+  
+  # Monitoring volumes
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  alertmanager_data:
+    driver: local

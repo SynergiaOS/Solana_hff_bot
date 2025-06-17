@@ -1,0 +1,39 @@
+{
+  "devnet_summary": {
+    "total_tests": 14,
+    "passed_tests": 12,
+    "success_rate": 85.7
+  },
+  "devnet_status": "OPERATIONAL",
+  "data_flow_status": "READY",
+  "recommendations": [
+    "Devnet data flow is ready for THE OVERMIND PROTOCOL deployment"
+  ],
+  "detailed_results": {
+    "connection_tests": {
+      "health": "PASS",
+      "version": "PASS (2.2.16)",
+      "slot": "PASS (slot: 388205633)"
+    },
+    "data_ingestion_tests": {
+      "SOL": "PASS",
+      "USDC": "PASS"
+    },
+    "market_data_tests": {
+      "signatures": "PASS (5 found)",
+      "transaction_details": "PASS"
+    },
+    "websocket_tests": {
+      "subscription": "PASS (ID: 1715)",
+      "updates": "PASS (3 updates)"
+    },
+    "flow_simulation": {
+      "data_ingestion": "PASS",
+      "data_processing": "PASS",
+      "ai_decision": "PASS",
+      "risk_validation": "FAIL",
+      "execution": "SKIPPED"
+    }
+  },
+  "timestamp": "2025-06-17T07:04:58.363208"
+}

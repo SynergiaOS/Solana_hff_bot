@@ -148,6 +148,7 @@ impl RiskManager {
             crate::modules::strategy::StrategyType::MeteoraDAMM => 0.8, // Very high risk
             crate::modules::strategy::StrategyType::DeveloperTracking => 0.7, // High risk
             crate::modules::strategy::StrategyType::AxiomMemeCoin => 0.9, // Extreme risk
+            crate::modules::strategy::StrategyType::AIDecision => 0.7, // AI decisions have moderate-high risk
         };
 
         Ok(risk_score.min(1.0))

@@ -1,0 +1,276 @@
+# THE OVERMIND PROTOCOL - Simplified Docker Compose for DevOps Testing
+# Core services only for production readiness validation
+
+version: '3.8'
+
+services:
+  # ============================================================================
+  # THE OVERMIND PROTOCOL - Core Services
+  # ============================================================================
+  
+  # TensorZero Gateway - AI Decision Engine
+  tensorzero-gateway:
+    image: tensorzero/gateway:latest
+    container_name: overmind-tensorzero
+    ports:
+      - "3000:3000"
+    environment:
+      - TENSORZERO_DATABASE_URL=postgresql://tensorzero:tensorzero123@tensorzero-db:5432/tensorzero
+      - TENSORZERO_REDIS_URL=redis://tensorzero-dragonfly:6379
+      - TENSORZERO_LOG_LEVEL=info
+      - TENSORZERO_OPENAI_API_KEY=${OPENAI_API_KEY:-placeholder}
+    depends_on:
+      - tensorzero-db
+      - tensorzero-dragonfly
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - overmind-network
+
+  # TensorZero Database
+  tensorzero-db:
+    image: postgres:15-alpine
+    container_name: overmind-tensorzero-db
+    environment:
+      - POSTGRES_DB=tensorzero
+      - POSTGRES_USER=tensorzero
+      - POSTGRES_PASSWORD=tensorzero123
+    volumes:
+      - tensorzero-db-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - overmind-network
+
+  # TensorZero Dragonfly Cache
+  tensorzero-dragonfly:
+    image: docker.dragonflydb.io/dragonflydb/dragonfly:latest
+    container_name: overmind-tensorzero-dragonfly
+    command: dragonfly --logtostderr
+    volumes:
+      - tensorzero-dragonfly-data:/data
+    restart: unless-stopped
+    networks:
+      - overmind-network
+    ulimits:
+      memlock: -1
+
+  # ============================================================================
+  # THE OVERMIND PROTOCOL - AI Brain (Python)
+  # ============================================================================
+
+  # Chroma Vector Database - AI Memory Storage
+  chroma:
+    image: chromadb/chroma:latest
+    container_name: overmind-chroma
+    ports:
+      - "8000:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+    environment:
+      - CHROMA_SERVER_HOST=0.0.0.0
+      - CHROMA_SERVER_HTTP_PORT=8000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - overmind-network
+
+  # AI Brain - Python Brain (using existing brain directory)
+  overmind-brain:
+    build:
+      context: ./brain
+      dockerfile: Dockerfile
+    container_name: overmind-python-brain
+    ports:
+      - "8001:8001"
+    environment:
+      # AI Configuration
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-placeholder}
+      - GROQ_API_KEY=${GROQ_API_KEY:-placeholder}
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY:-placeholder}
+
+      # Communication
+      - DRAGONFLY_URL=redis://overmind-dragonfly:6379
+      - VECTOR_DB_URL=http://chroma:8000
+      - TENSORZERO_URL=http://tensorzero-gateway:3000
+
+      # OVERMIND Configuration
+      - OVERMIND_MODE=enabled
+      - OVERMIND_AI_MODE=enabled
+      - PYTHONPATH=/app/src
+    volumes:
+      - ./brain:/app
+      - ./library:/app/library
+    depends_on:
+      - overmind-dragonfly
+      - chroma
+      - tensorzero-gateway
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - overmind-network
+
+  # ============================================================================
+  # THE OVERMIND PROTOCOL - Main Trading System (Rust)
+  # ============================================================================
+
+  # OVERMIND Executor - Rust Trading System
+  overmind-executor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: overmind-executor
+    ports:
+      - "8080:8080"
+    environment:
+      # Trading Configuration
+      - SNIPER_TRADING_MODE=paper
+      - SNIPER_MAX_POSITION_SIZE=1000.0
+      - SNIPER_MAX_DAILY_LOSS=500.0
+      
+      # THE OVERMIND PROTOCOL Configuration
+      - OVERMIND_ENABLED=true
+      - OVERMIND_TENSORZERO_URL=http://tensorzero-gateway:3000
+      - OVERMIND_MAX_LATENCY_MS=25
+      - OVERMIND_AI_CONFIDENCE_THRESHOLD=0.7
+      
+      # Solana Configuration (DEVNET for testing)
+      - SNIPER_SOLANA_RPC_URL=${SNIPER_SOLANA_RPC_URL:-https://api.devnet.solana.com}
+      - SNIPER_SOLANA_WSS_URL=${SNIPER_SOLANA_WSS_URL:-wss://api.devnet.solana.com}
+      - SNIPER_WALLET_PRIVATE_KEY=${SNIPER_WALLET_PRIVATE_KEY:-placeholder}
+      
+      # Database
+      - SNIPER_DATABASE_URL=postgresql://sniper:sniper123@overmind-db:5432/snipercor
+      
+      # Server
+      - SNIPER_SERVER_PORT=8080
+      - SNIPER_LOG_LEVEL=info
+    depends_on:
+      - overmind-db
+      - overmind-dragonfly
+      - chroma
+      - tensorzero-gateway
+      - overmind-brain
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - overmind-network
+
+  # ============================================================================
+  # Database Services
+  # ============================================================================
+  
+  # Main Database for SNIPERCOR
+  overmind-db:
+    image: postgres:15-alpine
+    container_name: overmind-database
+    environment:
+      - POSTGRES_DB=snipercor
+      - POSTGRES_USER=sniper
+      - POSTGRES_PASSWORD=sniper123
+    volumes:
+      - overmind-db-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    networks:
+      - overmind-network
+
+  # Dragonfly - High-Performance Redis Replacement
+  overmind-dragonfly:
+    image: docker.dragonflydb.io/dragonflydb/dragonfly:latest
+    container_name: overmind-dragonfly
+    command: dragonfly --logtostderr
+    volumes:
+      - overmind-dragonfly-data:/data
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    networks:
+      - overmind-network
+    ulimits:
+      memlock: -1
+
+  # ============================================================================
+  # Monitoring and Observability
+  # ============================================================================
+  
+  # Prometheus - Metrics Collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: overmind-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+    networks:
+      - overmind-network
+
+  # Grafana - Visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: overmind-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=overmind123
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    networks:
+      - overmind-network
+
+# ============================================================================
+# Networks and Volumes
+# ============================================================================
+
+networks:
+  overmind-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.25.0.0/16
+
+volumes:
+  # TensorZero Data
+  tensorzero-db-data:
+  tensorzero-dragonfly-data:
+
+  # AI Brain Data
+  chroma_data:
+
+  # Main System Data
+  overmind-db-data:
+  overmind-dragonfly-data:
+
+  # Monitoring Data
+  prometheus-data:
+  grafana-data:

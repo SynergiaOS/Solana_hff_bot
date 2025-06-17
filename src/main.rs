@@ -12,6 +12,7 @@ use tracing::{error, info, warn};
 
 use config::Config;
 use modules::{
+    ai_connector::{AIConnectorConfig},
     data_ingestor::{DataIngestor, MarketData},
     executor::{ExecutionResult, Executor},
     hft_engine::HFTConfig,

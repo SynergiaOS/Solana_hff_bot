@@ -1,0 +1,8 @@
+/home/marcin/windsurf/Projects/LastBot/overmind-protocol/core/target/debug/deps/libsolana_quic_client-a4706f549c2ac273.rmeta: /home/marcin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/solana-quic-client-1.18.26/src/lib.rs /home/marcin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/solana-quic-client-1.18.26/src/nonblocking/mod.rs /home/marcin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/solana-quic-client-1.18.26/src/nonblocking/quic_client.rs /home/marcin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/solana-quic-client-1.18.26/src/quic_client.rs
+
+/home/marcin/windsurf/Projects/LastBot/overmind-protocol/core/target/debug/deps/solana_quic_client-a4706f549c2ac273.d: /home/marcin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/solana-quic-client-1.18.26/src/lib.rs /home/marcin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/solana-quic-client-1.18.26/src/nonblocking/mod.rs /home/marcin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/solana-quic-client-1.18.26/src/nonblocking/quic_client.rs /home/marcin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/solana-quic-client-1.18.26/src/quic_client.rs
+
+/home/marcin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/solana-quic-client-1.18.26/src/lib.rs:
+/home/marcin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/solana-quic-client-1.18.26/src/nonblocking/mod.rs:
+/home/marcin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/solana-quic-client-1.18.26/src/nonblocking/quic_client.rs:
+/home/marcin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/solana-quic-client-1.18.26/src/quic_client.rs:

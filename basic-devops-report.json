@@ -1,0 +1,150 @@
+{
+  "timestamp": "2025-06-17T13:25:15.383716",
+  "summary": {
+    "total_tests": 9,
+    "passed": 5,
+    "failed": 2,
+    "warnings": 2,
+    "success_rate": 55.55555555555556,
+    "total_duration": 0.364213228225708
+  },
+  "categories": {
+    "Infrastructure": {
+      "total_tests": 3,
+      "passed": 2,
+      "failed": 1,
+      "warnings": 0,
+      "success_rate": 66.66666666666666,
+      "tests": [
+        {
+          "name": "Docker Availability",
+          "status": "PASS",
+          "duration": 0.009729385375976562,
+          "details": "Docker available: Docker version 28.2.2, build e6534b4",
+          "metrics": {}
+        },
+        {
+          "name": "Docker Compose Availability",
+          "status": "PASS",
+          "duration": 0.26797938346862793,
+          "details": "Docker Compose available: docker-compose version 1.29.2, build unknown",
+          "metrics": {}
+        },
+        {
+          "name": "Service Health Checks",
+          "status": "FAIL",
+          "duration": 0.08600687980651855,
+          "details": "Poor service health: 1/6 services healthy",
+          "metrics": {
+            "health_rate": "16.7%",
+            "healthy_services": 1
+          }
+        }
+      ]
+    },
+    "Configuration": {
+      "total_tests": 2,
+      "passed": 2,
+      "failed": 0,
+      "warnings": 0,
+      "success_rate": 100.0,
+      "tests": [
+        {
+          "name": "Critical Files Check",
+          "status": "PASS",
+          "duration": 0.00016236305236816406,
+          "details": "All critical files present: 5/5",
+          "metrics": {
+            "file_rate": "100.0%"
+          }
+        },
+        {
+          "name": "Environment Variables",
+          "status": "PASS",
+          "duration": 5.507469177246094e-05,
+          "details": "All environment variables configured: 3/3",
+          "metrics": {
+            "config_rate": "100.0%"
+          }
+        }
+      ]
+    },
+    "Deployment": {
+      "total_tests": 1,
+      "passed": 1,
+      "failed": 0,
+      "warnings": 0,
+      "success_rate": 100.0,
+      "tests": [
+        {
+          "name": "Deployment Scripts",
+          "status": "PASS",
+          "duration": 5.269050598144531e-05,
+          "details": "Deployment scripts ready: 3/3",
+          "metrics": {
+            "script_rate": "100.0%"
+          }
+        }
+      ]
+    },
+    "Monitoring": {
+      "total_tests": 2,
+      "passed": 0,
+      "failed": 1,
+      "warnings": 1,
+      "success_rate": 0.0,
+      "tests": [
+        {
+          "name": "Prometheus Accessibility",
+          "status": "FAIL",
+          "duration": 0.00011754035949707031,
+          "details": "Prometheus not accessible: Connection error: [Errno 111] Connection refused",
+          "metrics": {}
+        },
+        {
+          "name": "Grafana Accessibility",
+          "status": "WARN",
+          "duration": 8.869171142578125e-05,
+          "details": "Grafana not accessible: Connection error: [Errno 111] Connection refused",
+          "metrics": {}
+        }
+      ]
+    },
+    "Security": {
+      "total_tests": 1,
+      "passed": 0,
+      "failed": 0,
+      "warnings": 1,
+      "success_rate": 0.0,
+      "tests": [
+        {
+          "name": "File Permissions Check",
+          "status": "WARN",
+          "duration": 2.1219253540039062e-05,
+          "details": "Minor permission concerns: .env: world-readable (664)",
+          "metrics": {
+            "issues_found": 1
+          }
+        }
+      ]
+    }
+  },
+  "critical_issues": [
+    {
+      "category": "Infrastructure",
+      "test": "Service Health Checks",
+      "issue": "Poor service health: 1/6 services healthy"
+    },
+    {
+      "category": "Monitoring",
+      "test": "Prometheus Accessibility",
+      "issue": "Prometheus not accessible: Connection error: [Errno 111] Connection refused"
+    }
+  ],
+  "recommendations": [
+    "Critical DevOps issues require immediate attention",
+    "\ud83d\udea8 Resolve 2 critical failures before production",
+    "\ud83c\udfd7\ufe0f Strengthen infrastructure monitoring and health checks"
+  ],
+  "production_readiness_assessment": "\u274c POOR - Major DevOps issues must be resolved"
+}

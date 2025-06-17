@@ -1,0 +1,42 @@
+{
+  "integration_summary": {
+    "total_tests": 11,
+    "passed_tests": 11,
+    "success_rate": 100.0
+  },
+  "integration_status": "OPERATIONAL",
+  "data_flow_metrics": {
+    "market_data_points": 20,
+    "ai_decisions_generated": 5,
+    "executions_simulated": 5,
+    "end_to_end_success_rate": 25.0
+  },
+  "system_readiness": "READY_FOR_DEPLOYMENT",
+  "recommendations": [
+    "Local integration is ready for THE OVERMIND PROTOCOL deployment"
+  ],
+  "detailed_results": {
+    "integration_tests": {
+      "rpc_health": "PASS",
+      "websocket": "PASS"
+    },
+    "data_flow_tests": {
+      "real_time_collection": "PASS (20 points)"
+    },
+    "ai_integration_tests": {
+      "market_analysis": "PASS",
+      "decision_generation": "PASS (5 decisions)"
+    },
+    "decision_pipeline_tests": {
+      "risk_management": "PASS (5/5 approved)",
+      "execution_simulation": "PASS (avg latency: 30.00ms)"
+    },
+    "performance_tests": {
+      "data_ingestion_rate": "PASS (2.83 points/sec)",
+      "ai_processing_rate": "PASS (0.25 decisions/point)",
+      "execution_latency": "PASS (avg: 30.00ms)",
+      "system_efficiency": "PASS (decision: 25.0%, execution: 100.0%)"
+    }
+  },
+  "timestamp": "2025-06-17T07:10:37.480096"
+}

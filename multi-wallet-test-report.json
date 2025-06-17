@@ -1,0 +1,258 @@
+{
+  "timestamp": "2025-06-17T13:02:24.577388",
+  "summary": {
+    "total_tests": 19,
+    "passed_tests": 19,
+    "failed_tests": 0,
+    "warnings": 0,
+    "success_rate": 100.0
+  },
+  "category_results": {
+    "wallet_configuration": {
+      "validation": {
+        "status": "PASS",
+        "valid_wallets": 4,
+        "total_wallets": 4,
+        "success_rate": 100.0
+      },
+      "environment": {
+        "status": "PASS",
+        "config_keys": 7,
+        "multi_wallet_enabled": true
+      }
+    },
+    "wallet_selection": {
+      "Arbitrage Strategy Selection": {
+        "status": "PASS",
+        "selected_wallet": "hft_wallet",
+        "wallet_type": "HFT",
+        "suitable_wallets_count": 3
+      },
+      "Token Sniping Selection": {
+        "status": "PASS",
+        "selected_wallet": "primary_wallet",
+        "wallet_type": "Primary",
+        "suitable_wallets_count": 2
+      },
+      "Conservative Strategy Selection": {
+        "status": "PASS",
+        "selected_wallet": "conservative_wallet",
+        "wallet_type": "Conservative",
+        "suitable_wallets_count": 2
+      },
+      "Experimental Strategy Selection": {
+        "status": "PASS",
+        "selected_wallet": "experimental_wallet",
+        "wallet_type": "Experimental",
+        "suitable_wallets_count": 1
+      }
+    },
+    "execution_routing": {
+      "test_signal_001": {
+        "status": "PASS",
+        "execution_result": {
+          "signal_id": "test_signal_001",
+          "wallet_id": "primary_wallet",
+          "wallet_type": "Primary",
+          "transaction_id": "primary_wallet_tx_test_signal_001",
+          "status": "Confirmed",
+          "executed_quantity": 100.0,
+          "executed_price": 50.05,
+          "fees": 5.0,
+          "selection_reason": "Supports TokenSniping, within position limits"
+        }
+      },
+      "test_signal_002": {
+        "status": "PASS",
+        "execution_result": {
+          "signal_id": "test_signal_002",
+          "wallet_id": "primary_wallet",
+          "wallet_type": "Primary",
+          "transaction_id": "primary_wallet_tx_test_signal_002",
+          "status": "Confirmed",
+          "executed_quantity": 500.0,
+          "executed_price": 2.5024999999999995,
+          "fees": 1.25,
+          "selection_reason": "Supports Arbitrage, within position limits"
+        }
+      },
+      "test_signal_003": {
+        "status": "PASS",
+        "execution_result": {
+          "signal_id": "test_signal_003",
+          "wallet_id": "primary_wallet",
+          "wallet_type": "Primary",
+          "transaction_id": "primary_wallet_tx_test_signal_003",
+          "status": "Confirmed",
+          "executed_quantity": 1000.0,
+          "executed_price": 0.001001,
+          "fees": 0.001,
+          "selection_reason": "Supports MomentumTrading, within position limits"
+        }
+      }
+    },
+    "risk_management": {
+      "Position Size Limits": {
+        "status": "PASS",
+        "violations_detected": 4,
+        "violations": [
+          {
+            "wallet_id": "primary_wallet",
+            "violation_type": "position_size_exceeded",
+            "limit": 10000.0,
+            "attempted": 25000.0
+          },
+          {
+            "wallet_id": "hft_wallet",
+            "violation_type": "position_size_exceeded",
+            "limit": 20000.0,
+            "attempted": 25000.0
+          },
+          {
+            "wallet_id": "conservative_wallet",
+            "violation_type": "position_size_exceeded",
+            "limit": 1000.0,
+            "attempted": 25000.0
+          },
+          {
+            "wallet_id": "experimental_wallet",
+            "violation_type": "position_size_exceeded",
+            "limit": 500.0,
+            "attempted": 25000.0
+          }
+        ]
+      },
+      "Daily Loss Limits": {
+        "status": "PASS",
+        "violations_detected": 3,
+        "violations": [
+          {
+            "wallet_id": "primary_wallet",
+            "violation_type": "daily_loss_exceeded",
+            "limit": 1000.0,
+            "current": 1500.0
+          },
+          {
+            "wallet_id": "conservative_wallet",
+            "violation_type": "daily_loss_exceeded",
+            "limit": 100.0,
+            "current": 1500.0
+          },
+          {
+            "wallet_id": "experimental_wallet",
+            "violation_type": "daily_loss_exceeded",
+            "limit": 50.0,
+            "current": 1500.0
+          }
+        ]
+      },
+      "Exposure Percentage": {
+        "status": "PASS",
+        "violations_detected": 3,
+        "violations": [
+          {
+            "wallet_id": "primary_wallet",
+            "violation_type": "exposure_exceeded",
+            "limit": 80.0,
+            "current": 90.0
+          },
+          {
+            "wallet_id": "conservative_wallet",
+            "violation_type": "exposure_exceeded",
+            "limit": 20.0,
+            "current": 90.0
+          },
+          {
+            "wallet_id": "experimental_wallet",
+            "violation_type": "exposure_exceeded",
+            "limit": 10.0,
+            "current": 90.0
+          }
+        ]
+      },
+      "Concurrent Positions": {
+        "status": "PASS",
+        "violations_detected": 3,
+        "violations": [
+          {
+            "wallet_id": "primary_wallet",
+            "violation_type": "concurrent_positions_exceeded",
+            "limit": 10,
+            "current": 12
+          },
+          {
+            "wallet_id": "conservative_wallet",
+            "violation_type": "concurrent_positions_exceeded",
+            "limit": 3,
+            "current": 12
+          },
+          {
+            "wallet_id": "experimental_wallet",
+            "violation_type": "concurrent_positions_exceeded",
+            "limit": 2,
+            "current": 12
+          }
+        ]
+      }
+    },
+    "performance_tests": {
+      "Wallet Selection Speed": {
+        "status": "PASS",
+        "avg_time_ms": 0.0005745887756347656,
+        "target_time_ms": 50,
+        "iterations": 100
+      },
+      "Concurrent Wallet Operations": {
+        "status": "PASS",
+        "total_time_ms": 0.0026226043701171875,
+        "target_time_ms": 200,
+        "concurrent_trades": 10
+      },
+      "Memory Usage": {
+        "status": "PASS",
+        "estimated_memory_mb": 8.392333984375e-05,
+        "target_memory_mb": 100,
+        "wallet_count": 4
+      }
+    },
+    "integration_tests": {
+      "Complete Trading Flow": {
+        "status": "PASS",
+        "success_rate": 100.0,
+        "completed_steps": 5,
+        "total_steps": 5
+      },
+      "Wallet Failover": {
+        "status": "PASS",
+        "primary_wallet": "primary_wallet",
+        "fallback_options": 3,
+        "fallback_wallets": [
+          "hft_wallet",
+          "conservative_wallet",
+          "experimental_wallet"
+        ]
+      },
+      "Multi-Strategy Execution": {
+        "status": "PASS",
+        "strategy_wallet_mapping": {
+          "TokenSniping": [
+            "primary_wallet",
+            "hft_wallet"
+          ],
+          "Arbitrage": [
+            "primary_wallet",
+            "hft_wallet",
+            "conservative_wallet"
+          ],
+          "MomentumTrading": [
+            "primary_wallet",
+            "conservative_wallet"
+          ]
+        },
+        "total_combinations": 7,
+        "strategies_covered": 3
+      }
+    }
+  },
+  "assessment": "EXCELLENT"
+}

@@ -1,0 +1,79 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "THE OVERMIND PROTOCOL - Main Dashboard",
+    "tags": ["overmind", "trading", "ai"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "System Status",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "up{job=\"overmind-executor\"}",
+            "legendFormat": "Trading System"
+          },
+          {
+            "expr": "up{job=\"overmind-brain\"}",
+            "legendFormat": "AI Brain"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "Daily P&L",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "overmind_daily_pnl",
+            "legendFormat": "P&L"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "Execution Latency",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "overmind_execution_latency_ms",
+            "legendFormat": "Latency (ms)"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 8}
+      },
+      {
+        "id": 4,
+        "title": "AI Confidence",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "overmind_ai_confidence",
+            "legendFormat": "Confidence"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16}
+      },
+      {
+        "id": 5,
+        "title": "Trade Volume",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(overmind_trades_total[5m])",
+            "legendFormat": "Trades/sec"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16}
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "refresh": "5s"
+  }
+}

@@ -34,6 +34,9 @@ pub enum TradingMode {
 pub struct SolanaConfig {
     pub rpc_url: String,
     pub wallet_private_key: String,
+    // Multi-wallet support
+    pub multi_wallet_enabled: bool,
+    pub default_wallet_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -102,6 +105,11 @@ impl Config {
                     .context("SNIPER_SOLANA_RPC_URL is required")?,
                 wallet_private_key: env::var("SNIPER_WALLET_PRIVATE_KEY")
                     .context("SNIPER_WALLET_PRIVATE_KEY is required")?,
+                multi_wallet_enabled: env::var("OVERMIND_MULTI_WALLET_ENABLED")
+                    .unwrap_or_else(|_| "false".to_string())
+                    .parse()
+                    .unwrap_or(false),
+                default_wallet_id: env::var("OVERMIND_DEFAULT_WALLET").ok(),
             },
             api: ApiConfig {
                 helius_api_key: env::var("SNIPER_HELIUS_API_KEY")

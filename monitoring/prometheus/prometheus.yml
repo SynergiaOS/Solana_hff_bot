@@ -1,0 +1,64 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'overmind-production'
+    environment: 'cloud'
+
+rule_files:
+  - "alert_rules.yml"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+
+scrape_configs:
+  # OVERMIND Trading System
+  - job_name: 'overmind-executor'
+    static_configs:
+      - targets: ['overmind-executor:8080']
+    metrics_path: '/metrics'
+    scrape_interval: 5s
+    scrape_timeout: 3s
+
+  # OVERMIND AI Brain
+  - job_name: 'overmind-brain'
+    static_configs:
+      - targets: ['overmind-brain:8000']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    scrape_timeout: 5s
+
+  # TensorZero Gateway
+  - job_name: 'tensorzero-gateway'
+    static_configs:
+      - targets: ['tensorzero-gateway:3000']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+
+  # Chroma Vector Database
+  - job_name: 'chroma-db'
+    static_configs:
+      - targets: ['overmind-chroma:8000']
+    metrics_path: '/api/v1/metrics'
+    scrape_interval: 30s
+
+  # System Metrics
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+    scrape_interval: 15s
+
+  # DragonflyDB
+  - job_name: 'dragonfly'
+    static_configs:
+      - targets: ['overmind-dragonfly:6379']
+    scrape_interval: 30s
+
+  # PostgreSQL
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['overmind-postgres:5432']
+    scrape_interval: 30s

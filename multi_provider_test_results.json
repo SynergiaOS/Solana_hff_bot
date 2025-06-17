@@ -1,0 +1,130 @@
+{
+  "multi_provider_summary": {
+    "total_tests": 12,
+    "passed_tests": 5,
+    "success_rate": 41.7
+  },
+  "provider_status": {
+    "quicknode": "OPERATIONAL",
+    "helius": "PARTIAL",
+    "jito": "DOWN"
+  },
+  "optimal_configuration": {
+    "HFT Execution": "helius",
+    "Data Analysis": "helius",
+    "MEV Protection": "jito",
+    "Fallback": "quicknode"
+  },
+  "recommendations": [
+    "QuickNode Premium ready for HFT execution",
+    "Configure Helius API key for advanced data features",
+    "Setup Jito integration for MEV protection in production",
+    "Optimize quicknode connection - high latency detected",
+    "Optimize helius connection - high latency detected"
+  ],
+  "detailed_results": {
+    "provider_tests": {
+      "quicknode_rpc": {
+        "status": "PASS",
+        "latency_ms": 267.53,
+        "purpose": "HFT Execution"
+      },
+      "quicknode_ws": {
+        "status": "PASS",
+        "latency_ms": 361.53
+      },
+      "helius_rpc": {
+        "status": "PASS",
+        "latency_ms": 116.95,
+        "purpose": "Data Analysis"
+      },
+      "helius_ws": {
+        "status": "ERROR",
+        "error": "server rejected WebSocket connection: HTTP 401"
+      },
+      "jito_rpc": {
+        "status": "FAIL",
+        "error": "HTTP 404"
+      }
+    },
+    "performance_comparison": {
+      "quicknode": {
+        "total_requests": 15,
+        "successful_requests": 15,
+        "failed_requests": 0,
+        "avg_latency": 279.4760386149089,
+        "min_latency": 223.18458557128906,
+        "max_latency": 331.362247467041,
+        "latencies": [
+          301.84078216552734,
+          331.362247467041,
+          307.6467514038086,
+          313.08507919311523,
+          270.42150497436523,
+          223.18458557128906,
+          244.91047859191895,
+          230.3147315979004,
+          258.267879486084,
+          288.6312007904053,
+          297.57165908813477,
+          304.215669631958,
+          257.58838653564453,
+          299.8783588409424,
+          263.22126388549805
+        ],
+        "success_rate": 100.0
+      },
+      "helius": {
+        "total_requests": 15,
+        "successful_requests": 5,
+        "failed_requests": 10,
+        "avg_latency": 134.08026695251465,
+        "min_latency": 33.167362213134766,
+        "max_latency": 515.3274536132812,
+        "latencies": [
+          33.167362213134766,
+          42.298316955566406,
+          515.3274536132812,
+          43.230295181274414,
+          36.377906799316406
+        ],
+        "success_rate": 33.33333333333333
+      }
+    },
+    "failover_tests": {
+      "Primary Down - QuickNode to Helius": {
+        "status": "PASS",
+        "primary_failed": false,
+        "fallback_success": true,
+        "fallback_latency": 40.25,
+        "failover_time": 40.25
+      },
+      "Data Source Failover - Helius to QuickNode": {
+        "status": "PASS",
+        "primary_failed": false,
+        "fallback_success": true,
+        "fallback_latency": 222.38,
+        "failover_time": 222.38
+      }
+    },
+    "optimization_tests": {
+      "hft_execution": {
+        "status": "WARN",
+        "avg_latency": 307.08,
+        "max_latency": 353.12,
+        "success_rate": 100.0,
+        "latency_requirement": 50,
+        "meets_requirements": false
+      },
+      "data_analysis": {
+        "status": "FAIL",
+        "reason": "No successful requests"
+      },
+      "mev_protection": {
+        "status": "SKIP",
+        "reason": "Jito requires mainnet and special configuration"
+      }
+    }
+  },
+  "timestamp": "2025-06-17T09:21:59.538057"
+}

@@ -1,0 +1,96 @@
+groups:
+  - name: overmind_critical_alerts
+    rules:
+      - alert: TradingSystemDown
+        expr: up{job="overmind-executor"} == 0
+        for: 30s
+        labels:
+          severity: critical
+          component: trading-system
+        annotations:
+          summary: "🚨 OVERMIND Trading System is DOWN"
+          description: "The main trading system has been unreachable for {{ $for }}"
+
+      - alert: AIBrainDown
+        expr: up{job="overmind-brain"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: ai-brain
+        annotations:
+          summary: "🧠 OVERMIND AI Brain is DOWN"
+          description: "The AI Brain has been unreachable for {{ $for }}"
+
+      - alert: VectorDatabaseDown
+        expr: up{job="chroma-db"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: vector-db
+        annotations:
+          summary: "🗄️ Vector Database is DOWN"
+          description: "Chroma vector database is unreachable - AI memory affected"
+
+  - name: overmind_performance_alerts
+    rules:
+      - alert: HighExecutionLatency
+        expr: overmind_execution_latency_ms > 100
+        for: 2m
+        labels:
+          severity: warning
+          component: execution
+        annotations:
+          summary: "⚡ High execution latency detected"
+          description: "Execution latency is {{ $value }}ms (threshold: 100ms)"
+
+      - alert: LowAIConfidence
+        expr: avg_over_time(overmind_ai_confidence[5m]) < 0.6
+        for: 3m
+        labels:
+          severity: warning
+          component: ai-brain
+        annotations:
+          summary: "🤖 Low AI confidence detected"
+          description: "Average AI confidence is {{ $value }} (threshold: 0.6)"
+
+      - alert: HighMemoryUsage
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "💾 High memory usage"
+          description: "Memory usage is {{ $value | humanizePercentage }}"
+
+  - name: overmind_trading_alerts
+    rules:
+      - alert: DailyLossLimitApproaching
+        expr: overmind_daily_pnl < -800
+        for: 1m
+        labels:
+          severity: warning
+          component: risk-management
+        annotations:
+          summary: "📉 Daily loss limit approaching"
+          description: "Daily P&L is {{ $value }} (limit: -1000)"
+
+      - alert: DailyLossLimitExceeded
+        expr: overmind_daily_pnl < -1000
+        for: 0s
+        labels:
+          severity: critical
+          component: risk-management
+        annotations:
+          summary: "🛑 DAILY LOSS LIMIT EXCEEDED"
+          description: "Daily P&L is {{ $value }} - EMERGENCY STOP REQUIRED"
+
+      - alert: NoTradingActivity
+        expr: increase(overmind_trades_total[1h]) == 0
+        for: 2h
+        labels:
+          severity: warning
+          component: trading
+        annotations:
+          summary: "📊 No trading activity detected"
+          description: "No trades executed in the last 2 hours"

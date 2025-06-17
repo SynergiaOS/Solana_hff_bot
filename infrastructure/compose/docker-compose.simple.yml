@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  # TensorZero Gateway - AI Decision Engine
+  tensorzero-gateway:
+    image: tensorzero/gateway:latest
+    container_name: overmind-tensorzero
+    ports:
+      - "3003:3000"
+    environment:
+      - TENSORZERO_DATABASE_URL=sqlite:///app/data/tensorzero.db
+      - TENSORZERO_REDIS_URL=redis://host.docker.internal:6380
+      - TENSORZERO_LOG_LEVEL=info
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+    volumes:
+      - ./tensorzero-config:/app/config
+      - ./data/tensorzero:/app/data
+    restart: unless-stopped
+    command: ["--default-config"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  tensorzero-data:

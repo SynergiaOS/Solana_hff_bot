@@ -1,0 +1,132 @@
+{
+  "functions": [
+    {
+      "name": "overmind_trading_decision",
+      "description": "THE OVERMIND PROTOCOL - AI-enhanced trading decision engine for ultra-low latency HFT",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "market_data": {
+            "type": "string",
+            "description": "JSON string containing market data for analysis"
+          }
+        },
+        "required": ["market_data"]
+      },
+      "variants": [
+        {
+          "name": "gpt4o_mini_fast",
+          "type": "chat_completion",
+          "weight": 0.8,
+          "model": {
+            "provider": "openai",
+            "model_name": "gpt-4o-mini",
+            "parameters": {
+              "temperature": 0.1,
+              "max_tokens": 500,
+              "top_p": 0.9
+            }
+          }
+        },
+        {
+          "name": "mistral_fast",
+          "type": "chat_completion",
+          "weight": 0.15,
+          "model": {
+            "provider": "mistral",
+            "model_name": "mistral-small-latest",
+            "parameters": {
+              "temperature": 0.1,
+              "max_tokens": 500,
+              "top_p": 0.9
+            }
+          }
+        },
+        {
+          "name": "google_gemini_fast",
+          "type": "chat_completion",
+          "weight": 0.05,
+          "model": {
+            "provider": "google",
+            "model_name": "gemini-1.5-flash",
+            "parameters": {
+              "temperature": 0.1,
+              "max_tokens": 500,
+              "top_p": 0.9
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "metrics": [
+    {
+      "name": "trading_decision_latency",
+      "type": "float",
+      "description": "Latency of AI trading decisions in milliseconds"
+    },
+    {
+      "name": "ai_confidence_score",
+      "type": "float", 
+      "description": "AI confidence in trading decision (0.0 to 1.0)"
+    },
+    {
+      "name": "estimated_profit",
+      "type": "float",
+      "description": "Estimated profit from the trading decision"
+    },
+    {
+      "name": "signal_type",
+      "type": "string",
+      "description": "Type of trading signal generated"
+    }
+  ],
+  "providers": {
+    "openai": {
+      "api_key": "${OPENAI_API_KEY}",
+      "default_model_parameters": {
+        "temperature": 0.1,
+        "max_tokens": 500
+      }
+    },
+    "mistral": {
+      "api_key": "${MISTRAL_API_KEY}",
+      "default_model_parameters": {
+        "temperature": 0.1,
+        "max_tokens": 500
+      }
+    },
+    "google": {
+      "api_key": "${GOOGLE_API_KEY}",
+      "default_model_parameters": {
+        "temperature": 0.1,
+        "max_tokens": 500
+      }
+    }
+  },
+  "gateway": {
+    "bind_address": "0.0.0.0:3000",
+    "cors_allow_origin": "*",
+    "request_timeout_ms": 30000,
+    "max_request_size_mb": 10
+  },
+  "optimization": {
+    "enabled": true,
+    "learning_rate": 0.01,
+    "batch_size": 32,
+    "update_frequency_minutes": 5,
+    "metrics_retention_days": 30
+  },
+  "caching": {
+    "enabled": true,
+    "redis_url": "${TENSORZERO_REDIS_URL}",
+    "ttl_seconds": 300,
+    "max_cache_size_mb": 100
+  },
+  "logging": {
+    "level": "info",
+    "format": "json",
+    "include_request_body": false,
+    "include_response_body": false
+  }
+}

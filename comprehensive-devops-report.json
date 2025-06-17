@@ -1,0 +1,227 @@
+{
+  "timestamp": "2025-06-17T15:27:11.003026",
+  "test_philosophy": "Trust through Real-World Verification",
+  "summary": {
+    "total_tests": 12,
+    "passed": 2,
+    "failed": 4,
+    "warnings": 4,
+    "skipped": 2,
+    "success_rate": 16.666666666666664,
+    "total_duration": 18.15088415145874
+  },
+  "categories": {
+    "Deployment": {
+      "total_tests": 3,
+      "passed": 2,
+      "failed": 0,
+      "warnings": 1,
+      "skipped": 0,
+      "success_rate": 66.66666666666666,
+      "weight": 0.3,
+      "tests": [
+        {
+          "name": "Clean Server Deployment Test",
+          "status": "PASS",
+          "duration": 0.0028002262115478516,
+          "details": "Deployment script syntax valid and executable",
+          "metrics": {},
+          "evidence": []
+        },
+        {
+          "name": "Configuration Validation Test",
+          "status": "WARN",
+          "duration": 0.49552226066589355,
+          "details": "1/2 Docker Compose configurations valid",
+          "metrics": {
+            "valid_configs": 1,
+            "total_configs": 2
+          },
+          "evidence": []
+        },
+        {
+          "name": "Secret Management Test",
+          "status": "PASS",
+          "duration": 1.2159347534179688e-05,
+          "details": "All critical secrets properly configured",
+          "metrics": {
+            "configured_secrets": 3,
+            "missing_count": 0
+          },
+          "evidence": []
+        }
+      ]
+    },
+    "Monitoring": {
+      "total_tests": 3,
+      "passed": 0,
+      "failed": 2,
+      "warnings": 1,
+      "skipped": 0,
+      "success_rate": 0.0,
+      "weight": 0.25,
+      "tests": [
+        {
+          "name": "Metrics Flow Test",
+          "status": "FAIL",
+          "duration": 0.0011970996856689453,
+          "details": "Prometheus not accessible: HTTPConnectionPool(host='localhost', port=9090): Max retries exceeded with url: /api/v1/query?query=up (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7d898d62d970>: Failed to establish a new connection: [Errno 111] Connection refused'))",
+          "metrics": {
+            "metrics_rate": "0.0%",
+            "prometheus_response_time": "1.2ms"
+          },
+          "evidence": []
+        },
+        {
+          "name": "Alert Testing",
+          "status": "FAIL",
+          "duration": 0.0006911754608154297,
+          "details": "Alert testing failed: HTTPConnectionPool(host='localhost', port=9090): Max retries exceeded with url: /api/v1/rules (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7d898d62cec0>: Failed to establish a new connection: [Errno 111] Connection refused'))",
+          "metrics": {
+            "config_files": 0,
+            "alert_rules": 0
+          },
+          "evidence": []
+        },
+        {
+          "name": "Centralized Logging Test",
+          "status": "WARN",
+          "duration": 0.0008671283721923828,
+          "details": "Basic logging available: 1/3 systems operational",
+          "metrics": {
+            "available_systems": 1,
+            "systems": {
+              "docker_logs": true,
+              "elasticsearch": false,
+              "grafana_loki": false
+            }
+          },
+          "evidence": []
+        }
+      ]
+    },
+    "Resilience": {
+      "total_tests": 3,
+      "passed": 0,
+      "failed": 2,
+      "warnings": 0,
+      "skipped": 1,
+      "success_rate": 0.0,
+      "weight": 0.25,
+      "tests": [
+        {
+          "name": "Database Blink Test",
+          "status": "FAIL",
+          "duration": 5.287604331970215,
+          "details": "Database failed to restart: overmind-tensorzero-dragonfly",
+          "metrics": {},
+          "evidence": []
+        },
+        {
+          "name": "API Overload Test",
+          "status": "SKIP",
+          "duration": 0.0023386478424072266,
+          "details": "No accessible endpoints for load testing",
+          "metrics": {
+            "load_test_results": {
+              "localhost": {
+                "error": "Endpoint not accessible"
+              }
+            }
+          },
+          "evidence": []
+        },
+        {
+          "name": "Container Failure Recovery Test",
+          "status": "FAIL",
+          "duration": 12.283998966217041,
+          "details": "Container failed to recover: overmind-tensorzero-dragonfly",
+          "metrics": {},
+          "evidence": []
+        }
+      ]
+    },
+    "Security": {
+      "total_tests": 3,
+      "passed": 0,
+      "failed": 0,
+      "warnings": 2,
+      "skipped": 1,
+      "success_rate": 0.0,
+      "weight": 0.2,
+      "tests": [
+        {
+          "name": "Network Access Test",
+          "status": "WARN",
+          "duration": 0.0003731250762939453,
+          "details": "Some internal services accessible: ports [6379, 5432]",
+          "metrics": {
+            "accessible_ports": [
+              6379,
+              5432
+            ],
+            "total_tested": 4
+          },
+          "evidence": []
+        },
+        {
+          "name": "Container Vulnerability Scan",
+          "status": "SKIP",
+          "duration": 0.008648157119750977,
+          "details": "Trivy not available for container vulnerability scanning",
+          "metrics": {},
+          "evidence": []
+        },
+        {
+          "name": "Secret Leak Test",
+          "status": "WARN",
+          "duration": 0.06683087348937988,
+          "details": "Potential secret leaks found: 1 files with concerns",
+          "metrics": {
+            "files_scanned": 730,
+            "potential_leaks": 1
+          },
+          "evidence": []
+        }
+      ]
+    }
+  },
+  "critical_issues": [
+    {
+      "category": "Monitoring",
+      "test": "Metrics Flow Test",
+      "issue": "Prometheus not accessible: HTTPConnectionPool(host='localhost', port=9090): Max retries exceeded with url: /api/v1/query?query=up (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7d898d62d970>: Failed to establish a new connection: [Errno 111] Connection refused'))",
+      "severity": "HIGH"
+    },
+    {
+      "category": "Monitoring",
+      "test": "Alert Testing",
+      "issue": "Alert testing failed: HTTPConnectionPool(host='localhost', port=9090): Max retries exceeded with url: /api/v1/rules (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7d898d62cec0>: Failed to establish a new connection: [Errno 111] Connection refused'))",
+      "severity": "HIGH"
+    },
+    {
+      "category": "Resilience",
+      "test": "Database Blink Test",
+      "issue": "Database failed to restart: overmind-tensorzero-dragonfly",
+      "severity": "HIGH"
+    },
+    {
+      "category": "Resilience",
+      "test": "Container Failure Recovery Test",
+      "issue": "Container failed to recover: overmind-tensorzero-dragonfly",
+      "severity": "HIGH"
+    }
+  ],
+  "recommendations": [
+    "Critical issues must be resolved before production",
+    "\ud83d\udea8 Resolve 4 critical test failures",
+    "\u26a0\ufe0f Address 4 warnings",
+    "\ud83d\ude80 Improve deployment automation and configuration management",
+    "\ud83d\udcca Enhance monitoring and observability infrastructure",
+    "\ud83d\udee1\ufe0f Strengthen system resilience and fault tolerance",
+    "\ud83d\udd12 Address security vulnerabilities and hardening"
+  ],
+  "production_readiness_score": 19.999999999999996,
+  "certification_status": "\u274c NOT READY - Critical Issues",
+  "evidence_collected": []
+}
