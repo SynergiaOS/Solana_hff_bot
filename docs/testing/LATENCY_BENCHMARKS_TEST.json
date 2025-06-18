@@ -1,0 +1,105 @@
+{
+  "test_timestamp": "2025-06-18T18:34:38.696140",
+  "test_duration": "0:00:14.864964",
+  "overall_success": true,
+  "performance_level": "\ud83d\ude80 EXCELLENT",
+  "success_rate": 1.0,
+  "passed_tests": 3,
+  "total_tests": 3,
+  "test_results": [
+    {
+      "test_name": "AI Brain Latency",
+      "success": true,
+      "tests": [
+        {
+          "test": "Single Decision Latency",
+          "success": true,
+          "details": {
+            "measurements": 10,
+            "avg_latency_ms": 285.79,
+            "p95_latency_ms": 547.82,
+            "p99_latency_ms": 590.13,
+            "min_latency_ms": 203.15,
+            "max_latency_ms": 504.56,
+            "target_ms": 5000,
+            "target_met": true
+          }
+        },
+        {
+          "test": "Batch Decisions Latency",
+          "success": true,
+          "details": {
+            "batch_size": 10,
+            "total_latency_ms": 2150.74,
+            "avg_per_decision_ms": 215.07,
+            "target_ms": 10000,
+            "target_met": true
+          }
+        },
+        {
+          "test": "Complex Analysis Latency",
+          "success": true,
+          "details": {
+            "pipeline_latency_ms": 237.53,
+            "components": [
+              "MarketAnalyzer",
+              "DecisionEngine",
+              "RiskAnalyzer"
+            ],
+            "target_ms": 15000,
+            "target_met": true
+          }
+        }
+      ],
+      "timestamp": "2025-06-18T18:34:44.267614"
+    },
+    {
+      "test_name": "Vector Memory Latency",
+      "success": true,
+      "tests": [
+        {
+          "test": "Experience Storage Latency",
+          "success": true,
+          "details": {
+            "measurements": 10,
+            "avg_latency_ms": 46.22,
+            "p95_latency_ms": 82.14,
+            "target_ms": 100,
+            "target_met": true
+          }
+        },
+        {
+          "test": "Similarity Search Latency",
+          "success": true,
+          "details": {
+            "measurements": 5,
+            "avg_latency_ms": 8.85,
+            "p95_latency_ms": 14.15,
+            "target_ms": 200,
+            "target_met": true
+          }
+        }
+      ],
+      "timestamp": "2025-06-18T18:34:49.896771"
+    },
+    {
+      "test_name": "End-to-End Latency",
+      "success": true,
+      "tests": [
+        {
+          "test": "Market Event \u2192 Decision Pipeline",
+          "success": true,
+          "details": {
+            "measurements": 5,
+            "avg_latency_ms": 340.11,
+            "p95_latency_ms": 568.85,
+            "target_ms": 10000,
+            "target_met": true
+          }
+        }
+      ],
+      "timestamp": "2025-06-18T18:34:53.561071"
+    }
+  ],
+  "status": "LATENCY_TARGETS_MET"
+}
