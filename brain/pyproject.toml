@@ -2,18 +2,43 @@
 name = "overmind-brain"
 version = "1.0.0"
 description = "THE OVERMIND PROTOCOL - Python AI Brain"
-authors = ["THE OVERMIND PROTOCOL Team"]
+authors = [
+    {name = "THE OVERMIND PROTOCOL Team", email = "team@overmind.protocol"}
+]
 dependencies = [
+    # AI Framework Core
     "langchain>=0.1.0",
     "langchain-openai>=0.1.0",
+    "openai>=1.0.0",
+
+    # AI Hedge Fund Framework (Multi-Agent AI) - Custom implementation
+    # "ai-hedge-fund>=0.1.0",  # Custom implementation in codebase
+
+    # Vector Database & Memory
     "chromadb>=0.4.0",
+    "sentence-transformers>=2.2.0",
+
+    # Web Framework & API
     "fastapi>=0.100.0",
     "uvicorn>=0.20.0",
+
+    # Redis/DragonflyDB Communication
     "redis>=5.0.0",
+    "aioredis>=2.0.0",
+
+    # Data Processing
     "pandas>=2.0.0",
     "numpy>=1.24.0",
-    "aioredis>=2.0.0",
     "pydantic>=2.0.0",
+
+    # Additional AI/ML Libraries
+    "scikit-learn>=1.3.0",
+    # "asyncio-mqtt>=0.13.0",  # Optional for MQTT communication
+    "python-dotenv>=1.0.0",
+    "httpx>=0.24.0",
+
+    # TensorZero Integration (if available)
+    # "tensorzero-python>=0.1.0; python_version>='3.8'",  # Custom integration
 ]
 
 [build-system]
