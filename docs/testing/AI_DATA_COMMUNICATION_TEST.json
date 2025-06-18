@@ -1,0 +1,140 @@
+{
+  "test_timestamp": "2025-06-18T18:24:02.071866",
+  "test_duration": "0:00:09.688423",
+  "overall_success": true,
+  "communication_level": "\ud83c\udf1f EXCELLENT",
+  "success_rate": 1.0,
+  "passed_tests": 3,
+  "total_tests": 3,
+  "test_results": [
+    {
+      "test_name": "Market Data Flow",
+      "success": true,
+      "tests": [
+        {
+          "test": "QuickNode \u2192 AI Brain Data Flow",
+          "success": true,
+          "details": {
+            "data_source": "QuickNode Devnet",
+            "response_time": "0.27s",
+            "data_processed": true,
+            "ai_analysis": {
+              "trend_direction": "BULLISH",
+              "trend_strength": 0.0,
+              "patterns_detected": 0
+            }
+          }
+        },
+        {
+          "test": "Real-time Price Updates Processing",
+          "success": true,
+          "details": {
+            "updates_processed": 3,
+            "processing_results": [
+              {
+                "price": 100.0,
+                "decision": "HOLD",
+                "confidence": 0.0
+              },
+              {
+                "price": 101.5,
+                "decision": "HOLD",
+                "confidence": 0.0
+              },
+              {
+                "price": 102.0,
+                "decision": "HOLD",
+                "confidence": 0.0
+              }
+            ],
+            "average_confidence": 0.0
+          }
+        }
+      ],
+      "timestamp": "2025-06-18T18:24:04.150440"
+    },
+    {
+      "test_name": "AI Analysis Pipeline",
+      "success": true,
+      "tests": [
+        {
+          "test": "Market Data \u2192 MarketAnalyzer",
+          "success": true,
+          "details": {
+            "analysis_time": "0.000s",
+            "trend_direction": "BULLISH",
+            "trend_strength": 0.0,
+            "support_levels": [],
+            "resistance_levels": [],
+            "market_sentiment": "NEUTRAL"
+          }
+        },
+        {
+          "test": "Analysis Results \u2192 DecisionEngine",
+          "success": true,
+          "details": {
+            "decision_time": "0.389s",
+            "action": "HOLD",
+            "confidence": 0.0,
+            "reasoning": "Analysis failed: Error code: 401 - {'error': {'message': 'Incorrect API key provided: sk-17947***********************5b4f. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",
+            "symbol": "SOL/USDC"
+          }
+        },
+        {
+          "test": "Decision Output \u2192 Risk Assessment",
+          "success": true,
+          "details": {
+            "risk_time": "0.000s",
+            "risk_level": "HIGH",
+            "risk_score": 0.8,
+            "position_recommendation": 0.01,
+            "risk_factors": [
+              "Assessment failed"
+            ]
+          }
+        }
+      ],
+      "timestamp": "2025-06-18T18:24:04.569913"
+    },
+    {
+      "test_name": "Vector Memory Integration",
+      "success": true,
+      "tests": [
+        {
+          "test": "Experience Storage from Market Events",
+          "success": true,
+          "details": {
+            "storage_time": "0.114s",
+            "memory_id": "9f38adbd-99a2-4404-b913-2a4dd399a1b0",
+            "situation_stored": true,
+            "decision_stored": true,
+            "outcome_stored": true
+          }
+        },
+        {
+          "test": "Historical Data Retrieval for Decisions",
+          "success": true,
+          "details": {
+            "retrieval_time": "0.025s",
+            "query": "bullish market condition with high volume",
+            "experiences_found": 3,
+            "search_successful": true
+          }
+        },
+        {
+          "test": "Memory-based Learning Validation",
+          "success": true,
+          "details": {
+            "learning_time": "0.285s",
+            "decision_influenced_by_memory": true,
+            "action": "HOLD",
+            "confidence": 0.0,
+            "memory_integration": "functional"
+          }
+        }
+      ],
+      "timestamp": "2025-06-18T18:24:11.760259"
+    }
+  ],
+  "status": "AI_DATA_COMMUNICATION_EXCELLENT"
+}

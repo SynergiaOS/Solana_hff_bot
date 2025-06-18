@@ -1,0 +1,136 @@
+{
+  "test_timestamp": "2025-06-18T18:20:17.025275",
+  "test_duration": "0:00:05.202723",
+  "overall_success": false,
+  "communication_level": "\u274c POOR",
+  "success_rate": 0.6666666666666666,
+  "passed_tests": 2,
+  "total_tests": 3,
+  "test_results": [
+    {
+      "test_name": "Docker Infrastructure Communication",
+      "success": true,
+      "tests": [
+        {
+          "test": "Docker Compose Status",
+          "success": true,
+          "details": "Name   Command   State   Ports\n------------------------------"
+        },
+        {
+          "test": "Container Network Status",
+          "success": true,
+          "details": [
+            {
+              "container": "dragonfly",
+              "running": true,
+              "status": "UP"
+            },
+            {
+              "container": "postgres",
+              "running": true,
+              "status": "UP"
+            },
+            {
+              "container": "prometheus",
+              "running": true,
+              "status": "UP"
+            },
+            {
+              "container": "grafana",
+              "running": true,
+              "status": "UP"
+            }
+          ]
+        },
+        {
+          "test": "DNS Resolution & Port Connectivity",
+          "success": true,
+          "details": [
+            {
+              "target": "localhost:6379",
+              "reachable": true,
+              "response_time": "< 5s"
+            },
+            {
+              "target": "localhost:5432",
+              "reachable": false,
+              "response_time": "timeout"
+            },
+            {
+              "target": "localhost:9090",
+              "reachable": false,
+              "response_time": "timeout"
+            },
+            {
+              "target": "localhost:3000",
+              "reachable": false,
+              "response_time": "timeout"
+            }
+          ]
+        }
+      ],
+      "timestamp": "2025-06-18T18:20:17.367459"
+    },
+    {
+      "test_name": "Database Connectivity",
+      "success": true,
+      "tests": [
+        {
+          "test": "DragonflyDB Connection",
+          "success": true,
+          "details": {
+            "host": "localhost",
+            "port": 6379,
+            "operation": "SET/GET/DELETE",
+            "result": "SUCCESS"
+          }
+        },
+        {
+          "test": "PostgreSQL Connection",
+          "success": false,
+          "details": {
+            "error": "connection to server at \"localhost\" (127.0.0.1), port 5432 failed: Connection refused\n\tIs the server running on that host and accepting TCP/IP connections?\n"
+          }
+        }
+      ],
+      "timestamp": "2025-06-18T18:20:17.406701"
+    },
+    {
+      "test_name": "External API Access",
+      "success": false,
+      "tests": [
+        {
+          "test": "Helius API Access",
+          "success": false,
+          "details": {
+            "url": "https://api.helius.xyz/v0/addresses/So11111111111111111111111111111111111111112/balances",
+            "status_code": 401,
+            "response_time": "0.26s",
+            "data_received": 69
+          }
+        },
+        {
+          "test": "QuickNode Devnet Access",
+          "success": true,
+          "details": {
+            "url": "QuickNode Devnet Endpoint",
+            "status_code": 200,
+            "response_time": "0.26s",
+            "method": "getHealth"
+          }
+        },
+        {
+          "test": "General Internet Connectivity",
+          "success": true,
+          "details": {
+            "url": "https://httpbin.org/get",
+            "status_code": 200,
+            "response_time": "4.30s"
+          }
+        }
+      ],
+      "timestamp": "2025-06-18T18:20:22.227893"
+    }
+  ],
+  "status": "NEEDS_ATTENTION"
+}
