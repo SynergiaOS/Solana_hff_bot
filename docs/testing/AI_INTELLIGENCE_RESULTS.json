@@ -1,0 +1,90 @@
+{
+  "validation_timestamp": "2025-06-18T17:59:38.570076",
+  "overall_intelligence_score": 1.0,
+  "intelligence_level": "\ud83e\udde0 GENIUS",
+  "test_results": [
+    {
+      "test_name": "Basic Intelligence",
+      "results": [
+        {
+          "scenario": "Trend Wzrostowy",
+          "decision": {
+            "action": "BUY",
+            "confidence": 0.9,
+            "reasoning": "Based on price change 5.2%, volume change 25.0%, RSI 65",
+            "timestamp": "2025-06-18T17:59:38.569978"
+          },
+          "score": 1.0,
+          "passed": true
+        },
+        {
+          "scenario": "Trend Spadkowy",
+          "decision": {
+            "action": "SELL",
+            "confidence": 0.9,
+            "reasoning": "Based on price change -3.8%, volume change -15.0%, RSI 35",
+            "timestamp": "2025-06-18T17:59:38.569998"
+          },
+          "score": 1.0,
+          "passed": true
+        },
+        {
+          "scenario": "Wysoka Volatilno\u015b\u0107",
+          "decision": {
+            "action": "HOLD",
+            "confidence": 0.44,
+            "reasoning": "Based on price change 0.2%, volume change 0%, RSI 50",
+            "timestamp": "2025-06-18T17:59:38.570012"
+          },
+          "score": 1.0,
+          "passed": true
+        }
+      ],
+      "average_score": 1.0,
+      "passed_tests": 3,
+      "total_tests": 3,
+      "status": "PASSED"
+    },
+    {
+      "test_name": "Risk Intelligence",
+      "results": [
+        {
+          "scenario": "Niskie Ryzyko",
+          "risk_analysis": {
+            "risk_level": "LOW",
+            "portfolio_risk_score": 0.03,
+            "recommended_position_size": 1.0,
+            "risk_factors": {
+              "volatility": 0.05,
+              "correlation": 0.2,
+              "position_size": 0.5
+            }
+          },
+          "score": 1.0,
+          "passed": true
+        },
+        {
+          "scenario": "Wysokie Ryzyko",
+          "risk_analysis": {
+            "risk_level": "HIGH",
+            "portfolio_risk_score": 0.9,
+            "recommended_position_size": 0.2,
+            "risk_factors": {
+              "volatility": 0.25,
+              "correlation": 0.8,
+              "position_size": 2.0
+            }
+          },
+          "score": 1.0,
+          "passed": true
+        }
+      ],
+      "average_score": 1.0,
+      "passed_tests": 2,
+      "total_tests": 2,
+      "status": "PASSED"
+    }
+  ],
+  "status": "SMART",
+  "recommendation": "AI Brain is ready for production"
+}

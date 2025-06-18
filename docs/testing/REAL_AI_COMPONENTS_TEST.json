@@ -1,0 +1,64 @@
+{
+  "test_timestamp": "2025-06-18T18:05:33.590484",
+  "components_tested": [
+    {
+      "component": "DecisionEngine",
+      "status": "WORKING",
+      "test_result": {
+        "action": "HOLD",
+        "confidence": 0.0,
+        "reasoning": "Analysis failed: Error code: 401 - {'error': {'message': 'Incorrect API key provided: sk-17947***********************5b4f. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",
+        "symbol": "SOL/USDC"
+      }
+    },
+    {
+      "component": "RiskAnalyzer",
+      "status": "WORKING",
+      "test_result": {
+        "risk_level": "HIGH",
+        "risk_score": 0.8,
+        "position_size_recommendation": 0.01,
+        "risk_factors": [
+          "Assessment failed"
+        ]
+      }
+    },
+    {
+      "component": "MarketAnalyzer",
+      "status": "WORKING",
+      "test_result": {
+        "trend_direction": "BULLISH",
+        "trend_strength": 0.0,
+        "pattern_signals": [],
+        "support_levels": [],
+        "resistance_levels": [],
+        "market_sentiment": "NEUTRAL"
+      }
+    },
+    {
+      "component": "VectorMemory",
+      "status": "WORKING",
+      "test_result": {
+        "storage": {
+          "memory_id": "30614830-54a0-4af1-9e8e-5b3650cf901f"
+        },
+        "retrieval": {
+          "count": 1
+        }
+      }
+    },
+    {
+      "component": "OVERMINDBrain",
+      "status": "WORKING",
+      "test_result": {
+        "decision_made": true,
+        "action": "HOLD",
+        "confidence": 0.0,
+        "symbol": "SOL/USDC"
+      }
+    }
+  ],
+  "overall_status": "ALL_WORKING",
+  "working_components": 5,
+  "total_components": 5
+}
