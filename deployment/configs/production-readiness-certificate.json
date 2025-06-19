@@ -1,0 +1,19 @@
+{
+  "system": "THE OVERMIND PROTOCOL",
+  "certification_date": "2025-06-17T15:27:11.003450",
+  "certification_status": "\u274c NOT READY - Critical Issues",
+  "production_readiness_score": 19.999999999999996,
+  "test_summary": {
+    "total_tests": 12,
+    "passed": 2,
+    "failed": 4,
+    "warnings": 4,
+    "skipped": 2,
+    "success_rate": 16.666666666666664,
+    "total_duration": 18.15088415145874
+  },
+  "critical_issues_count": 4,
+  "recommendations_count": 7,
+  "certified_by": "Comprehensive DevOps Testing Suite",
+  "valid_until": "2025-09-17T15:27:11.003453"
+}

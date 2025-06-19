@@ -1,0 +1,278 @@
+# THE OVERMIND PROTOCOL - Unified Project Management
+# Hybrid Python-Rust architecture managed by pixi
+
+[project]
+name = "overmind-protocol"
+description = "AI-Enhanced High-Frequency Trading System for Solana"
+authors = ["THE OVERMIND PROTOCOL Team <overmind@synergiaos.com>"]
+channels = ["conda-forge", "pytorch"]
+platforms = ["linux-64", "osx-64", "osx-arm64"]
+version = "1.0.0"
+
+# ============================================================================
+# GLOBAL DEPENDENCIES (Available in all environments)
+# ============================================================================
+
+[dependencies]
+# Core system tools
+python = "3.11.*"
+poetry = "*"
+git = "*"
+curl = "*"
+
+# Communication layer
+redis = ">=5.0"
+redis-py = "*"
+
+# Development tools
+docker = "*"
+docker-compose = "*"
+
+# ============================================================================
+# PYTHON BRAIN FEATURE (Warstwa 3: Mózg AI)
+# ============================================================================
+
+[feature.python-brain]
+channels = ["conda-forge", "pytorch"]
+
+[feature.python-brain.dependencies]
+# AI/ML Core
+langchain = "*"
+langchain-openai = "*"
+langchain-community = "*"
+openai = "*"
+groq = "*"
+
+# Vector Database
+chromadb = "*"
+sentence-transformers = "*"
+faiss-cpu = "*"
+
+# Data Processing
+pandas = "*"
+numpy = "*"
+scipy = "*"
+
+# Web Framework
+fastapi = "*"
+uvicorn = "*"
+pydantic = "*"
+
+# Financial Data
+yfinance = "*"
+requests = "*"
+
+# Async Support
+aioredis = "*"
+asyncio = "*"
+
+# Testing
+pytest = "*"
+pytest-asyncio = "*"
+
+[feature.python-brain.tasks]
+# Setup tasks
+setup-brain = "cd ai-hedge-fund && poetry install"
+clone-ai-hedge-fund = "git clone https://github.com/virattt/ai-hedge-fund.git"
+
+# Development tasks
+start-brain = "cd ai-hedge-fund && poetry run python src/overmind_brain.py"
+test-brain = "cd ai-hedge-fund && poetry run pytest"
+brain-shell = "cd ai-hedge-fund && poetry shell"
+
+# Analysis tasks
+backtest = "cd ai-hedge-fund && poetry run python src/backtester.py --ticker AAPL,MSFT,NVDA"
+analyze-market = "cd ai-hedge-fund && poetry run python src/main.py --ticker AAPL,MSFT,NVDA --show-reasoning"
+
+# API tasks
+start-api = "cd ai-hedge-fund/app/backend && poetry run uvicorn main:app --reload"
+
+# ============================================================================
+# RUST EXECUTOR FEATURE (Warstwa 4: Myśliwiec)
+# ============================================================================
+
+[feature.rust-executor]
+channels = ["conda-forge"]
+
+[feature.rust-executor.dependencies]
+# Rust toolchain
+rust = "*"
+cargo = "*"
+pkg-config = "*"
+
+# Build dependencies
+gcc = "*"
+openssl = "*"
+libssl-dev = "*"
+
+[feature.rust-executor.tasks]
+# Build tasks
+build-executor = "cargo build --release"
+build-debug = "cargo build"
+check-executor = "cargo clippy"
+format-rust = "cargo fmt"
+
+# Test tasks
+test-executor = "cargo test --workspace"
+test-integration = "cargo test --test integration_tests"
+bench-executor = "cargo bench"
+
+# Development tasks
+run-executor = "cargo run --profile contabo"
+run-paper = "SNIPER_TRADING_MODE=paper cargo run"
+run-live = "SNIPER_TRADING_MODE=live cargo run --profile contabo"
+
+# Monitoring tasks
+health-check = "curl http://localhost:8081/health"
+metrics = "curl http://localhost:8081/metrics"
+
+# ============================================================================
+# INFRASTRUCTURE FEATURE (Warstwa 1: Forteca)
+# ============================================================================
+
+[feature.infrastructure]
+channels = ["conda-forge"]
+
+[feature.infrastructure.dependencies]
+# Database
+postgresql = "*"
+sqlite = "*"
+
+# Monitoring
+prometheus = "*"
+grafana = "*"
+
+# Message Broker
+redis = ">=5.0"
+
+[feature.infrastructure.tasks]
+# Docker tasks
+docker-build = "docker-compose build"
+docker-up = "docker-compose up -d"
+docker-down = "docker-compose down"
+docker-logs = "docker-compose logs -f"
+
+# Database tasks
+db-migrate = "cd solana_executor && sqlx migrate run"
+db-reset = "cd solana_executor && sqlx database reset -y"
+
+# Monitoring tasks
+start-monitoring = "docker-compose up -d prometheus grafana"
+stop-monitoring = "docker-compose stop prometheus grafana"
+
+# ============================================================================
+# AI TOOLS FEATURE (Warstwa 2: Zmysły)
+# ============================================================================
+
+[feature.ai-tools]
+channels = ["conda-forge", "pytorch"]
+
+[feature.ai-tools.dependencies]
+# Document AI
+transformers = "*"
+torch = "*"
+torchvision = "*"
+pillow = "*"
+
+# OCR and Vision
+opencv = "*"
+pytesseract = "*"
+
+# Data Sources
+beautifulsoup4 = "*"
+selenium = "*"
+scrapy = "*"
+
+[feature.ai-tools.tasks]
+# MonkeyOCR setup
+setup-monkey-ocr = "git clone https://github.com/Yuliang-Liu/MonkeyOCR.git"
+install-monkey-ocr = "cd MonkeyOCR && pip install -e ."
+
+# Data collection
+collect-market-data = "python tools/market_data_collector.py"
+analyze-documents = "python tools/document_analyzer.py"
+
+# ============================================================================
+# ENVIRONMENTS (Different deployment scenarios)
+# ============================================================================
+
+[environments]
+# Development environment - Full stack
+default = { features = ["python-brain", "rust-executor", "infrastructure", "ai-tools"], solve-group = "dev" }
+
+# Production environment - Optimized for deployment
+production = { features = ["python-brain", "rust-executor", "infrastructure"], solve-group = "prod" }
+
+# AI Brain only - For Python development
+brain-only = { features = ["python-brain", "ai-tools"], solve-group = "dev" }
+
+# Executor only - For Rust development
+executor-only = { features = ["rust-executor", "infrastructure"], solve-group = "dev" }
+
+# Testing environment - All features with test tools
+testing = { features = ["python-brain", "rust-executor", "infrastructure", "ai-tools"], solve-group = "test" }
+
+# ============================================================================
+# GLOBAL TASKS (Available in all environments)
+# ============================================================================
+
+[tasks]
+# System setup
+setup-all = { depends_on = ["clone-ai-hedge-fund", "setup-brain", "build-executor"] }
+clean-all = "rm -rf ai-hedge-fund target .pixi"
+
+# Full system operations
+start-overmind = { depends_on = ["docker-up", "start-brain", "run-paper"] }
+stop-overmind = { depends_on = ["docker-down"] }
+
+# Testing
+test-all = { depends_on = ["test-brain", "test-executor"] }
+test-integration-full = { depends_on = ["docker-up", "test-all", "docker-down"] }
+
+# Deployment
+deploy-dev = { depends_on = ["setup-all", "test-all", "start-overmind"] }
+deploy-prod = { depends_on = ["build-executor", "docker-build", "docker-up"] }
+
+# Monitoring and health
+health-all = { depends_on = ["health-check"] }
+logs-all = { depends_on = ["docker-logs"] }
+
+# Development helpers
+dev-brain = { depends_on = ["start-brain", "start-api"] }
+dev-executor = { depends_on = ["run-paper"] }
+dev-full = { depends_on = ["start-overmind"] }
+
+# ============================================================================
+# ACTIVATION ENVIRONMENT VARIABLES
+# ============================================================================
+
+[activation.env]
+# THE OVERMIND PROTOCOL Configuration
+OVERMIND_MODE = "enabled"
+OVERMIND_AI_MODE = "enabled"
+SNIPER_TRADING_MODE = "paper"
+
+# Communication
+DRAGONFLY_URL = "redis://localhost:6379"
+VECTOR_DB_URL = "http://localhost:8000"
+TENSORZERO_URL = "http://localhost:3000"
+
+# Monitoring
+PROMETHEUS_URL = "http://localhost:9090"
+GRAFANA_URL = "http://localhost:3000"
+
+# Development
+RUST_LOG = "info"
+PYTHONPATH = "$PYTHONPATH:./ai-hedge-fund/src"
+
+# ============================================================================
+# PROJECT METADATA
+# ============================================================================
+
+[project.urls]
+homepage = "https://github.com/SynergiaOS/Solana_hff_bot"
+repository = "https://github.com/SynergiaOS/Solana_hff_bot"
+documentation = "https://github.com/SynergiaOS/Solana_hff_bot/tree/main/library"
+
+[project.license]
+text = "MIT"

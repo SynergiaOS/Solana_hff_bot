@@ -1,0 +1,111 @@
+{
+  "timestamp": "2025-06-17T13:34:08.370943",
+  "summary": {
+    "total_tests": 6,
+    "passed": 5,
+    "failed": 0,
+    "warnings": 1,
+    "success_rate": 83.33333333333334,
+    "total_duration": 0.2616922855377197
+  },
+  "categories": {
+    "Infrastructure": {
+      "total_tests": 2,
+      "passed": 2,
+      "failed": 0,
+      "warnings": 0,
+      "success_rate": 100.0,
+      "tests": [
+        {
+          "name": "Docker Infrastructure",
+          "status": "PASS",
+          "duration": 0.25276660919189453,
+          "details": "Docker and Compose ready: Docker version 28.2.2, build e6534b4, docker-compose version 1.29.2, build unknown",
+          "metrics": {}
+        },
+        {
+          "name": "System Resources",
+          "status": "PASS",
+          "duration": 0.00010228157043457031,
+          "details": "Adequate resources: 13668MB RAM, 16 cores, 43GB free",
+          "metrics": {
+            "memory_mb": 13668,
+            "cpu_cores": 16,
+            "disk_free_gb": 43
+          }
+        }
+      ]
+    },
+    "Configuration": {
+      "total_tests": 2,
+      "passed": 1,
+      "failed": 0,
+      "warnings": 1,
+      "success_rate": 50.0,
+      "tests": [
+        {
+          "name": "Configuration Files",
+          "status": "PASS",
+          "duration": 0.008750438690185547,
+          "details": "Configuration complete: 7/7 files valid",
+          "metrics": {
+            "file_rate": "100.0%",
+            "valid_files": 7
+          }
+        },
+        {
+          "name": "Environment Variables",
+          "status": "WARN",
+          "duration": 2.3126602172851562e-05,
+          "details": "Most environment ready: 3/4 required vars configured",
+          "metrics": {
+            "required_rate": "75.0%",
+            "optional_configured": 3
+          }
+        }
+      ]
+    },
+    "Deployment": {
+      "total_tests": 1,
+      "passed": 1,
+      "failed": 0,
+      "warnings": 0,
+      "success_rate": 100.0,
+      "tests": [
+        {
+          "name": "Deployment Scripts",
+          "status": "PASS",
+          "duration": 2.5272369384765625e-05,
+          "details": "Deployment ready: 5/5 scripts executable",
+          "metrics": {
+            "script_rate": "100.0%"
+          }
+        }
+      ]
+    },
+    "Security": {
+      "total_tests": 1,
+      "passed": 1,
+      "failed": 0,
+      "warnings": 0,
+      "success_rate": 100.0,
+      "tests": [
+        {
+          "name": "File Permissions",
+          "status": "PASS",
+          "duration": 2.4557113647460938e-05,
+          "details": "File permissions properly secured",
+          "metrics": {
+            "issues_found": 0
+          }
+        }
+      ]
+    }
+  },
+  "critical_issues": [],
+  "recommendations": [
+    "Address warnings to improve operational reliability"
+  ],
+  "production_readiness_score": 85.0,
+  "devops_assessment": "\u26a0\ufe0f GOOD - System is mostly ready with minor DevOps improvements needed"
+}

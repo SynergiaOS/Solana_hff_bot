@@ -1,0 +1,40 @@
+# THE OVERMIND PROTOCOL - Production Configuration
+[project]
+name = "overmind-protocol"
+description = "Production AI-Enhanced HFT Trading System"
+authors = ["THE OVERMIND PROTOCOL Team"]
+channels = ["conda-forge", "pytorch"]
+platforms = ["linux-64"]
+version = "1.0.0"
+
+[dependencies]
+python = "3.11.*"
+poetry = "*"
+docker = "*"
+docker-compose = "*"
+git = "*"
+curl = "*"
+
+[tasks]
+# Production deployment
+deploy-cloud = "cd scripts/deployment && ./deploy-cloud.sh"
+deploy-local = "cd scripts/deployment && ./deploy-local.sh"
+
+# Development
+dev-core = "cd core && cargo run --profile contabo"
+dev-brain = "cd brain && poetry run python src/overmind_brain/main.py"
+dev-full = { depends_on = ["dev-brain", "dev-core"] }
+
+# Testing
+test-core = "cd core && cargo test --workspace"
+test-brain = "cd brain && poetry run pytest"
+test-all = { depends_on = ["test-core", "test-brain"] }
+
+# Maintenance
+backup = "cd scripts/maintenance && ./backup.sh"
+restore = "cd scripts/maintenance && ./restore.sh"
+health-check = "cd scripts/maintenance && ./health-check.sh"
+
+[environments]
+production = { solve-group = "prod" }
+development = { solve-group = "dev" }
