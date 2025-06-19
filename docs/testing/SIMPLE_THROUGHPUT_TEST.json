@@ -1,0 +1,48 @@
+{
+  "test_timestamp": "2025-06-19T10:42:50.046358",
+  "test_results": [
+    {
+      "test": "AI Decision Throughput",
+      "success": true,
+      "details": {
+        "decisions_count": 10,
+        "duration_seconds": 2.66,
+        "throughput_per_second": 3.76,
+        "target_min": 2.0
+      }
+    },
+    {
+      "test": "Vector Memory Throughput",
+      "success": true,
+      "details": {
+        "storage": {
+          "operations": 5,
+          "duration_seconds": 0.3,
+          "throughput_per_second": 16.7,
+          "target_min": 1.0
+        },
+        "search": {
+          "operations": 5,
+          "duration_seconds": 0.06,
+          "throughput_per_second": 90.45,
+          "target_min": 5.0
+        }
+      }
+    },
+    {
+      "test": "End-to-End Pipeline Throughput",
+      "success": true,
+      "details": {
+        "pipelines": 3,
+        "duration_seconds": 1.02,
+        "throughput_per_second": 2.95,
+        "target_min": 0.5
+      }
+    }
+  ],
+  "overall_success": true,
+  "passed_tests": 3,
+  "total_tests": 3,
+  "success_rate": 1.0,
+  "throughput_level": "\ud83d\ude80 EXCELLENT"
+}
