@@ -32,7 +32,7 @@ In response to the comprehensive security analysis that identified critical vuln
 ### **2. ✅ API KEYS EXPOSURE - RESOLVED**
 
 **Issue:** Real API keys exposed in `.env` file
-- OpenAI API key: `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`
+- OpenAI API key: `[REMOVED FOR SECURITY]`
 - Mistral API key: `QR3jWSIHVZbhwfwpXyxSoyiUDSzwPcPZ`
 - Google API key: `AIzaSyA5suLKNrRUaqW3Wq3oYlP0b98J3a2SKEk`
 - Perplexity API key: `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`

@@ -45,8 +45,16 @@ archive/
 wallets/*.json
 devnet-wallet.json
 
-# Secrets
+# Secrets and Environment Files
 .env.local
 .env.production
+.env.overmind
+.env.brain
+.env.*
+!.env.example
+!.env.template
 *.key
 *.pem
+**/secrets/
+**/*secret*
+**/*password*
