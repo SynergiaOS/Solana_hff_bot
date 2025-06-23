@@ -9,6 +9,11 @@ pub mod strategy;
 // THE OVERMIND PROTOCOL - Core Components
 pub mod hft_engine;
 pub mod ai_connector;
+pub mod tensorzero_client;
+pub mod jito_client;
+pub mod dex_integration;
+pub mod error_handling;
+pub mod metrics;
 // THE OVERMIND PROTOCOL - Multi-Wallet Support
 pub mod wallet_manager;
 pub mod multi_wallet_config;

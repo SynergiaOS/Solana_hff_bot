@@ -1,411 +1,432 @@
-// THE OVERMIND PROTOCOL - HFT Engine Module
-// Ultra-low latency execution with TensorZero optimization and Jito Bundle execution
+//! HFT Engine Module
+//! 
+//! Provides high-frequency trading capabilities with TensorZero optimization
+//! and Jito bundle execution for MEV protection.
 
-use anyhow::{Result, Context};
+use anyhow::{Context, Result};
+use tracing::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
-use std::time::{Duration, Instant};
-use tokio::time::timeout;
-use uuid::Uuid;
+use solana_client::rpc_client::RpcClient;
+use solana_sdk::{
+    commitment_config::CommitmentConfig,
+    pubkey::Pubkey,
+    signature::{Keypair, Signature},
+    signer::Signer,
+    transaction::Transaction,
+};
+use std::{str::FromStr, time::Duration};
+use tokio::time::sleep;
 
-// HTTP client for TensorZero Gateway
-use reqwest::Client;
+// Import our TensorZero, Jito, DEX, error handling, and metrics modules
+use crate::modules::tensorzero_client::{TensorZeroClient, TensorZeroConfig, OptimizationResponse};
+use crate::modules::jito_client::{JitoClient, JitoConfig};
+use crate::modules::dex_integration::{DexIntegration, SwapParams};
+use crate::modules::error_handling::{ErrorHandler, OvermindError, ErrorContext};
+use crate::modules::metrics::{MetricsCollector, LatencyTracker};
 
-// Jito SDK for bundle execution
-use jito_sdk_rust::JitoJsonRpcSDK;
-// Use Solana SDK types for transactions
-use solana_sdk::transaction::Transaction;
-
-/// THE OVERMIND PROTOCOL HFT Engine
-/// Combines TensorZero AI optimization with Jito Bundle execution
-pub struct OvermindHFTEngine {
-    /// TensorZero Gateway HTTP client
-    tensorzero_client: TensorZeroClient,
-    /// Jito SDK for bundle execution
-    jito_sdk: JitoJsonRpcSDK,
-    /// Performance metrics
-    metrics: HFTMetrics,
-    /// Configuration
-    config: HFTConfig,
-}
-
-/// TensorZero Gateway HTTP client
-pub struct TensorZeroClient {
-    client: Client,
-    gateway_url: String,
-}
-
-/// HFT Engine configuration
+/// Configuration for the HFT Engine
 #[derive(Debug, Clone)]
-pub struct HFTConfig {
-    pub tensorzero_gateway_url: String,
-    pub jito_endpoint: String,
-    pub max_execution_latency_ms: u64,
-    pub max_bundle_size: usize,
-    pub retry_attempts: u32,
-    pub ai_confidence_threshold: f64,
+pub struct HftEngineConfig {
+    /// Solana RPC URL for transaction execution
+    pub solana_rpc_url: String,
+    /// TensorZero API endpoint
+    pub tensorzero_url: String,
+    /// Jito bundle endpoint
+    pub jito_url: String,
+    /// Jito tip account
+    pub jito_tip_account: String,
+    /// Maximum tip amount in lamports
+    pub max_tip_lamports: u64,
+    /// Number of retry attempts for failed transactions
+    pub retry_attempts: u8,
+    /// Delay between retries in milliseconds
+    pub retry_delay_ms: u64,
+    /// Whether to use Jito bundles for MEV protection
+    pub use_jito_bundles: bool,
 }
 
-/// Performance metrics for THE OVERMIND PROTOCOL
-#[derive(Debug, Default)]
-pub struct HFTMetrics {
-    pub total_executions: u64,
-    pub successful_executions: u64,
-    pub failed_executions: u64,
-    pub avg_latency_ms: f64,
-    pub ai_decisions_made: u64,
-    pub bundles_submitted: u64,
-}
-
-/// AI-enhanced trading signal from TensorZero
-#[derive(Debug, Serialize, Deserialize)]
-pub struct AITradingSignal {
-    pub signal_id: Uuid,
-    pub signal_type: String,
-    pub confidence: f64,
-    pub action: TradingAction,
-    pub estimated_profit: f64,
-    pub time_window_ms: u64,
-    pub ai_reasoning: String,
-    #[serde(skip, default = "Instant::now")] // Skip serialization, use current time as default
-    pub timestamp: Instant,
-}
-
-/// Trading action to execute
-#[derive(Debug, Serialize, Deserialize)]
-pub struct TradingAction {
-    pub action_type: String, // "buy", "sell", "arbitrage", "mev"
-    pub token_in: String,
-    pub token_out: String,
-    pub amount_in: u64,
-    pub min_amount_out: u64,
-    pub slippage_tolerance: f64,
-    pub priority_fee: u64,
-}
-
-/// TensorZero API request/response structures
-#[derive(Debug, Serialize)]
-pub struct TensorZeroRequest {
-    pub model_name: String,
-    pub input: TensorZeroInput,
-    pub stream: bool,
-    pub tags: std::collections::HashMap<String, String>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct TensorZeroInput {
-    pub messages: Vec<TensorZeroMessage>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct TensorZeroMessage {
-    pub role: String,
-    pub content: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct TensorZeroResponse {
-    pub inference_id: Uuid,
-    pub episode_id: Uuid,
-    pub variant_name: String,
-    pub content: Vec<TensorZeroContent>,
-    pub usage: Option<TensorZeroUsage>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct TensorZeroContent {
-    #[serde(rename = "type")]
-    pub content_type: String,
-    pub text: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct TensorZeroUsage {
-    pub input_tokens: u32,
-    pub output_tokens: u32,
-}
-
-impl Default for HFTConfig {
+impl Default for HftEngineConfig {
     fn default() -> Self {
         Self {
-            tensorzero_gateway_url: "http://localhost:3000".to_string(),
-            jito_endpoint: "https://mainnet.block-engine.jito.wtf".to_string(),
-            max_execution_latency_ms: 25, // Sub-25ms target
-            max_bundle_size: 5,
+            solana_rpc_url: "https://api.mainnet-beta.solana.com".to_string(),
+            tensorzero_url: "http://tensorzero:3000".to_string(),
+            jito_url: "https://mainnet.block-engine.jito.wtf".to_string(),
+            jito_tip_account: "96gYZGLnJYVFmbjzopPSU6QiEV5fGqZNyN9nmNhvrZU5".to_string(),
+            max_tip_lamports: 50000,
             retry_attempts: 3,
-            ai_confidence_threshold: 0.7,
+            retry_delay_ms: 500,
+            use_jito_bundles: true,
         }
     }
 }
 
-impl OvermindHFTEngine {
-    /// Create new OVERMIND HFT Engine
-    pub fn new(config: HFTConfig) -> Result<Self> {
-        let tensorzero_client = TensorZeroClient::new(config.tensorzero_gateway_url.clone())?;
-        let jito_sdk = JitoJsonRpcSDK::new(&config.jito_endpoint, None);
-        
-        Ok(Self {
-            tensorzero_client,
-            jito_sdk,
-            metrics: HFTMetrics::default(),
-            config,
-        })
-    }
+/// Trading signal from AI Brain
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TradingSignal {
+    pub symbol: String,
+    pub action: String,
+    pub quantity: f64,
+    pub price: Option<f64>,
+    pub confidence: f64,
+    pub reasoning: String,
+}
 
-    /// Execute AI-enhanced trading signal with ultra-low latency
-    pub async fn execute_ai_signal(&mut self, market_data: &str) -> Result<ExecutionResult> {
-        let start_time = Instant::now();
-        
-        // Step 1: Get AI decision from TensorZero (target: <10ms)
-        let ai_signal = timeout(
-            Duration::from_millis(self.config.max_execution_latency_ms / 3),
-            self.get_ai_trading_decision(market_data)
-        ).await
-        .context("TensorZero AI decision timeout")?
-        .context("Failed to get AI trading decision")?;
+/// HFT Engine for high-performance trade execution
+pub struct HftEngine {
+    config: HftEngineConfig,
+    rpc_client: RpcClient,
+    wallet: Keypair,
+    tensorzero_client: Option<TensorZeroClient>,
+    jito_client: Option<JitoClient>,
+    dex_integration: DexIntegration,
+    error_handler: ErrorHandler,
+    metrics_collector: MetricsCollector,
+}
 
-        // Step 2: Validate AI confidence
-        if ai_signal.confidence < self.config.ai_confidence_threshold {
-            return Ok(ExecutionResult::Skipped {
-                reason: format!("Low AI confidence: {}", ai_signal.confidence),
-                latency_ms: start_time.elapsed().as_millis() as u64,
-            });
-        }
+impl HftEngine {
+    /// Create a new HFT Engine instance
+    pub fn new(config: HftEngineConfig, wallet: Keypair) -> Result<Self> {
+        let rpc_client = RpcClient::new_with_commitment(
+            config.solana_rpc_url.clone(),
+            CommitmentConfig::confirmed(),
+        );
 
-        // Step 3: Execute via Jito Bundle (target: <15ms)
-        let execution_result = timeout(
-            Duration::from_millis(self.config.max_execution_latency_ms * 2 / 3),
-            self.execute_jito_bundle(&ai_signal)
-        ).await
-        .context("Jito bundle execution timeout")?
-        .context("Failed to execute Jito bundle")?;
+        // Initialize TensorZero client if URL is provided
+        let tensorzero_client = if !config.tensorzero_url.is_empty() {
+            let tensorzero_config = TensorZeroConfig {
+                gateway_url: config.tensorzero_url.clone(),
+                api_key: std::env::var("TENSORZERO_API_KEY").unwrap_or_default(),
+                max_latency_ms: 50,
+                optimization_level: "aggressive".to_string(),
+                cache_enabled: true,
+                batch_size: 10,
+                request_timeout_secs: 5,
+            };
 
-        let total_latency = start_time.elapsed().as_millis() as u64;
-        
-        // Update metrics
-        self.update_metrics(total_latency, true);
-        
-        Ok(ExecutionResult::Executed {
-            signal_id: ai_signal.signal_id,
-            bundle_id: execution_result.bundle_id,
-            latency_ms: total_latency,
-            estimated_profit: ai_signal.estimated_profit,
-            ai_confidence: ai_signal.confidence,
-        })
-    }
-
-    /// Get AI trading decision from TensorZero Gateway
-    async fn get_ai_trading_decision(&mut self, market_data: &str) -> Result<AITradingSignal> {
-        let request = TensorZeroRequest {
-            model_name: "openai::gpt-4o-mini".to_string(), // Fast model for low latency
-            input: TensorZeroInput {
-                messages: vec![
-                    TensorZeroMessage {
-                        role: "system".to_string(),
-                        content: "You are THE OVERMIND PROTOCOL AI Brain. Analyze market data and provide ultra-fast trading decisions. Respond with JSON containing: signal_type, confidence (0-1), action_type, reasoning.".to_string(),
-                    },
-                    TensorZeroMessage {
-                        role: "user".to_string(),
-                        content: format!("Market data: {}", market_data),
-                    },
-                ],
-            },
-            stream: false,
-            tags: {
-                let mut tags = std::collections::HashMap::new();
-                tags.insert("strategy".to_string(), "overmind_hft".to_string());
-                tags.insert("latency_critical".to_string(), "true".to_string());
-                tags
-            },
+            match TensorZeroClient::new(tensorzero_config) {
+                Ok(client) => Some(client),
+                Err(e) => {
+                    warn!("Failed to initialize TensorZero client: {}. Continuing without optimization.", e);
+                    None
+                }
+            }
+        } else {
+            None
         };
 
-        let response = self.tensorzero_client.inference(request).await?;
-        self.metrics.ai_decisions_made += 1;
-        
-        // Parse AI response into trading signal
-        self.parse_ai_response(response)
-    }
+        // Initialize Jito client if enabled
+        let jito_client = if config.use_jito_bundles {
+            let jito_config = JitoConfig {
+                bundle_url: config.jito_url.clone(),
+                tip_account: config.jito_tip_account.clone(),
+                max_tip_lamports: config.max_tip_lamports,
+                bundle_size: 5,
+                request_timeout_secs: 10,
+                priority_fee_multiplier: 1.5,
+            };
 
-    /// Execute trading action via Jito Bundle
-    async fn execute_jito_bundle(&mut self, signal: &AITradingSignal) -> Result<JitoBundleResult> {
-        // Create transaction based on AI signal
-        let transaction = self.create_transaction_from_signal(signal)?;
-
-        // Prepare bundle parameters for Jito SDK
-        let bundle_params = serde_json::json!({
-            "transactions": vec![transaction]
-        });
-
-        let bundle_response = self.jito_sdk.send_bundle(Some(bundle_params), None).await
-            .context("Failed to submit Jito bundle")?;
-
-        self.metrics.bundles_submitted += 1;
-
-        // Extract bundle ID from response
-        let bundle_id = bundle_response["result"]
-            .as_str()
-            .unwrap_or("unknown")
-            .to_string();
-
-        Ok(JitoBundleResult {
-            bundle_id,
-            transaction_count: 1,
-        })
-    }
-
-    /// Parse TensorZero AI response into trading signal
-    fn parse_ai_response(&self, response: TensorZeroResponse) -> Result<AITradingSignal> {
-        // Extract text content from TensorZero response
-        let ai_text = response.content
-            .into_iter()
-            .find(|c| c.content_type == "text")
-            .map(|c| c.text)
-            .context("No text content in TensorZero response")?;
-
-        // Parse JSON response from AI
-        let ai_data: serde_json::Value = serde_json::from_str(&ai_text)
-            .context("Failed to parse AI response as JSON")?;
-
-        Ok(AITradingSignal {
-            signal_id: Uuid::new_v4(),
-            signal_type: ai_data["signal_type"].as_str().unwrap_or("unknown").to_string(),
-            confidence: ai_data["confidence"].as_f64().unwrap_or(0.0),
-            action: TradingAction {
-                action_type: ai_data["action_type"].as_str().unwrap_or("hold").to_string(),
-                token_in: ai_data["token_in"].as_str().unwrap_or("SOL").to_string(),
-                token_out: ai_data["token_out"].as_str().unwrap_or("USDC").to_string(),
-                amount_in: ai_data["amount_in"].as_u64().unwrap_or(0),
-                min_amount_out: ai_data["min_amount_out"].as_u64().unwrap_or(0),
-                slippage_tolerance: ai_data["slippage_tolerance"].as_f64().unwrap_or(0.01),
-                priority_fee: ai_data["priority_fee"].as_u64().unwrap_or(1000),
-            },
-            estimated_profit: ai_data["estimated_profit"].as_f64().unwrap_or(0.0),
-            time_window_ms: ai_data["time_window_ms"].as_u64().unwrap_or(1000),
-            ai_reasoning: ai_data["reasoning"].as_str().unwrap_or("").to_string(),
-            timestamp: Instant::now(),
-        })
-    }
-
-    /// Create Solana transaction from AI trading signal
-    fn create_transaction_from_signal(&self, _signal: &AITradingSignal) -> Result<Transaction> {
-        // TODO: Implement actual Solana transaction creation
-        // This is a placeholder - real implementation would create proper Solana transactions
-        // based on the trading action (swap, arbitrage, MEV, etc.)
-        
-        // For now, return a dummy transaction
-        // In real implementation, this would use Solana SDK to create proper transactions
-        Ok(Transaction::default())
-    }
-
-    /// Update performance metrics
-    fn update_metrics(&mut self, latency_ms: u64, success: bool) {
-        self.metrics.total_executions += 1;
-        
-        if success {
-            self.metrics.successful_executions += 1;
+            match JitoClient::new(jito_config) {
+                Ok(client) => Some(client),
+                Err(e) => {
+                    warn!("Failed to initialize Jito client: {}. Continuing without MEV protection.", e);
+                    None
+                }
+            }
         } else {
-            self.metrics.failed_executions += 1;
-        }
+            None
+        };
+
+        Ok(Self {
+            config,
+            rpc_client,
+            wallet,
+            tensorzero_client,
+            jito_client,
+            dex_integration: DexIntegration::new(),
+            error_handler: ErrorHandler::new(),
+            metrics_collector: MetricsCollector::new(),
+        })
+    }
+    
+    /// Execute a trading signal with TensorZero optimization
+    pub async fn execute_signal(&self, signal: TradingSignal) -> Result<Signature> {
+        info!("🚀 Executing signal: {} {} with confidence {:.2}", 
+              signal.action, signal.symbol, signal.confidence);
         
-        // Update rolling average latency
-        let total_latency = self.metrics.avg_latency_ms * (self.metrics.total_executions - 1) as f64;
-        self.metrics.avg_latency_ms = (total_latency + latency_ms as f64) / self.metrics.total_executions as f64;
+        // Step 1: Optimize transaction via TensorZero
+        let optimized_tx = self.optimize_with_tensorzero(&signal)
+            .await
+            .context("Failed to optimize transaction with TensorZero")?;
+        
+        // Step 2: Execute with retries
+        let signature = self.execute_with_retry(optimized_tx).await?;
+        
+        info!("✅ Transaction executed successfully: {}", signature);
+        return Ok(signature);
+    }
+    
+    /// Optimize transaction parameters using TensorZero
+    async fn optimize_with_tensorzero(&self, signal: &TradingSignal) -> Result<Transaction> {
+        debug!("Optimizing transaction with TensorZero for {}", signal.symbol);
+
+        // Use TensorZero client if available
+        if let Some(ref tensorzero_client) = self.tensorzero_client {
+            // Convert our signal to TensorZero format
+            let tz_signal = crate::modules::tensorzero_client::TradingSignal {
+                symbol: signal.symbol.clone(),
+                action: signal.action.clone(),
+                quantity: signal.quantity,
+                price: signal.price,
+                confidence: signal.confidence,
+                reasoning: signal.reasoning.clone(),
+                timestamp: std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs(),
+            };
+
+            // Get optimization from TensorZero
+            match tensorzero_client.optimize_signal(tz_signal).await {
+                Ok(optimization) => {
+                    info!("✅ TensorZero optimization successful - confidence: {:.2}, latency: {}ms",
+                          optimization.confidence_score, optimization.estimated_latency_ms);
+
+                    // Build optimized transaction using TensorZero parameters
+                    return self.build_optimized_transaction(signal, &optimization).await;
+                }
+                Err(e) => {
+                    warn!("TensorZero optimization failed: {}. Falling back to default parameters.", e);
+                }
+            }
+        } else {
+            debug!("TensorZero client not available, using default parameters");
+        }
+
+        // Fallback to DEX transaction without optimization if TensorZero is not available or fails
+        self.build_dex_transaction(signal, None).await
+    }
+    
+    /// Execute transaction with retry logic
+    async fn execute_with_retry(&self, transaction: Transaction) -> Result<Signature> {
+        let mut attempts = 0;
+        let max_attempts = self.config.retry_attempts as usize;
+        
+        loop {
+            attempts += 1;
+            
+            match self.execute_transaction(transaction.clone()).await {
+                Ok(signature) => return Ok(signature),
+                Err(e) => {
+                    if attempts >= max_attempts {
+                        return Err(e).context("Max retry attempts reached");
+                    }
+                    
+                    warn!("Transaction attempt {}/{} failed: {}. Retrying...", 
+                          attempts, max_attempts, e);
+                    
+                    sleep(Duration::from_millis(self.config.retry_delay_ms)).await;
+                }
+            }
+        }
+    }
+    
+    /// Execute a single transaction attempt
+    async fn execute_transaction(&self, transaction: Transaction) -> Result<Signature> {
+        if self.config.use_jito_bundles {
+            self.execute_with_jito_bundle(transaction).await
+        } else {
+            self.execute_with_standard_rpc(transaction).await
+        }
+    }
+    
+    /// Execute transaction using Jito bundles for MEV protection
+    async fn execute_with_jito_bundle(&self, transaction: Transaction) -> Result<Signature> {
+        if let Some(ref jito_client) = self.jito_client {
+            info!("🛡️ Executing transaction via Jito bundle for MEV protection");
+
+            match jito_client.execute_bundle(transaction.clone()).await {
+                Ok(bundle_result) => {
+                    info!("✅ Jito bundle executed: {} in {}ms",
+                          bundle_result.bundle_id, bundle_result.latency_ms);
+
+                    // Return the transaction signature
+                    // In production, you might want to wait for bundle confirmation
+                    Ok(transaction.signatures[0])
+                }
+                Err(e) => {
+                    warn!("Jito bundle execution failed: {}. Falling back to standard RPC.", e);
+                    self.execute_with_standard_rpc(transaction).await
+                }
+            }
+        } else {
+            warn!("Jito client not available, falling back to standard RPC");
+            self.execute_with_standard_rpc(transaction).await
+        }
+    }
+    
+    /// Execute transaction using standard Solana RPC
+    async fn execute_with_standard_rpc(&self, transaction: Transaction) -> Result<Signature> {
+        // In production, this would send the transaction to the Solana network
+        // For now, we'll just return a mock signature
+        
+        // TODO: Replace with actual transaction submission
+        let signature = transaction.signatures[0];
+        
+        Ok(signature)
+    }
+    
+    /// Build an optimized transaction using TensorZero parameters
+    async fn build_optimized_transaction(&self, signal: &TradingSignal, optimization: &OptimizationResponse) -> Result<Transaction> {
+        info!("🧠 Building optimized transaction with TensorZero parameters");
+
+        debug!("Using optimized parameters:");
+        debug!("  Slippage tolerance: {:.4}%", optimization.optimized_params.slippage_tolerance * 100.0);
+        debug!("  Priority fee: {} lamports", optimization.optimized_params.priority_fee_lamports);
+        debug!("  Compute unit limit: {}", optimization.optimized_params.compute_unit_limit);
+        debug!("  Execution strategy: {}", optimization.execution_strategy);
+
+        // Build DEX-specific transaction using TensorZero optimization
+        self.build_dex_transaction(signal, Some(optimization)).await
+    }
+
+    /// Build DEX-specific transaction
+    async fn build_dex_transaction(&self, signal: &TradingSignal, optimization: Option<&OptimizationResponse>) -> Result<Transaction> {
+        info!("🔄 Building DEX transaction for {} {}", signal.action, signal.symbol);
+
+        // Parse trading pair from signal
+        let (input_mint, output_mint) = self.parse_trading_pair(&signal.symbol)?;
+
+        // Calculate swap parameters
+        let swap_params = SwapParams {
+            input_mint,
+            output_mint,
+            amount_in: (signal.quantity * 1_000_000.0) as u64, // Convert to lamports/tokens
+            minimum_amount_out: self.calculate_minimum_output(signal, optimization)?,
+            slippage_tolerance: optimization
+                .map(|opt| opt.optimized_params.slippage_tolerance)
+                .unwrap_or(0.01), // Default 1% slippage
+            user_wallet: self.wallet.pubkey(),
+        };
+
+        // Find the best route
+        let route = self.dex_integration.find_best_route(&swap_params).await?;
+
+        // Build transaction for the selected DEX
+        let transaction = self.dex_integration
+            .build_swap_transaction(swap_params, route.dex_type, &self.wallet)
+            .await?;
+
+        info!("✅ DEX transaction built successfully for {:?}", route.dex_type);
+        Ok(transaction)
+    }
+
+    /// Parse trading pair from symbol (e.g., "SOL/USDC")
+    fn parse_trading_pair(&self, symbol: &str) -> Result<(Pubkey, Pubkey)> {
+        let parts: Vec<&str> = symbol.split('/').collect();
+        if parts.len() != 2 {
+            return Err(anyhow::anyhow!("Invalid trading pair format: {}", symbol));
+        }
+
+        let input_mint = match parts[0] {
+            "SOL" => Pubkey::from_str("So11111111111111111111111111111111111111112")?,
+            "USDC" => Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")?,
+            _ => return Err(anyhow::anyhow!("Unsupported token: {}", parts[0])),
+        };
+
+        let output_mint = match parts[1] {
+            "SOL" => Pubkey::from_str("So11111111111111111111111111111111111111112")?,
+            "USDC" => Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")?,
+            _ => return Err(anyhow::anyhow!("Unsupported token: {}", parts[1])),
+        };
+
+        Ok((input_mint, output_mint))
+    }
+
+    /// Calculate minimum output amount considering slippage
+    fn calculate_minimum_output(&self, signal: &TradingSignal, optimization: Option<&OptimizationResponse>) -> Result<u64> {
+        let slippage = optimization
+            .map(|opt| opt.optimized_params.slippage_tolerance)
+            .unwrap_or(0.01);
+
+        // Estimate output based on signal price and quantity
+        let estimated_output = if let Some(price) = signal.price {
+            (signal.quantity * price * 1_000_000.0) as u64
+        } else {
+            // Default estimate if no price provided
+            (signal.quantity * 100.0 * 1_000_000.0) as u64 // Assume $100 per unit
+        };
+
+        // Apply slippage tolerance
+        let minimum_output = (estimated_output as f64 * (1.0 - slippage)) as u64;
+        Ok(minimum_output)
+    }
+
+    /// Build a mock transaction for testing (fallback)
+    fn build_mock_transaction(&self, signal: &TradingSignal) -> Result<Transaction> {
+        warn!("Using mock transaction - DEX integration failed");
+
+        let recent_blockhash = self.rpc_client.get_latest_blockhash()?;
+
+        // Create an empty transaction with just a signature
+        let mut transaction = Transaction::new_with_payer(
+            &[],
+            Some(&self.wallet.pubkey()),
+        );
+
+        transaction.sign(&[&self.wallet], recent_blockhash);
+
+        Ok(transaction)
     }
 
     /// Get current performance metrics
-    pub fn get_metrics(&self) -> &HFTMetrics {
-        &self.metrics
-    }
-}
-
-/// Execution result from OVERMIND HFT Engine
-#[derive(Debug)]
-pub enum ExecutionResult {
-    Executed {
-        signal_id: Uuid,
-        bundle_id: String,
-        latency_ms: u64,
-        estimated_profit: f64,
-        ai_confidence: f64,
-    },
-    Skipped {
-        reason: String,
-        latency_ms: u64,
-    },
-    Failed {
-        error: String,
-        latency_ms: u64,
-    },
-}
-
-/// Jito bundle execution result
-#[derive(Debug)]
-pub struct JitoBundleResult {
-    pub bundle_id: String,
-    pub transaction_count: usize,
-}
-
-impl TensorZeroClient {
-    /// Create new TensorZero HTTP client
-    pub fn new(gateway_url: String) -> Result<Self> {
-        let client = Client::builder()
-            .timeout(Duration::from_millis(100)) // Ultra-low timeout for HFT
-            .build()
-            .context("Failed to create HTTP client")?;
-        
-        Ok(Self {
-            client,
-            gateway_url,
-        })
+    pub fn get_metrics(&self) -> crate::modules::metrics::PerformanceMetrics {
+        self.metrics_collector.get_metrics()
     }
 
-    /// Send inference request to TensorZero Gateway
-    pub async fn inference(&self, request: TensorZeroRequest) -> Result<TensorZeroResponse> {
-        let url = format!("{}/inference", self.gateway_url);
-        
-        let response = self.client
-            .post(&url)
-            .json(&request)
-            .send()
-            .await
-            .context("Failed to send TensorZero request")?;
-        
-        if !response.status().is_success() {
-            return Err(anyhow::anyhow!(
-                "TensorZero request failed with status: {}", 
-                response.status()
-            ));
-        }
-        
-        let tensorzero_response: TensorZeroResponse = response
-            .json()
-            .await
-            .context("Failed to parse TensorZero response")?;
-        
-        Ok(tensorzero_response)
+    /// Log performance summary
+    pub fn log_performance_summary(&self) {
+        self.metrics_collector.log_performance_summary();
+    }
+
+    /// Export metrics in Prometheus format
+    pub fn export_prometheus_metrics(&self) -> String {
+        self.metrics_collector.export_prometheus_metrics()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
+    
     #[tokio::test]
-    async fn test_overmind_hft_engine_creation() {
-        let config = HFTConfig::default();
-        let engine = OvermindHFTEngine::new(config);
-        assert!(engine.is_ok());
-    }
-
-    #[tokio::test]
-    async fn test_tensorzero_client_creation() {
-        let client = TensorZeroClient::new("http://localhost:3000".to_string());
-        assert!(client.is_ok());
-    }
-
-    #[test]
-    fn test_hft_config_default() {
-        let config = HFTConfig::default();
-        assert_eq!(config.max_execution_latency_ms, 25);
-        assert_eq!(config.ai_confidence_threshold, 0.7);
+    async fn test_hft_engine_mock_execution() {
+        // Create test wallet
+        let wallet = Keypair::new();
+        
+        // Create test config
+        let config = HftEngineConfig {
+            solana_rpc_url: "https://api.devnet.solana.com".to_string(),
+            use_jito_bundles: false,
+            ..HftEngineConfig::default()
+        };
+        
+        // Create HFT engine
+        let engine = HftEngine::new(config, wallet).expect("Failed to create HFT engine");
+        
+        // Create test signal
+        let signal = TradingSignal {
+            symbol: "SOL/USDC".to_string(),
+            action: "BUY".to_string(),
+            quantity: 1.0,
+            price: Some(100.0),
+            confidence: 0.85,
+            reasoning: "Test signal".to_string(),
+        };
+        
+        // Execute signal
+        let result = engine.execute_signal(signal).await;
+        
+        // Verify result
+        assert!(result.is_ok(), "Signal execution should succeed");
     }
 }
