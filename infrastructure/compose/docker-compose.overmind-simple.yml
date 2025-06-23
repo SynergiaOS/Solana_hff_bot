@@ -1,0 +1,7 @@
+services:
+  overmind-db:
+    volumes:
+      - overmind-db-data:/var/lib/postgresql/data
+
+volumes:
+  overmind-db-data:

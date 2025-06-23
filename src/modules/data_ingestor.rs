@@ -47,7 +47,7 @@ impl DataIngestor {
     ) -> Self {
         Self {
             market_data_sender,
-            helius_api_key,
+            helius_api_key: helius_api_key.clone(),
             quicknode_api_key,
             is_running: false,
             client: Client::new(),
@@ -107,18 +107,25 @@ impl DataIngestor {
     }
 
     pub async fn fetch_helius_data(&self, address: &str) -> Result<MarketData> {
-        let url = format!("{}/v0/addresses/{}/transactions", 
-                         self.config.helius.rpc_url.split('?')[0], address);
-        
-        let response = self.client
+        let url = format!("{}/v0/addresses/{}/transactions",
+                         self.config.rpc_url.split('?').next().unwrap_or(&self.config.rpc_url), address);
+
+        let _response = self.client
             .get(&url)
-            .query(&[("api-key", &self.config.helius.api_key)])
+            .query(&[("api-key", &self.config.api_key)])
             .send()
             .await?;
-            
+
         // Przetwórz odpowiedź na MarketData
-        // ...
-        
+        // For now, return simulated data
+        let market_data = MarketData {
+            symbol: "SOL/USDC".to_string(),
+            price: 100.0,
+            volume: 1000.0,
+            timestamp: chrono::Utc::now(),
+            source: DataSource::Helius,
+        };
+
         Ok(market_data)
     }
 }

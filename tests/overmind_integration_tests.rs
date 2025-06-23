@@ -83,6 +83,7 @@ async fn test_overmind_concurrent_processing() {
 #[tokio::test]
 async fn test_overmind_confidence_filtering() {
     #[derive(Debug)]
+    #[allow(dead_code)]
     struct MockAISignal {
         confidence: f64,
         action: String,
@@ -127,6 +128,7 @@ async fn test_overmind_confidence_filtering() {
 #[tokio::test]
 async fn test_overmind_error_handling() {
     #[derive(Debug)]
+    #[allow(dead_code)]
     enum AIResult {
         Success(String),
         Error(String),
