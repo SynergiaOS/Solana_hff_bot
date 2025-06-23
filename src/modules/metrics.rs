@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use tracing::{info, debug, warn};
+use tracing::{info, debug};
 use serde::{Deserialize, Serialize};
 
 /// Performance metrics for THE OVERMIND PROTOCOL

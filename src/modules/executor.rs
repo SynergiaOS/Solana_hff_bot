@@ -3,14 +3,12 @@
 
 use crate::config::TradingMode;
 use crate::modules::risk::ApprovedSignal;
-use crate::modules::hft_engine::{OvermindHFTEngine, HFTConfig, ExecutionResult as HFTExecutionResult};
+use crate::modules::hft_engine::{HftEngine, HftEngineConfig};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
-// Solana imports will be used when implementing live trading
-// use solana_client::rpc_client::RpcClient;
-// use solana_sdk::{transaction::Transaction, signature::Keypair};
+
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecutionResult {
@@ -41,7 +39,7 @@ pub struct Executor {
     wallet_private_key: String,
     is_running: bool,
     // THE OVERMIND PROTOCOL - HFT Engine integration
-    hft_engine: Option<OvermindHFTEngine>,
+    hft_engine: Option<HftEngine>,
     hft_mode_enabled: bool,
 }
 
@@ -73,9 +71,10 @@ impl Executor {
         trading_mode: TradingMode,
         solana_rpc_url: String,
         wallet_private_key: String,
-        hft_config: HFTConfig,
+        hft_config: HftEngineConfig,
     ) -> Result<Self> {
-        let hft_engine = OvermindHFTEngine::new(hft_config)?;
+        let wallet = solana_sdk::signature::Keypair::new(); // TODO: Load from config
+        let hft_engine = HftEngine::new(hft_config, wallet)?;
 
         Ok(Self {
             signal_receiver,
@@ -228,47 +227,36 @@ impl Executor {
         );
 
         // Convert signal to market data for AI analysis first
-        let market_data = self.signal_to_market_data(&signal);
+        let _market_data = self.signal_to_market_data(&signal);
 
         if let Some(ref mut hft_engine) = self.hft_engine {
 
             // Get AI decision and execute with TensorZero optimization
-            match hft_engine.execute_ai_signal(&market_data).await {
-                Ok(hft_result) => {
-                    match hft_result {
-                        HFTExecutionResult::Executed {
-                            signal_id: _,
-                            latency_ms,
-                            estimated_profit,
-                            ai_confidence,
-                            ..
-                        } => {
-                            info!(
-                                "🧠 AI paper trade executed - Latency: {}ms, Confidence: {:.2}, Profit: ${:.2}",
-                                latency_ms, ai_confidence, estimated_profit
-                            );
+            // Convert market_data to TradingSignal for HFT engine
+            let trading_signal = crate::modules::hft_engine::TradingSignal {
+                symbol: "SOL/USDC".to_string(), // TODO: Extract from market_data
+                action: "BUY".to_string(), // TODO: Determine from market_data
+                quantity: 1.0, // TODO: Calculate from market_data
+                price: Some(100.0), // TODO: Extract from market_data
+                confidence: 0.8, // TODO: Calculate confidence
+                reasoning: "Market data analysis".to_string(),
+            };
 
-                            let signal_id = signal.original_signal.signal_id.clone();
-                            Ok(ExecutionResult {
-                                signal_id: signal_id.clone(),
-                                transaction_id: format!("ai_paper_{}", signal_id),
-                                status: ExecutionStatus::Confirmed,
-                                executed_quantity: signal.approved_quantity,
-                                executed_price: signal.original_signal.target_price,
-                                fees: signal.approved_quantity * signal.original_signal.target_price * 0.0005, // Lower fees with AI
-                                timestamp: chrono::Utc::now(),
-                                error_message: None,
-                            })
-                        },
-                        HFTExecutionResult::Skipped { reason, latency_ms } => {
-                            warn!("🧠 AI skipped trade: {} ({}ms)", reason, latency_ms);
-                            self.execute_paper_trade(signal).await // Fallback to standard paper trade
-                        },
-                        HFTExecutionResult::Failed { error, latency_ms } => {
-                            error!("🧠 AI trade failed: {} ({}ms)", error, latency_ms);
-                            self.execute_paper_trade(signal).await // Fallback to standard paper trade
-                        },
-                    }
+            match hft_engine.execute_signal(trading_signal).await {
+                Ok(signature) => {
+                    info!("🧠 AI paper trade executed - Signature: {}", signature);
+
+                    let signal_id = signal.original_signal.signal_id.clone();
+                    Ok(ExecutionResult {
+                        signal_id: signal_id.clone(),
+                        transaction_id: signature.to_string(),
+                        status: ExecutionStatus::Confirmed,
+                        executed_quantity: signal.approved_quantity,
+                        executed_price: signal.original_signal.target_price,
+                        fees: signal.approved_quantity * signal.original_signal.target_price * 0.0005, // Lower fees with AI
+                        timestamp: chrono::Utc::now(),
+                        error_message: None,
+                    })
                 },
                 Err(e) => {
                     error!("🧠 HFT Engine error: {}", e);
@@ -289,46 +277,35 @@ impl Executor {
         );
 
         // Convert signal to market data for AI analysis first
-        let market_data = self.signal_to_market_data(&signal);
+        let _market_data = self.signal_to_market_data(&signal);
 
         if let Some(ref mut hft_engine) = self.hft_engine {
 
-            // Get AI decision and execute with TensorZero + Jito Bundle optimization
-            match hft_engine.execute_ai_signal(&market_data).await {
-                Ok(hft_result) => {
-                    match hft_result {
-                        HFTExecutionResult::Executed {
-                            signal_id: _,
-                            bundle_id,
-                            latency_ms,
-                            estimated_profit,
-                            ai_confidence
-                        } => {
-                            info!(
-                                "🧠 AI live trade executed - Bundle: {}, Latency: {}ms, Confidence: {:.2}, Profit: ${:.2}",
-                                bundle_id, latency_ms, ai_confidence, estimated_profit
-                            );
+            // Convert market_data to TradingSignal for HFT engine
+            let trading_signal = crate::modules::hft_engine::TradingSignal {
+                symbol: "SOL/USDC".to_string(), // TODO: Extract from market_data
+                action: "BUY".to_string(), // TODO: Determine from market_data
+                quantity: 1.0, // TODO: Calculate from market_data
+                price: Some(100.0), // TODO: Extract from market_data
+                confidence: 0.8, // TODO: Calculate confidence
+                reasoning: "Market data analysis".to_string(),
+            };
 
-                            Ok(ExecutionResult {
-                                signal_id: signal.original_signal.signal_id,
-                                transaction_id: bundle_id,
-                                status: ExecutionStatus::Confirmed,
-                                executed_quantity: signal.approved_quantity,
-                                executed_price: signal.original_signal.target_price * 1.002, // Minimal slippage with AI
-                                fees: signal.approved_quantity * signal.original_signal.target_price * 0.0015, // Lower fees with Jito
-                                timestamp: chrono::Utc::now(),
-                                error_message: None,
-                            })
-                        },
-                        HFTExecutionResult::Skipped { reason, latency_ms } => {
-                            warn!("🧠 AI skipped live trade: {} ({}ms)", reason, latency_ms);
-                            self.execute_live_trade(signal).await // Fallback to standard live trade
-                        },
-                        HFTExecutionResult::Failed { error, latency_ms } => {
-                            error!("🧠 AI live trade failed: {} ({}ms)", error, latency_ms);
-                            self.execute_live_trade(signal).await // Fallback to standard live trade
-                        },
-                    }
+            // Get AI decision and execute with TensorZero + Jito Bundle optimization
+            match hft_engine.execute_signal(trading_signal).await {
+                Ok(signature) => {
+                    info!("🧠 AI live trade executed - Signature: {}", signature);
+
+                    Ok(ExecutionResult {
+                        signal_id: signal.original_signal.signal_id,
+                        transaction_id: signature.to_string(),
+                        status: ExecutionStatus::Confirmed,
+                        executed_quantity: signal.approved_quantity,
+                        executed_price: signal.original_signal.target_price * 1.002, // Minimal slippage with AI
+                        fees: signal.approved_quantity * signal.original_signal.target_price * 0.0015, // Lower fees with Jito
+                        timestamp: chrono::Utc::now(),
+                        error_message: None,
+                    })
                 },
                 Err(e) => {
                     error!("🧠 HFT Engine error in live trade: {}", e);

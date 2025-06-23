@@ -12,8 +12,87 @@ use tokio::sync::{mpsc, RwLock};
 use tokio::time::{Duration, Instant};
 use tracing::{error, info, warn, instrument};
 use uuid::Uuid;
+use chrono;
+use solana_client::rpc_client::RpcClient;
+use solana_sdk::pubkey::Pubkey;
 
 use crate::modules::strategy::TradingSignal;
+use crate::modules::real_price_fetcher::RealPriceFetcher;
+
+// ============================================================================
+// AI DECISION TYPES AND STRUCTURES
+// ============================================================================
+
+/// AI Action types
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum AIAction {
+    Buy,
+    Sell,
+    Hold,
+    StopLoss,
+    TakeProfit,
+}
+
+impl std::fmt::Display for AIAction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AIAction::Buy => write!(f, "BUY"),
+            AIAction::Sell => write!(f, "SELL"),
+            AIAction::Hold => write!(f, "HOLD"),
+            AIAction::StopLoss => write!(f, "STOP_LOSS"),
+            AIAction::TakeProfit => write!(f, "TAKE_PROFIT"),
+        }
+    }
+}
+
+impl std::fmt::Display for MarketEventType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MarketEventType::PriceUpdate => write!(f, "PRICE_UPDATE"),
+            MarketEventType::VolumeSpike => write!(f, "VOLUME_SPIKE"),
+            MarketEventType::OrderBookChange => write!(f, "ORDER_BOOK_CHANGE"),
+            MarketEventType::TradeExecution => write!(f, "TRADE_EXECUTION"),
+            MarketEventType::NewsEvent => write!(f, "NEWS_EVENT"),
+        }
+    }
+}
+
+/// AI Decision from the brain
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AIDecision {
+    pub decision_id: String,
+    pub symbol: String,
+    pub action: AIAction,
+    pub confidence: f64,
+    pub reasoning: String,
+    pub quantity: f64,
+    pub target_price: Option<f64>,
+    pub ai_context: Option<HashMap<String, serde_json::Value>>,
+    pub timestamp: chrono::DateTime<chrono::Utc>,
+    pub vector_memory_context: Option<String>,
+}
+
+/// Market Event types
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum MarketEventType {
+    PriceUpdate,
+    VolumeSpike,
+    OrderBookChange,
+    TradeExecution,
+    NewsEvent,
+}
+
+/// Market Event structure
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MarketEvent {
+    pub event_id: String,
+    pub symbol: String,
+    pub price: f64,
+    pub volume: f64,
+    pub timestamp: chrono::DateTime<chrono::Utc>,
+    pub event_type: MarketEventType,
+    pub metadata: HashMap<String, serde_json::Value>,
+}
 
 // ============================================================================
 // SIMPLE COMMAND LISTENER FOR INITIAL IMPLEMENTATION
@@ -72,27 +151,49 @@ async fn process_brain_command(command_json: &str) -> Result<String> {
         .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("Missing 'action' field"))?;
 
-    let symbol = command.get("symbol")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| anyhow::anyhow!("Missing 'symbol' field"))?;
+    info!("🎯 Processing command: {}", action);
 
-    let quantity = command.get("quantity")
-        .and_then(|v| v.as_f64())
-        .ok_or_else(|| anyhow::anyhow!("Missing 'quantity' field"))?;
+    match action {
+        "GET_WALLET_BALANCE" => {
+            let wallet_balance = get_wallet_balance().await?;
+            send_wallet_balance_response(wallet_balance).await?;
+            Ok("Wallet balance retrieved".to_string())
+        }
+        "EMERGENCY_STOP" => {
+            let reason = command.get("reason")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Emergency stop requested");
+            info!("🚨 EMERGENCY STOP: {}", reason);
+            Ok("Emergency stop activated".to_string())
+        }
+        "RESUME_TRADING" => {
+            info!("▶️ Trading resumed");
+            Ok("Trading resumed".to_string())
+        }
+        _ => {
+            // Handle trading commands
+            let symbol = command.get("symbol")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| anyhow::anyhow!("Missing 'symbol' field"))?;
 
-    let confidence = command.get("confidence")
-        .and_then(|v| v.as_f64())
-        .unwrap_or(0.5);
+            let quantity = command.get("quantity")
+                .and_then(|v| v.as_f64())
+                .ok_or_else(|| anyhow::anyhow!("Missing 'quantity' field"))?;
 
-    info!("🎯 Executing {} {} (qty: {}, conf: {:.2})", action, symbol, quantity, confidence);
+            let confidence = command.get("confidence")
+                .and_then(|v| v.as_f64())
+                .unwrap_or(0.5);
 
-    // Simulate TensorZero-enhanced execution
-    let execution_result = execute_with_tensorzero(action, symbol, quantity, confidence).await?;
+            info!("🎯 Executing {} {} (qty: {}, conf: {:.2})", action, symbol, quantity, confidence);
 
-    Ok(execution_result)
+            // Simulate TensorZero-enhanced execution
+            let execution_result = execute_with_tensorzero(action, symbol, quantity, confidence).await?;
+            Ok(execution_result)
+        }
+    }
 }
 
-/// Simulate TensorZero-enhanced execution for paper trading
+/// TensorZero-enhanced execution with REAL MARKET PRICES for paper trading
 async fn execute_with_tensorzero(action: &str, symbol: &str, quantity: f64, confidence: f64) -> Result<String> {
     // Simulate TensorZero optimization delay
     tokio::time::sleep(Duration::from_millis(25)).await;
@@ -106,104 +207,94 @@ async fn execute_with_tensorzero(action: &str, symbol: &str, quantity: f64, conf
         "Low confidence - Risk mitigation applied"
     };
 
-    // Simulate paper trading execution
-    let transaction_id = format!("tensorzero_{}_{}", action.to_lowercase(), uuid::Uuid::new_v4());
-    let estimated_price = match symbol {
-        "SOL" => 100.0 + (confidence - 0.5) * 10.0,
-        "BTC" => 45000.0 + (confidence - 0.5) * 1000.0,
-        "ETH" => 3000.0 + (confidence - 0.5) * 200.0,
-        "USDC" => 1.0,
-        "RAY" => 2.5 + (confidence - 0.5) * 0.5,
-        "ORCA" => 1.8 + (confidence - 0.5) * 0.3,
-        _ => 1.0,
+    // 🚀 NEW: Use REAL MARKET PRICES from CoinGecko API
+    let price_fetcher = RealPriceFetcher::new();
+    let real_price = match price_fetcher.get_real_price(symbol).await {
+        Ok(price) => {
+            info!("📊 Using REAL market price for {}: ${:.4}", symbol, price);
+            price
+        }
+        Err(e) => {
+            warn!("⚠️ Failed to fetch real price for {}: {}, using fallback", symbol, e);
+            // Fallback to previous logic if API fails
+            match symbol {
+                "SOL" => 138.0,
+                "BTC" => 102700.0,
+                "ETH" => 2290.0,
+                "USDC" => 1.0,
+                "RAY" => 1.93,
+                "ORCA" => 1.91,
+                _ => 1.0,
+            }
+        }
     };
 
-    let fees = quantity * estimated_price * 0.0005; // 0.05% fees with TensorZero optimization
-    let estimated_profit = quantity * estimated_price * (confidence - 0.5) * 0.02; // Profit based on confidence
+    // Apply confidence-based price adjustment (small variation for realism)
+    let confidence_adjustment = (confidence - 0.5) * 0.02; // ±1% max adjustment
+    let final_price = real_price * (1.0 + confidence_adjustment);
+
+    // Simulate paper trading execution
+    let transaction_id = format!("tensorzero_{}_{}", action.to_lowercase(), uuid::Uuid::new_v4());
+    let fees = quantity * final_price * 0.0005; // 0.05% fees with TensorZero optimization
+    let estimated_profit = quantity * final_price * (confidence - 0.5) * 0.02; // Profit based on confidence
 
     info!("🧠 TensorZero Analysis: {}", ai_enhancement);
-    info!("💰 Paper Trade Executed: {} {} @ ${:.2} (fees: ${:.4}, profit: ${:.2})",
-          action, symbol, estimated_price, fees, estimated_profit);
+    info!("💰 Paper Trade Executed: {} {} @ ${:.2} (REAL PRICE: ${:.4}, fees: ${:.4}, profit: ${:.2})",
+          action, symbol, final_price, real_price, fees, estimated_profit);
 
-    Ok(format!("Paper trade executed: {} {} @ ${:.2} (ID: {})", action, symbol, estimated_price, transaction_id))
+    Ok(format!("Paper trade executed: {} {} @ ${:.2} (ID: {}) [REAL PRICE]", action, symbol, final_price, transaction_id))
 }
 
-// ============================================================================
-// AI BRAIN COMMUNICATION STRUCTURES
-// ============================================================================
+/// Get wallet balance for monitoring
+async fn get_wallet_balance() -> Result<serde_json::Value> {
+    info!("💰 Retrieving wallet balance...");
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AIDecision {
-    pub decision_id: String,
-    pub symbol: String,
-    pub action: AIAction,
-    pub confidence: f64,
-    pub reasoning: String,
-    pub quantity: f64,
-    pub target_price: Option<f64>,
-    pub ai_context: Option<String>,
-    pub timestamp: chrono::DateTime<chrono::Utc>,
-    pub vector_memory_context: Option<VectorContext>,
-}
+    // For devnet testing, simulate wallet balance
+    let wallet_address = std::env::var("SNIPER_WALLET_ADDRESS")
+        .unwrap_or_else(|_| "YYZ4CyMR4tYuuBeUDthBMvsa1PhTB59ANxDaRzHa1a8".to_string());
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum AIAction {
-    Buy,
-    Sell,
-    Hold,
-    StopLoss,
-    TakeProfit,
-}
-
-impl std::fmt::Display for AIAction {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            AIAction::Buy => write!(f, "BUY"),
-            AIAction::Sell => write!(f, "SELL"),
-            AIAction::Hold => write!(f, "HOLD"),
-            AIAction::StopLoss => write!(f, "STOP_LOSS"),
-            AIAction::TakeProfit => write!(f, "TAKE_PROFIT"),
+    // Simulate balance retrieval
+    let balance = serde_json::json!({
+        "main_trading_wallet": {
+            "address": wallet_address,
+            "balance_sol": 2.0,
+            "balance_usdc": 1000.0,
+            "other_tokens": {
+                "RAY": 50.0,
+                "ORCA": 25.0
+            }
         }
-    }
+    });
+
+    info!("✅ Wallet balance retrieved: {} SOL", 2.0);
+    Ok(balance)
 }
+
+/// Send wallet balance response back to Python Brain
+async fn send_wallet_balance_response(balance: serde_json::Value) -> Result<()> {
+    let dragonfly_url = std::env::var("DRAGONFLY_URL")
+        .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
+
+    let client = Client::open(dragonfly_url.as_str())?;
+    let mut conn = ConnectionManager::new(client).await?;
+
+    // Send response to the wallet balance response queue
+    let response_json = serde_json::to_string(&balance)?;
+    let _: () = conn.lpush("overmind:wallet_balance_response", response_json).await?;
+
+    info!("📤 Wallet balance response sent to Python Brain");
+    Ok(())
+}
+
+// ============================================================================
+// VECTOR CONTEXT STRUCTURE
+// ============================================================================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VectorContext {
     pub similar_situations: Vec<String>,
     pub confidence_score: f64,
     pub memory_relevance: f64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MarketEvent {
-    pub event_id: String,
-    pub symbol: String,
-    pub price: f64,
-    pub volume: f64,
-    pub timestamp: chrono::DateTime<chrono::Utc>,
-    pub event_type: MarketEventType,
-    pub metadata: HashMap<String, serde_json::Value>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum MarketEventType {
-    PriceChange,
-    VolumeSpike,
-    NewToken,
-    LiquidityChange,
-    TechnicalSignal,
-}
-
-impl std::fmt::Display for MarketEventType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            MarketEventType::PriceChange => write!(f, "PRICE_CHANGE"),
-            MarketEventType::VolumeSpike => write!(f, "VOLUME_SPIKE"),
-            MarketEventType::NewToken => write!(f, "NEW_TOKEN"),
-            MarketEventType::LiquidityChange => write!(f, "LIQUIDITY_CHANGE"),
-            MarketEventType::TechnicalSignal => write!(f, "TECHNICAL_SIGNAL"),
-        }
-    }
 }
 
 // ============================================================================
@@ -228,14 +319,47 @@ pub struct AIConnector {
     is_connected: Arc<RwLock<bool>>,
 }
 
+/// Configuration for AI Connector
 #[derive(Debug, Clone)]
 pub struct AIConnectorConfig {
+    /// DragonflyDB URL
     pub dragonfly_url: String,
-    pub brain_request_timeout: Duration,
+    
+    /// AI Brain request timeout in seconds
+    pub brain_request_timeout: std::time::Duration,
+    
+    /// TensorZero API URL
+    pub tensorzero_url: String,
+    
+    /// Whether to use TensorZero for execution optimization
+    pub use_tensorzero: bool,
+
+    /// Maximum age for AI decisions before rejection
     pub max_decision_age: Duration,
+
+    /// Minimum confidence threshold for AI decisions
     pub confidence_threshold: f64,
+
+    /// Vector cache size for AI memory
     pub vector_cache_size: usize,
+
+    /// Number of retry attempts for failed operations
     pub retry_attempts: u32,
+}
+
+impl Default for AIConnectorConfig {
+    fn default() -> Self {
+        Self {
+            dragonfly_url: "redis://localhost:6379".to_string(),
+            brain_request_timeout: std::time::Duration::from_secs(5),
+            tensorzero_url: "http://tensorzero:3000".to_string(),
+            use_tensorzero: true,
+            max_decision_age: Duration::from_secs(30),
+            confidence_threshold: 0.7,
+            vector_cache_size: 1000,
+            retry_attempts: 3,
+        }
+    }
 }
 
 #[derive(Debug, Default, Clone)]
@@ -677,18 +801,7 @@ impl AIConnector {
     }
 }
 
-impl Default for AIConnectorConfig {
-    fn default() -> Self {
-        Self {
-            dragonfly_url: "redis://localhost:6379".to_string(),
-            brain_request_timeout: Duration::from_secs(1),
-            max_decision_age: Duration::from_secs(30),
-            confidence_threshold: 0.7,
-            vector_cache_size: 1000,
-            retry_attempts: 3,
-        }
-    }
-}
+
 
 // ============================================================================
 // HELPER FUNCTIONS

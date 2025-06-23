@@ -14,6 +14,7 @@ pub mod jito_client;
 pub mod dex_integration;
 pub mod error_handling;
 pub mod metrics;
+pub mod real_price_fetcher;
 // THE OVERMIND PROTOCOL - Multi-Wallet Support
 pub mod wallet_manager;
 pub mod multi_wallet_config;

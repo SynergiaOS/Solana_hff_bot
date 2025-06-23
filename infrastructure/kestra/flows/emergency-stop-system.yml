@@ -1,0 +1,98 @@
+id: emergency-stop-system
+namespace: operations.overmind
+
+description: |
+  🚨 THE OVERMIND PROTOCOL - Emergency Stop
+  Immediately halts all trading activities and shuts down the system
+
+labels:
+  system: overmind
+  priority: critical
+  type: emergency
+
+inputs:
+  - id: environment
+    type: SELECT
+    displayName: Environment
+    description: Target environment to stop
+    defaults: devnet
+    values:
+      - devnet
+      - mainnet
+    required: true
+
+  - id: force_stop
+    type: BOOLEAN
+    displayName: Force Stop
+    description: Force stop all containers (removes volumes)
+    defaults: false
+    required: false
+
+variables:
+  compose_file: "{{ inputs.environment == 'devnet' ? 'docker-compose.devnet.yml' : 'docker-compose.overmind.yml' }}"
+  project_path: "/opt/overmind"
+
+tasks:
+  - id: emergency-alert
+    type: io.kestra.plugin.core.script.Shell
+    description: Log emergency stop initiation
+    commands:
+      - echo "🚨 EMERGENCY STOP INITIATED"
+      - echo "🎯 Environment: {{ inputs.environment }}"
+      - echo "⚡ Force stop: {{ inputs.force_stop }}"
+      - echo "⏰ Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+  - id: stop-trading-activities
+    type: io.kestra.plugin.core.script.Shell
+    description: Send emergency stop signal to AI Brain
+    commands:
+      - echo "🛑 Sending emergency stop signal to AI Brain..."
+      - curl -X POST http://localhost:8000/control/emergency-stop || echo "⚠️ AI Brain not responding"
+      - echo "🛑 Sending emergency stop signal to Rust Executor..."
+      - curl -X POST http://localhost:8080/emergency_stop || echo "⚠️ Rust Executor not responding"
+
+  - id: stop-containers
+    type: io.kestra.plugin.core.script.Shell
+    description: Stop all system containers
+    commands:
+      - echo "🔄 Stopping THE OVERMIND PROTOCOL containers..."
+      - cd {{ vars.project_path }}
+      - |
+        if [ "{{ inputs.force_stop }}" = "true" ]; then
+          echo "⚡ Force stopping with volume removal..."
+          docker-compose -f {{ vars.compose_file }} down -v --remove-orphans
+        else
+          echo "🛑 Graceful stop..."
+          docker-compose -f {{ vars.compose_file }} down --remove-orphans
+        fi
+
+  - id: verify-shutdown
+    type: io.kestra.plugin.core.script.Shell
+    description: Verify all containers are stopped
+    commands:
+      - echo "🔍 Verifying system shutdown..."
+      - cd {{ vars.project_path }}
+      - docker-compose -f {{ vars.compose_file }} ps
+      - echo "🧹 Cleaning up orphaned containers..."
+      - docker container prune -f
+      - echo "💾 Cleaning up unused networks..."
+      - docker network prune -f
+
+  - id: final-status
+    type: io.kestra.plugin.core.script.Shell
+    description: Display final system status
+    commands:
+      - echo "✅ EMERGENCY STOP COMPLETED"
+      - echo "🎯 Environment: {{ inputs.environment }}"
+      - echo "⏰ Completed at: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+      - echo ""
+      - echo "📊 SYSTEM STATUS:"
+      - docker ps --filter "name=overmind" --format "table {{.Names}}\t{{.Status}}"
+      - echo ""
+      - echo "🔄 TO RESTART SYSTEM:"
+      - echo "   Use 'start-overmind-system' flow in Kestra"
+
+triggers:
+  - id: manual-emergency-trigger
+    type: io.kestra.plugin.core.trigger.Manual
+    description: Manual emergency stop trigger

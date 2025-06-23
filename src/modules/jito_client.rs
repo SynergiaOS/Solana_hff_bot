@@ -261,7 +261,7 @@ impl JitoClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solana_sdk::signature::Keypair;
+    use solana_sdk::signature::{Keypair, Signer};
 
     #[tokio::test]
     async fn test_jito_client_creation() {

@@ -4,7 +4,7 @@
 //! including Raydium, Jupiter, Orca, and others.
 
 use anyhow::{Context, Result};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info};
 use serde::{Deserialize, Serialize};
 use solana_sdk::{
     instruction::Instruction,
@@ -16,7 +16,7 @@ use solana_sdk::{
 use std::str::FromStr;
 
 /// Supported DEX types
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum DexType {
     Raydium,
     Jupiter,
@@ -110,7 +110,7 @@ impl DexIntegration {
     }
 
     /// Build Raydium swap transaction
-    async fn build_raydium_swap(&self, params: SwapParams, wallet: &Keypair) -> Result<Transaction> {
+    async fn build_raydium_swap(&self, _params: SwapParams, wallet: &Keypair) -> Result<Transaction> {
         debug!("Building Raydium swap transaction");
 
         // Raydium program ID
@@ -135,7 +135,7 @@ impl DexIntegration {
     }
 
     /// Build Jupiter swap transaction
-    async fn build_jupiter_swap(&self, params: SwapParams, wallet: &Keypair) -> Result<Transaction> {
+    async fn build_jupiter_swap(&self, _params: SwapParams, wallet: &Keypair) -> Result<Transaction> {
         debug!("Building Jupiter swap transaction");
 
         // Jupiter program ID
@@ -159,7 +159,7 @@ impl DexIntegration {
     }
 
     /// Build Orca swap transaction
-    async fn build_orca_swap(&self, params: SwapParams, wallet: &Keypair) -> Result<Transaction> {
+    async fn build_orca_swap(&self, _params: SwapParams, wallet: &Keypair) -> Result<Transaction> {
         debug!("Building Orca swap transaction");
 
         // Orca program ID
@@ -176,7 +176,7 @@ impl DexIntegration {
     }
 
     /// Build Serum swap transaction
-    async fn build_serum_swap(&self, params: SwapParams, wallet: &Keypair) -> Result<Transaction> {
+    async fn build_serum_swap(&self, _params: SwapParams, wallet: &Keypair) -> Result<Transaction> {
         debug!("Building Serum swap transaction");
 
         // Serum program ID
@@ -193,7 +193,7 @@ impl DexIntegration {
     }
 
     /// Build Saber swap transaction
-    async fn build_saber_swap(&self, params: SwapParams, wallet: &Keypair) -> Result<Transaction> {
+    async fn build_saber_swap(&self, _params: SwapParams, wallet: &Keypair) -> Result<Transaction> {
         debug!("Building Saber swap transaction");
 
         // Saber program ID
@@ -230,7 +230,7 @@ impl DexIntegration {
     }
 
     /// Find pool address for a trading pair
-    fn find_pool_address(&self, input_mint: &Pubkey, output_mint: &Pubkey) -> Result<Pubkey> {
+    fn find_pool_address(&self, _input_mint: &Pubkey, _output_mint: &Pubkey) -> Result<Pubkey> {
         // In production, this would query the DEX for the actual pool address
         // For now, return a mock address
         Ok(Pubkey::new_unique())

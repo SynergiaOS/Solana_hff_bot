@@ -43,7 +43,7 @@ pub enum OvermindError {
     InsufficientFunds { message: String, required: u64, available: u64 },
     
     #[error("Market data error: {message}")]
-    MarketData { message: String, source: String },
+    MarketData { message: String },
     
     #[error("Critical system error: {message}")]
     Critical { message: String },
@@ -251,7 +251,7 @@ impl ErrorHandler {
     }
 
     /// Determine appropriate recovery strategy
-    fn determine_recovery_strategy(&self, error: &OvermindError, context: &ErrorContext) -> RecoveryStrategy {
+    fn determine_recovery_strategy(&self, error: &OvermindError, _context: &ErrorContext) -> RecoveryStrategy {
         match error {
             OvermindError::Network { retryable: true, .. } => {
                 RecoveryStrategy::Retry {

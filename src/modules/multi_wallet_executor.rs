@@ -8,7 +8,7 @@ use tracing::{debug, error, info, warn};
 
 use crate::config::TradingMode;
 use crate::modules::executor::{ExecutionResult, ExecutionStatus};
-use crate::modules::hft_engine::{HFTConfig, ExecutionResult as HFTExecutionResult, OvermindHFTEngine};
+use crate::modules::hft_engine::{HftEngineConfig, HftEngine};
 use crate::modules::risk::ApprovedSignal;
 use crate::modules::strategy::StrategyType;
 use crate::modules::wallet_manager::{WalletManager, WalletSelectionCriteria, WalletType};
@@ -31,7 +31,7 @@ pub struct MultiWalletExecutor {
     #[allow(dead_code)]
     solana_rpc_url: String,
     is_running: bool,
-    hft_engine: Option<OvermindHFTEngine>,
+    hft_engine: Option<HftEngine>,
     hft_mode_enabled: bool,
     // Multi-wallet specific fields
     wallet_selection_timeout_ms: u64,
@@ -85,9 +85,10 @@ impl MultiWalletExecutor {
         solana_rpc_url: String,
         wallet_selection_timeout_ms: u64,
         fallback_wallet_id: Option<String>,
-        hft_config: HFTConfig,
+        hft_config: HftEngineConfig,
     ) -> Result<Self> {
-        let hft_engine = OvermindHFTEngine::new(hft_config)?;
+        let wallet = solana_sdk::signature::Keypair::new(); // TODO: Load from config
+        let hft_engine = HftEngine::new(hft_config, wallet)?;
 
         Ok(Self {
             signal_receiver,
@@ -294,32 +295,34 @@ impl MultiWalletExecutor {
     ) -> Result<ExecutionResult> {
         debug!("🧠 Executing AI-enhanced paper trade with wallet {}", wallet_id);
 
-        let market_data = self.routed_signal_to_market_data(routed_signal);
+        let _market_data = self.routed_signal_to_market_data(routed_signal);
 
         if let Some(ref mut hft_engine) = self.hft_engine {
             
-            match hft_engine.execute_ai_signal(&market_data).await {
-                Ok(hft_result) => {
-                    match hft_result {
-                        HFTExecutionResult::Executed { latency_ms, estimated_profit, ai_confidence, .. } => {
-                            info!(
-                                "🧠 AI paper trade executed with wallet {} - Latency: {}ms, Confidence: {:.2}, Profit: ${:.2}",
-                                wallet_id, latency_ms, ai_confidence, estimated_profit
-                            );
+            // Convert market_data to TradingSignal for HFT engine
+            let trading_signal = crate::modules::hft_engine::TradingSignal {
+                symbol: "SOL/USDC".to_string(), // TODO: Extract from market_data
+                action: "BUY".to_string(), // TODO: Determine from market_data
+                quantity: 1.0, // TODO: Calculate from market_data
+                price: Some(100.0), // TODO: Extract from market_data
+                confidence: 0.8, // TODO: Calculate confidence
+                reasoning: "Market data analysis".to_string(),
+            };
 
-                            Ok(ExecutionResult {
-                                signal_id: routed_signal.original_signal.original_signal.signal_id.clone(),
-                                transaction_id: format!("ai_paper_{}", uuid::Uuid::new_v4()),
-                                status: ExecutionStatus::Confirmed,
-                                executed_quantity: routed_signal.original_signal.approved_quantity,
-                                executed_price: routed_signal.original_signal.original_signal.target_price,
-                                fees: routed_signal.original_signal.approved_quantity * routed_signal.original_signal.original_signal.target_price * 0.0005,
-                                timestamp: chrono::Utc::now(),
-                                error_message: None,
-                            })
-                        },
-                        _ => self.execute_paper_trade_with_wallet(routed_signal, wallet_id).await,
-                    }
+            match hft_engine.execute_signal(trading_signal).await {
+                Ok(signature) => {
+                    info!("🧠 AI paper trade executed with wallet {} - Signature: {}", wallet_id, signature);
+
+                    Ok(ExecutionResult {
+                        signal_id: routed_signal.original_signal.original_signal.signal_id.clone(),
+                        transaction_id: signature.to_string(),
+                        status: ExecutionStatus::Confirmed,
+                        executed_quantity: routed_signal.original_signal.approved_quantity,
+                        executed_price: routed_signal.original_signal.original_signal.target_price,
+                        fees: routed_signal.original_signal.approved_quantity * routed_signal.original_signal.original_signal.target_price * 0.0005,
+                        timestamp: chrono::Utc::now(),
+                        error_message: None,
+                    })
                 },
                 Err(_) => self.execute_paper_trade_with_wallet(routed_signal, wallet_id).await,
             }
@@ -367,32 +370,34 @@ impl MultiWalletExecutor {
     ) -> Result<ExecutionResult> {
         warn!("🧠 EXECUTING AI-ENHANCED LIVE TRADE with wallet {}", wallet_id);
 
-        let market_data = self.routed_signal_to_market_data(routed_signal);
+        let _market_data = self.routed_signal_to_market_data(routed_signal);
 
         if let Some(ref mut hft_engine) = self.hft_engine {
             
-            match hft_engine.execute_ai_signal(&market_data).await {
-                Ok(hft_result) => {
-                    match hft_result {
-                        HFTExecutionResult::Executed { bundle_id, latency_ms, estimated_profit, ai_confidence, signal_id: _ } => {
-                            info!(
-                                "🧠 AI live trade executed with wallet {} - Bundle: {}, Latency: {}ms, Confidence: {:.2}, Profit: ${:.2}",
-                                wallet_id, bundle_id, latency_ms, ai_confidence, estimated_profit
-                            );
+            // Convert market_data to TradingSignal for HFT engine
+            let trading_signal = crate::modules::hft_engine::TradingSignal {
+                symbol: "SOL/USDC".to_string(), // TODO: Extract from market_data
+                action: "BUY".to_string(), // TODO: Determine from market_data
+                quantity: 1.0, // TODO: Calculate from market_data
+                price: Some(100.0), // TODO: Extract from market_data
+                confidence: 0.8, // TODO: Calculate confidence
+                reasoning: "Market data analysis".to_string(),
+            };
 
-                            Ok(ExecutionResult {
-                                signal_id: routed_signal.original_signal.original_signal.signal_id.clone(),
-                                transaction_id: bundle_id,
-                                status: ExecutionStatus::Confirmed,
-                                executed_quantity: routed_signal.original_signal.approved_quantity,
-                                executed_price: routed_signal.original_signal.original_signal.target_price * 1.002,
-                                fees: routed_signal.original_signal.approved_quantity * routed_signal.original_signal.original_signal.target_price * 0.0015,
-                                timestamp: chrono::Utc::now(),
-                                error_message: None,
-                            })
-                        },
-                        _ => self.execute_live_trade_with_wallet(routed_signal, wallet_id, wallet_keypair).await,
-                    }
+            match hft_engine.execute_signal(trading_signal).await {
+                Ok(signature) => {
+                    info!("🧠 AI live trade executed with wallet {} - Signature: {}", wallet_id, signature);
+
+                    Ok(ExecutionResult {
+                        signal_id: routed_signal.original_signal.original_signal.signal_id.clone(),
+                        transaction_id: signature.to_string(),
+                        status: ExecutionStatus::Confirmed,
+                        executed_quantity: routed_signal.original_signal.approved_quantity,
+                        executed_price: routed_signal.original_signal.original_signal.target_price * 1.002,
+                        fees: routed_signal.original_signal.approved_quantity * routed_signal.original_signal.original_signal.target_price * 0.0015,
+                        timestamp: chrono::Utc::now(),
+                        error_message: None,
+                    })
                 },
                 Err(_) => self.execute_live_trade_with_wallet(routed_signal, wallet_id, wallet_keypair).await,
             }

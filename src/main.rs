@@ -1,28 +1,122 @@
 // THE OVERMIND PROTOCOL - AI-Enhanced High-Frequency Trading System for Solana
-// Main entry point - SIMPLIFIED VERSION for AI Connector testing
+// Main entry point - SIMPLIFIED HTTP SERVER VERSION
 
 mod config;
 mod modules;
 mod monitoring;
 
 use anyhow::Result;
-use tracing::info;
+use axum::{
+    extract::State,
+    http::StatusCode,
+    response::Json,
+    routing::get,
+    Router,
+};
+use serde_json::{json, Value};
+use std::sync::Arc;
+use tracing::{error, info};
 
+use config::Config;
 use modules::ai_connector;
 
-#[tokio::main(worker_threads = 1)]
+#[derive(Clone)]
+struct AppState {
+    config: Arc<Config>,
+}
+
+#[tokio::main(worker_threads = 6)]
 async fn main() -> Result<()> {
     // Initialize logging
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
 
-    info!("🧠 THE OVERMIND PROTOCOL - ROZDZIAŁ 1: Budowa Układu Nerwowego");
-    info!("🎯 Starting simple AI Connector for Python-Rust communication testing");
+    info!("🚀 THE OVERMIND PROTOCOL - Starting HTTP Server");
+    info!("🎯 5-Layer Autonomous AI Trading System for Solana");
 
-    // Start the simple command listener
-    info!("🚀 Starting AI Connector command listener...");
-    ai_connector::listen_for_commands().await?;
+    // Load configuration
+    let config = Arc::new(Config::from_env()?);
+    info!("✅ Configuration loaded");
+    info!("📊 Trading Mode: {}", config.trading_mode_str());
+    info!("🧠 OVERMIND Enabled: {}", config.overmind.enabled);
+
+    // Create application state
+    let app_state = AppState { config: config.clone() };
+
+    // Start AI Connector in background
+    info!("🧠 Starting AI Connector for command processing...");
+    let ai_config = config.clone();
+    tokio::spawn(async move {
+        if let Err(e) = ai_connector::listen_for_commands().await {
+            error!("AI Connector error: {}", e);
+        }
+    });
+
+    // Create HTTP server
+    let app = Router::new()
+        .route("/health", get(health_check))
+        .route("/metrics", get(metrics))
+        .route("/status", get(status))
+        .with_state(app_state);
+
+    let port = config.server.port;
+    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port)).await?;
+
+    info!("🌐 THE OVERMIND PROTOCOL server starting on port {}", port);
+    info!("📊 Health check: http://localhost:{}/health", port);
+    info!("📈 Metrics: http://localhost:{}/metrics", port);
+    info!("📋 Status: http://localhost:{}/status", port);
+    info!("🧠 AI Connector listening for commands on overmind:commands");
+
+    axum::serve(listener, app).await?;
 
     Ok(())
+}
+
+async fn health_check(State(state): State<AppState>) -> Result<Json<Value>, StatusCode> {
+    let health_status = json!({
+        "status": "healthy",
+        "timestamp": chrono::Utc::now().to_rfc3339(),
+        "version": "1.0.0",
+        "system": "THE OVERMIND PROTOCOL",
+        "components": {
+            "config": "loaded",
+            "server": "running"
+        },
+        "trading_mode": state.config.trading_mode_str(),
+        "environment": "devnet",
+        "overmind_enabled": state.config.overmind.enabled
+    });
+
+    Ok(Json(health_status))
+}
+
+async fn metrics(State(_state): State<AppState>) -> Result<Json<Value>, StatusCode> {
+    let metrics = json!({
+        "uptime_seconds": 0, // TODO: Calculate actual uptime
+        "total_trades": 0,
+        "successful_trades": 0,
+        "failed_trades": 0,
+        "current_positions": 0,
+        "daily_pnl": 0.0,
+        "ai_decisions": 0,
+        "system_latency_ms": 0.0
+    });
+
+    Ok(Json(metrics))
+}
+
+async fn status(State(state): State<AppState>) -> Result<Json<Value>, StatusCode> {
+    let status = json!({
+        "system": "THE OVERMIND PROTOCOL",
+        "mode": state.config.trading_mode_str(),
+        "environment": "devnet",
+        "overmind_enabled": state.config.overmind.enabled,
+        "ai_mode": if state.config.overmind.enabled { "enabled" } else { "disabled" },
+        "server_port": state.config.server.port,
+        "timestamp": chrono::Utc::now().to_rfc3339()
+    });
+
+    Ok(Json(status))
 }

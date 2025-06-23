@@ -1,0 +1,238 @@
+# THE OVERMIND PROTOCOL - Production Docker Compose
+# Complete stack for AI-enhanced HFT trading system
+
+version: '3.8'
+
+services:
+  # ============================================================================
+  # THE OVERMIND PROTOCOL - Core Services
+  # ============================================================================
+  
+  # TensorZero Gateway - AI Decision Engine (DEVNET)
+  tensorzero-gateway:
+    image: tensorzero/gateway:latest
+    container_name: overmind-tensorzero-devnet
+    ports:
+      - "3001:3000"
+    environment:
+      - TENSORZERO_DATABASE_URL=postgresql://tensorzero:devnet_password@tensorzero-db:5432/tensorzero
+      - TENSORZERO_REDIS_URL=redis://tensorzero-dragonfly:6379
+      - TENSORZERO_LOG_LEVEL=debug
+      - TENSORZERO_OPENAI_API_KEY=${OPENAI_API_KEY}
+      - TENSORZERO_DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+    depends_on:
+      - tensorzero-db
+      - tensorzero-dragonfly
+    volumes:
+      - ./tensorzero-config:/app/config
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - overmind-network
+
+  # TensorZero Database (DEVNET)
+  tensorzero-db:
+    image: postgres:15-alpine
+    container_name: overmind-tensorzero-db-devnet
+    environment:
+      - POSTGRES_DB=tensorzero
+      - POSTGRES_USER=tensorzero
+      - POSTGRES_PASSWORD=devnet_password
+    volumes:
+      - tensorzero-db-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - overmind-network
+
+  # TensorZero Dragonfly Cache
+  tensorzero-dragonfly:
+    image: docker.dragonflydb.io/dragonflydb/dragonfly:latest
+    container_name: overmind-tensorzero-dragonfly
+    command: dragonfly --logtostderr
+    volumes:
+      - tensorzero-dragonfly-data:/data
+    restart: unless-stopped
+    networks:
+      - overmind-network
+    ulimits:
+      memlock: -1
+
+  # ============================================================================
+  # THE OVERMIND PROTOCOL - AI Brain (Python)
+  # ============================================================================
+
+  # Chroma Vector Database - AI Memory Storage
+  chroma:
+    image: chromadb/chroma:latest
+    container_name: overmind-chroma
+    ports:
+      - "8000:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+    environment:
+      - CHROMA_SERVER_HOST=0.0.0.0
+      - CHROMA_SERVER_HTTP_PORT=8000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - overmind-network
+
+  # AI Brain - Python (DEVNET SIMPLIFIED)
+  overmind-brain:
+    build:
+      context: ./brain
+      dockerfile: Dockerfile
+    container_name: overmind-python-brain-devnet
+    environment:
+      # AI Configuration
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+
+      # Communication
+      - DRAGONFLY_URL=redis://overmind-dragonfly:6379
+      - VECTOR_DB_URL=http://chroma:8000
+      - TENSORZERO_URL=http://tensorzero-gateway:3000
+
+      # OVERMIND Configuration
+      - OVERMIND_MODE=enabled
+      - OVERMIND_AI_MODE=enabled
+      - ENVIRONMENT=devnet
+      - PYTHONPATH=/app/src
+    volumes:
+      - ./brain:/app
+      - ./library:/app/library
+    depends_on:
+      - overmind-dragonfly
+      - chroma
+      - tensorzero-gateway
+    command: ["python", "src/main.py"]
+    restart: unless-stopped
+    networks:
+      - overmind-network
+
+  # ============================================================================
+  # THE OVERMIND PROTOCOL - Main Trading System (Rust)
+  # ============================================================================
+
+  # SNIPERCOR with OVERMIND Protocol (DEVNET)
+  overmind-trading:
+    build:
+      context: .
+      dockerfile: Dockerfile.devnet
+    container_name: overmind-trading-system-devnet
+    environment:
+      # Trading Configuration (DEVNET)
+      - SNIPER_TRADING_MODE=paper
+      - SNIPER_ENVIRONMENT=devnet
+      - SNIPER_MAX_POSITION_SIZE=1.0
+      - SNIPER_MAX_DAILY_LOSS=10.0
+
+      # THE OVERMIND PROTOCOL Configuration
+      - OVERMIND_ENABLED=true
+      - OVERMIND_TENSORZERO_URL=http://tensorzero-gateway:3000
+      - OVERMIND_AI_MODE=enabled
+      - OVERMIND_MAX_LATENCY_MS=50
+      - OVERMIND_AI_CONFIDENCE_THRESHOLD=0.6
+
+      # Solana Configuration (DEVNET)
+      - SNIPER_SOLANA_RPC_URL=${QUICKNODE_DEVNET_RPC_URL}
+      - SNIPER_WALLET_PRIVATE_KEY=${SNIPER_WALLET_PRIVATE_KEY}
+
+      # API Keys
+      - SNIPER_HELIUS_API_KEY=${HELIUS_API_KEY}
+      - SNIPER_QUICKNODE_API_KEY=${SNIPER_QUICKNODE_API_KEY}
+
+      # Database
+      - SNIPER_DATABASE_URL=postgresql://sniper:devnet_password@overmind-db:5432/snipercor
+
+      # Server
+      - SNIPER_SERVER_PORT=8080
+      - SNIPER_LOG_LEVEL=debug
+    ports:
+      - "8081:8080"
+    depends_on:
+      - overmind-db
+      - overmind-dragonfly
+      - chroma
+    volumes:
+      - ./logs:/app/logs
+      - ./config:/app/config
+      - ./.env:/app/.env
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - overmind-network
+
+  # ============================================================================
+  # Database Services
+  # ============================================================================
+  
+  # Main Database for SNIPERCOR (DEVNET)
+  overmind-db:
+    image: postgres:15-alpine
+    container_name: overmind-database-devnet
+    environment:
+      - POSTGRES_DB=snipercor
+      - POSTGRES_USER=sniper
+      - POSTGRES_PASSWORD=devnet_password
+    volumes:
+      - overmind-db-data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5433:5432"
+    restart: unless-stopped
+    networks:
+      - overmind-network
+
+  # Dragonfly - High-Performance Redis Replacement (DEVNET)
+  overmind-dragonfly:
+    image: docker.dragonflydb.io/dragonflydb/dragonfly:latest
+    container_name: overmind-dragonfly-devnet
+    command: dragonfly --logtostderr
+    volumes:
+      - overmind-dragonfly-data:/data
+    ports:
+      - "6380:6379"
+    restart: unless-stopped
+    networks:
+      - overmind-network
+    ulimits:
+      memlock: -1
+
+  # ============================================================================
+  # DEVNET TESTING - Simplified Monitoring
+  # ============================================================================
+
+# ============================================================================
+# Networks and Volumes
+# ============================================================================
+
+networks:
+  overmind-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.25.0.0/16
+
+volumes:
+  # TensorZero Data (DEVNET)
+  tensorzero-db-data:
+  tensorzero-dragonfly-data:
+
+  # AI Brain Data (DEVNET)
+  chroma_data:
+
+  # Main System Data (DEVNET)
+  overmind-db-data:
+  overmind-dragonfly-data:
