@@ -7,7 +7,7 @@ import logging
 import json
 import os
 from typing import Dict, Any, List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import redis.asyncio as redis
 from dataclasses import asdict
 
@@ -21,102 +21,272 @@ from .helius_integration import helius_client, get_enhanced_token_data
 logger = logging.getLogger(__name__)
 
 class OVERMINDBrain:
-    """Main AI Brain for THE OVERMIND PROTOCOL
+    """Main AI Brain for THE OVERMIND PROTOCOL"""
 
-    Integrates all AI components:
-    - Vector Memory: Long-term experience storage
-    - Decision Engine: AI-powered decision making
-    - Risk Analyzer: Comprehensive risk assessment
-    - Market Analyzer: Market data analysis and pattern recognition
-    """
+    def __init__(self):
+        """Initialize the OVERMIND Brain with all components"""
+        # Initialize vector memory for long-term storage
+        self.vector_memory = VectorMemory(
+            collection_name=os.getenv("QDRANT_COLLECTION", "overmind_memory")
+        )
 
-    def __init__(self,
-                 redis_host: str = "localhost",
-                 redis_port: int = 6379,
-                 openai_api_key: Optional[str] = None,
-                 memory_collection: str = "overmind_memory"):
-        """
-        Initialize THE OVERMIND PROTOCOL AI Brain
+        # Initialize decision engine
+        self.decision_engine = DecisionEngine()
 
-        Args:
-            redis_host: DragonflyDB/Redis host for communication
-            redis_port: DragonflyDB/Redis port
-            openai_api_key: OpenAI API key for LLM integration
-            memory_collection: Vector memory collection name
-        """
+        # Initialize risk analyzer
+        self.risk_analyzer = RiskAnalyzer()
+
+        # Initialize market analyzer
+        self.market_analyzer = MarketAnalyzer()
+
+        # Connect to DragonflyDB for communication with Rust
+        self.redis = redis.Redis(
+            host=os.getenv("DRAGONFLY_HOST", "localhost"),
+            port=int(os.getenv("DRAGONFLY_PORT", 6379)),
+            password=os.getenv("DRAGONFLY_PASSWORD", None),
+            db=int(os.getenv("DRAGONFLY_DB", 0)),
+            decode_responses=True
+        )
+
+        # Initialize state
         self.is_running = False
-        self.redis_host = redis_host
-        self.redis_port = redis_port
 
-        # Initialize AI components
+        # Initialize communication channels
+        self.market_events_queue = "overmind:market_events"
+        self.trading_commands_queue = "overmind:commands"
+
+        # Initialize Helius client
+        from .helius_integration import helius_client
+        self.helius_client = helius_client
+
+        # Initialize DragonflyDB connection (alias for compatibility)
+        self.dragonfly = self.redis
+
+        logger.info("🧠 THE OVERMIND PROTOCOL Brain components initialized")
+
+    async def initialize(self):
+        """Async initialization of components that require async setup"""
         try:
-            # Vector Memory for long-term learning
-            self.vector_memory = VectorMemory(collection_name=memory_collection)
-            logger.info("✅ Vector Memory initialized")
+            # Test DragonflyDB connection
+            await self.redis.ping()
+            logger.info("✅ DragonflyDB connection established")
 
-            # Decision Engine with LLM integration
-            self.decision_engine = DecisionEngine(api_key=openai_api_key)
-            logger.info("✅ Decision Engine initialized")
+            # Vector memory collection is already initialized in __init__
+            # Just verify it's working
+            try:
+                metrics = self.vector_memory.get_metrics()
+                logger.info(f"✅ Vector memory ready - {metrics.get('total_points', 0)} memories stored")
+            except Exception as e:
+                logger.warning(f"⚠️ Vector memory check failed: {e}")
 
-            # Risk Analyzer for comprehensive risk assessment
-            self.risk_analyzer = RiskAnalyzer()
-            logger.info("✅ Risk Analyzer initialized")
-
-            # Market Analyzer for data analysis
-            self.market_analyzer = MarketAnalyzer()
-            logger.info("✅ Market Analyzer initialized")
-
-            # Helius API integration for enhanced Solana data
-            self.helius_client = helius_client
+            # Test Helius connection
             helius_status = self.helius_client.get_status()
             if helius_status['api_key_configured']:
-                logger.info("✅ Helius API Premium integration initialized")
+                logger.info("✅ Helius API connection ready")
             else:
-                logger.warning("⚠️ Helius API key not configured - using basic features only")
+                logger.warning("⚠️ Helius API key not configured - using basic mode")
 
-            # DragonflyDB connection for communication with Rust executor
-            self.dragonfly = None  # Will be initialized in start()
-
-            logger.info("🧠 THE OVERMIND PROTOCOL Brain initialized successfully")
+            logger.info("🚀 THE OVERMIND PROTOCOL Brain fully initialized")
+            return True
 
         except Exception as e:
-            logger.error(f"❌ Failed to initialize OVERMIND Brain: {e}")
-            raise
+            logger.error(f"❌ Failed to initialize brain: {e}")
+            return False
 
-    async def start(self):
-        """Start the AI brain and main processing loop"""
+    async def shutdown(self):
+        """Graceful shutdown of the brain"""
         try:
-            self.is_running = True
+            logger.info("🛑 Shutting down THE OVERMIND PROTOCOL Brain...")
 
-            # Initialize DragonflyDB connection
-            self.dragonfly = redis.Redis(
-                host=self.redis_host,
-                port=self.redis_port,
-                decode_responses=True
+            # Stop the brain if running
+            if self.is_running:
+                await self.stop()
+
+            # Close DragonflyDB connection
+            if self.redis:
+                await self.redis.close()
+                logger.info("✅ DragonflyDB connection closed")
+
+            logger.info("🛑 THE OVERMIND PROTOCOL Brain shutdown complete")
+
+        except Exception as e:
+            logger.error(f"❌ Error during brain shutdown: {e}")
+        
+        # Queue names for communication
+        self.market_events_queue = os.getenv("OVERMIND_MARKET_EVENTS_QUEUE", "overmind:market_events")
+        self.trading_commands_queue = os.getenv("OVERMIND_TRADING_COMMANDS_QUEUE", "overmind:trading_commands")
+        self.execution_results_queue = os.getenv("OVERMIND_EXECUTION_RESULTS_QUEUE", "overmind:execution_results")
+        
+        logger.info("OVERMIND Brain initialized successfully")
+
+    def get_memory_stats(self) -> Dict[str, Any]:
+        """Get memory statistics from VectorMemory"""
+        try:
+            # Get collection info from Qdrant
+            collection_info = self.vector_memory.client.get_collection(
+                collection_name=self.vector_memory.collection_name
             )
 
-            # Test connection
-            await self.dragonfly.ping()
-            logger.info(f"✅ Connected to DragonflyDB at {self.redis_host}:{self.redis_port}")
+            return {
+                "collection_name": self.vector_memory.collection_name,
+                "total_memories": collection_info.points_count,
+                "vector_size": collection_info.config.params.vectors.size,
+                "distance_metric": collection_info.config.params.vectors.distance.value,
+                "status": "operational"
+            }
+        except Exception as e:
+            logger.error(f"Error getting memory stats: {e}")
+            return {"status": "error", "error": str(e)}
 
-            logger.info("🚀 THE OVERMIND PROTOCOL Brain started")
+    async def health_check(self) -> Dict[str, Any]:
+        """Comprehensive health check including memory status"""
+        try:
+            health_status = {
+                "brain_status": "operational",
+                "timestamp": datetime.now().isoformat(),
+                "components": {}
+            }
 
-            # Main brain loop
-            while self.is_running:
-                await self.process_cycle()
-                await asyncio.sleep(1)  # 1 second cycle
+            # Check VectorMemory health
+            try:
+                memory_stats = self.get_memory_stats()
+                health_status["components"]["vector_memory"] = {
+                    "status": "operational",
+                    "stats": memory_stats
+                }
+            except Exception as e:
+                health_status["components"]["vector_memory"] = {
+                    "status": "error",
+                    "error": str(e)
+                }
+
+            # Check DecisionEngine health
+            health_status["components"]["decision_engine"] = {
+                "status": "operational" if self.decision_engine else "not_initialized"
+            }
+
+            # Check RiskAnalyzer health
+            health_status["components"]["risk_analyzer"] = {
+                "status": "operational" if self.risk_analyzer else "not_initialized"
+            }
+
+            # Check MarketAnalyzer health
+            health_status["components"]["market_analyzer"] = {
+                "status": "operational" if self.market_analyzer else "not_initialized"
+            }
+
+            # Check Redis connection
+            try:
+                await self.redis.ping()
+                health_status["components"]["redis_connection"] = {
+                    "status": "connected"
+                }
+            except Exception as e:
+                health_status["components"]["redis_connection"] = {
+                    "status": "disconnected",
+                    "error": str(e)
+                }
+
+            return health_status
 
         except Exception as e:
-            logger.error(f"❌ Brain startup failed: {e}")
-            self.is_running = False
+            logger.error(f"Health check failed: {e}")
+            return {
+                "brain_status": "error",
+                "error": str(e),
+                "timestamp": datetime.now().isoformat()
+            }
+    
+    async def process_market_event(self, event_data: Dict[str, Any]) -> Optional[TradingDecision]:
+        """
+        Process a market event and make a trading decision
+        
+        Args:
+            event_data: Market event data from Rust executor
+            
+        Returns:
+            Trading decision or None if no action should be taken
+        """
+        try:
+            logger.info(f"Processing market event: {event_data.get('event_type', 'unknown')}")
+            
+            # 1. Analyze market data
+            market_analysis = await self.market_analyzer.analyze_market(event_data)
+
+            # 2. Retrieve relevant historical context from vector memory
+            relevant_experiences = self.vector_memory.get_relevant_experiences(event_data, limit=3)
+
+            # 3. Assess risk
+            risk_assessment = await self.risk_analyzer.assess_risk(
+                market_data=event_data,
+                decision_data=asdict(market_analysis)
+            )
+
+            # 4. Make decision with context
+            decision = await self.decision_engine.analyze_market_data(
+                market_data=event_data,
+                historical_context=relevant_experiences,
+                additional_context={
+                    "market_analysis": market_analysis,
+                    "risk_assessment": risk_assessment
+                }
+            )
+            
+            # 5. Store experience in vector memory
+            if decision:
+                self.vector_memory.store_experience(event_data, asdict(decision))
+            
+            return decision
+            
+        except Exception as e:
+            logger.error(f"Error processing market event: {str(e)}", exc_info=True)
+            return None
+    
+    async def start(self):
+        """Start the OVERMIND Brain processing loop"""
+        logger.info("Starting OVERMIND Brain processing loop")
+        
+        try:
+            while True:
+                # Listen for market events from Rust
+                try:
+                    # Use brpop with timeout for non-blocking operation
+                    result = await self.redis.brpop([self.market_events_queue], timeout=1)  # type: ignore
+                    message = result if result else None
+                except Exception as e:
+                    logger.debug(f"Redis brpop timeout or error: {e}")
+                    message = None
+
+                if message:
+                    _, event_json = message
+                    event_data = json.loads(event_json)
+
+                    # Process the event
+                    decision = await self.process_market_event(event_data)
+
+                    # Send decision back to Rust if action needed
+                    if decision:
+                        await self.redis.rpush(  # type: ignore
+                            self.trading_commands_queue,
+                            json.dumps(asdict(decision))
+                        )
+                        logger.info(f"Sent trading decision: {decision.action} for {decision.symbol}")
+
+                # Small sleep to prevent CPU spinning
+                await asyncio.sleep(0.01)
+                
+        except asyncio.CancelledError:
+            logger.info("OVERMIND Brain processing loop cancelled")
+        except Exception as e:
+            logger.error(f"Error in OVERMIND Brain processing loop: {str(e)}", exc_info=True)
             raise
 
     async def process_cycle(self):
         """Process one cycle of AI brain operations"""
         try:
             # Listen for market events from Rust executor
-            market_event = await self.dragonfly.blpop(
-                'overmind:market_events',
+            market_event = await self.dragonfly.blpop(  # type: ignore
+                ['overmind:market_events'],
                 timeout=1
             )
 
@@ -162,9 +332,9 @@ class OVERMINDBrain:
 
             # Step 2: Retrieve relevant experiences from vector memory
             query = f"Market event: {symbol} price: {event_data.get('price', 'unknown')}"
-            historical_context = await self.vector_memory.similarity_search(
-                query=query,
-                top_k=5
+            historical_context = self.vector_memory.find_similar(
+                query_text=query,
+                limit=5
             )
 
             # Step 3: AI Decision Making
@@ -173,7 +343,7 @@ class OVERMINDBrain:
                 historical_context=historical_context,
                 additional_context={
                     "market_analysis": asdict(market_analysis),
-                    "timestamp": datetime.utcnow().isoformat()
+                    "timestamp": datetime.now(timezone.utc).isoformat()
                 }
             )
 
@@ -189,13 +359,9 @@ class OVERMINDBrain:
             decision = self._apply_risk_adjustments(decision, risk_assessment)
 
             # Step 6: Store experience in vector memory
-            await self.vector_memory.store_experience(
-                situation=event_data,
-                decision=asdict(decision),
-                context={
-                    "market_analysis": asdict(market_analysis),
-                    "risk_assessment": asdict(risk_assessment)
-                }
+            self.vector_memory.store_experience(
+                market_data=event_data,
+                decision=asdict(decision)
             )
 
             logger.info(f"🎯 Decision generated: {decision.action} {symbol} "
@@ -265,7 +431,7 @@ class OVERMINDBrain:
             }
 
             # Send to Rust executor
-            await self.dragonfly.lpush(
+            await self.dragonfly.lpush(  # type: ignore
                 'overmind:commands',
                 json.dumps(decision_message)
             )
@@ -283,7 +449,7 @@ class OVERMINDBrain:
         """Get comprehensive brain status and statistics"""
         try:
             # Get memory statistics
-            memory_stats = await self.vector_memory.get_memory_stats()
+            memory_stats = self.vector_memory.get_metrics()
 
             # Get Helius status
             helius_status = self.helius_client.get_status()
@@ -291,7 +457,7 @@ class OVERMINDBrain:
             # Get system status
             status = {
                 "brain_running": self.is_running,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "components": {
                     "vector_memory": "operational",
                     "decision_engine": "operational",
@@ -309,7 +475,7 @@ class OVERMINDBrain:
 
         except Exception as e:
             logger.error(f"❌ Failed to get brain status: {e}")
-            return {"error": str(e), "timestamp": datetime.utcnow().isoformat()}
+            return {"error": str(e), "timestamp": datetime.now(timezone.utc).isoformat()}
 
     async def manual_analysis(self,
                              symbol: str,
@@ -334,9 +500,9 @@ class OVERMINDBrain:
 
             # Get historical context
             query = f"Symbol: {symbol} analysis"
-            historical_context = await self.vector_memory.similarity_search(
-                query=query,
-                top_k=3
+            historical_context = self.vector_memory.find_similar(
+                query_text=query,
+                limit=3
             )
 
             # Generate decision
@@ -372,7 +538,7 @@ class OVERMINDBrain:
                 "explanation": explanation,
                 "historical_context": historical_context,
                 "command_sent": command_sent,
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
 
             logger.info(f"✅ Manual analysis completed for {symbol}")
@@ -396,9 +562,10 @@ class OVERMINDBrain:
             Success status
         """
         try:
-            success = await self.vector_memory.update_experience_outcome(
+            # Update memory with outcome using the update_memory method
+            success = self.vector_memory.update_memory(
                 memory_id=memory_id,
-                outcome=outcome
+                metadata={"outcome": outcome, "outcome_timestamp": datetime.now().isoformat()}
             )
 
             if success:

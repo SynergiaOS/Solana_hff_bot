@@ -10,7 +10,7 @@ use tracing::{info, debug};
 use serde::{Deserialize, Serialize};
 
 /// Performance metrics for THE OVERMIND PROTOCOL
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PerformanceMetrics {
     /// Trading metrics
     pub trading: TradingMetrics,
@@ -317,16 +317,7 @@ impl MetricsCollector {
     }
 }
 
-impl Default for PerformanceMetrics {
-    fn default() -> Self {
-        Self {
-            trading: TradingMetrics::default(),
-            system: SystemMetrics::default(),
-            network: NetworkMetrics::default(),
-            ai: AiMetrics::default(),
-        }
-    }
-}
+
 
 impl Default for TradingMetrics {
     fn default() -> Self {

@@ -208,6 +208,7 @@ impl ErrorHandler {
     }
 
     /// Get error statistics
+    #[allow(private_interfaces)]
     pub fn get_error_stats(&self) -> &ErrorStatistics {
         &self.error_stats
     }

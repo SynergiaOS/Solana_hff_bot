@@ -72,6 +72,7 @@ pub struct TradingSignal {
 }
 
 /// HFT Engine for high-performance trade execution
+#[allow(dead_code)]
 pub struct HftEngine {
     config: HftEngineConfig,
     rpc_client: RpcClient,
@@ -162,7 +163,7 @@ impl HftEngine {
         let signature = self.execute_with_retry(optimized_tx).await?;
         
         info!("✅ Transaction executed successfully: {}", signature);
-        return Ok(signature);
+        Ok(signature)
     }
     
     /// Optimize transaction parameters using TensorZero
@@ -362,6 +363,7 @@ impl HftEngine {
     }
 
     /// Build a mock transaction for testing
+    #[allow(dead_code)]
     fn build_mock_transaction(&self, signal: &TradingSignal) -> Result<Transaction> {
         // This is a placeholder for actual transaction building logic
         // In production, this would create real Solana transactions

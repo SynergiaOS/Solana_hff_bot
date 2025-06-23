@@ -13,8 +13,7 @@ use tokio::time::{Duration, Instant};
 use tracing::{error, info, warn, instrument};
 use uuid::Uuid;
 use chrono;
-use solana_client::rpc_client::RpcClient;
-use solana_sdk::pubkey::Pubkey;
+
 
 use crate::modules::strategy::TradingSignal;
 use crate::modules::real_price_fetcher::RealPriceFetcher;
@@ -286,9 +285,64 @@ async fn send_wallet_balance_response(balance: serde_json::Value) -> Result<()> 
     Ok(())
 }
 
+/// Query vector memory for relevant trading experiences
+#[allow(dead_code)]
+async fn query_vector_memory(query: &str) -> Result<Vec<VectorMemoryResult>> {
+    info!("🧠 Querying vector memory: {}", query);
+
+    let dragonfly_url = std::env::var("DRAGONFLY_URL")
+        .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
+
+    let client = Client::open(dragonfly_url.as_str())?;
+    let mut conn = ConnectionManager::new(client).await?;
+
+    // Send memory query request to Python Brain
+    let memory_request = serde_json::json!({
+        "action": "QUERY_VECTOR_MEMORY",
+        "query": query,
+        "limit": 5,
+        "timestamp": chrono::Utc::now().to_rfc3339()
+    });
+
+    let _: () = conn.lpush("overmind:memory_queries", serde_json::to_string(&memory_request)?).await?;
+
+    // Wait for response with timeout
+    let timeout_duration = Duration::from_secs(5);
+    let start_time = Instant::now();
+
+    while start_time.elapsed() < timeout_duration {
+        if let Ok(Some((_, response_json))) = conn.blpop::<&str, Option<(String, String)>>("overmind:memory_responses", 1.0).await {
+            let response: serde_json::Value = serde_json::from_str(&response_json)?;
+
+            if let Some(memories) = response.get("memories").and_then(|m| m.as_array()) {
+                let mut results = Vec::new();
+                for memory in memories {
+                    if let Ok(memory_result) = serde_json::from_value::<VectorMemoryResult>(memory.clone()) {
+                        results.push(memory_result);
+                    }
+                }
+                info!("✅ Retrieved {} memories from vector database", results.len());
+                return Ok(results);
+            }
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+
+    warn!("⚠️ Vector memory query timeout");
+    Ok(Vec::new())
+}
+
 // ============================================================================
 // VECTOR CONTEXT STRUCTURE
 // ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VectorMemoryResult {
+    pub id: String,
+    pub text: String,
+    pub similarity: f64,
+    pub metadata: HashMap<String, serde_json::Value>,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VectorContext {
