@@ -8,6 +8,8 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
+use solana_client::rpc_client::RpcClient;
+use solana_sdk::{transaction::Transaction, signature::Keypair};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecutionResult {

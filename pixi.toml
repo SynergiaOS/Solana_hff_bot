@@ -77,6 +77,8 @@ clone-ai-hedge-fund = "git clone https://github.com/virattt/ai-hedge-fund.git"
 
 # Development tasks
 start-brain = "cd ai-hedge-fund && poetry run python src/overmind_brain.py"
+start-simple-brain = "cd brain && python -m src.overmind_brain.simple_brain"
+start-agent = "cd brain && python -m src.overmind_brain.simple_brain"
 test-brain = "cd ai-hedge-fund && poetry run pytest"
 brain-shell = "cd ai-hedge-fund && poetry shell"
 

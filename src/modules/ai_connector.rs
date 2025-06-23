@@ -16,6 +16,119 @@ use uuid::Uuid;
 use crate::modules::strategy::TradingSignal;
 
 // ============================================================================
+// SIMPLE COMMAND LISTENER FOR INITIAL IMPLEMENTATION
+// ============================================================================
+
+/// Enhanced function to listen for commands from Python Brain and execute them
+/// This is the upgraded implementation for ROZDZIAŁ 3
+pub async fn listen_for_commands() -> Result<()> {
+    info!("🧠 THE OVERMIND PROTOCOL - Starting enhanced command listener with execution");
+
+    // Connect to DragonflyDB
+    let dragonfly_url = std::env::var("DRAGONFLY_URL")
+        .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
+
+    info!("🔗 Connecting to DragonflyDB at: {}", dragonfly_url);
+
+    let client = Client::open(dragonfly_url.as_str())?;
+    let mut conn = ConnectionManager::new(client).await?;
+
+    // Test connection
+    let _: String = redis::cmd("PING").query_async(&mut conn).await?;
+    info!("✅ Connected to DragonflyDB successfully");
+
+    info!("👂 Listening for commands on 'overmind:commands' list...");
+
+    // Main listening loop with enhanced processing
+    loop {
+        match conn.blpop::<&str, (String, String)>("overmind:commands", 0.0).await {
+            Ok((list_name, message)) => {
+                info!("📨 Received command from {}: {}", list_name, message);
+
+                // Enhanced processing: Parse and execute the command
+                match process_brain_command(&message).await {
+                    Ok(execution_result) => {
+                        info!("✅ Command executed successfully: {}", execution_result);
+                    }
+                    Err(e) => {
+                        error!("❌ Failed to execute command: {}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                error!("❌ Error listening for commands: {}", e);
+                tokio::time::sleep(Duration::from_secs(1)).await;
+            }
+        }
+    }
+}
+
+/// Process a command from the Python Brain and execute it
+async fn process_brain_command(command_json: &str) -> Result<String> {
+    // Parse the JSON command
+    let command: serde_json::Value = serde_json::from_str(command_json)?;
+
+    let action = command.get("action")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("Missing 'action' field"))?;
+
+    let symbol = command.get("symbol")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("Missing 'symbol' field"))?;
+
+    let quantity = command.get("quantity")
+        .and_then(|v| v.as_f64())
+        .ok_or_else(|| anyhow::anyhow!("Missing 'quantity' field"))?;
+
+    let confidence = command.get("confidence")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(0.5);
+
+    info!("🎯 Executing {} {} (qty: {}, conf: {:.2})", action, symbol, quantity, confidence);
+
+    // Simulate TensorZero-enhanced execution
+    let execution_result = execute_with_tensorzero(action, symbol, quantity, confidence).await?;
+
+    Ok(execution_result)
+}
+
+/// Simulate TensorZero-enhanced execution for paper trading
+async fn execute_with_tensorzero(action: &str, symbol: &str, quantity: f64, confidence: f64) -> Result<String> {
+    // Simulate TensorZero optimization delay
+    tokio::time::sleep(Duration::from_millis(25)).await;
+
+    // Simulate AI-enhanced decision making
+    let ai_enhancement = if confidence > 0.8 {
+        "High confidence - TensorZero optimization applied"
+    } else if confidence > 0.6 {
+        "Medium confidence - Standard execution"
+    } else {
+        "Low confidence - Risk mitigation applied"
+    };
+
+    // Simulate paper trading execution
+    let transaction_id = format!("tensorzero_{}_{}", action.to_lowercase(), uuid::Uuid::new_v4());
+    let estimated_price = match symbol {
+        "SOL" => 100.0 + (confidence - 0.5) * 10.0,
+        "BTC" => 45000.0 + (confidence - 0.5) * 1000.0,
+        "ETH" => 3000.0 + (confidence - 0.5) * 200.0,
+        "USDC" => 1.0,
+        "RAY" => 2.5 + (confidence - 0.5) * 0.5,
+        "ORCA" => 1.8 + (confidence - 0.5) * 0.3,
+        _ => 1.0,
+    };
+
+    let fees = quantity * estimated_price * 0.0005; // 0.05% fees with TensorZero optimization
+    let estimated_profit = quantity * estimated_price * (confidence - 0.5) * 0.02; // Profit based on confidence
+
+    info!("🧠 TensorZero Analysis: {}", ai_enhancement);
+    info!("💰 Paper Trade Executed: {} {} @ ${:.2} (fees: ${:.4}, profit: ${:.2})",
+          action, symbol, estimated_price, fees, estimated_profit);
+
+    Ok(format!("Paper trade executed: {} {} @ ${:.2} (ID: {})", action, symbol, estimated_price, transaction_id))
+}
+
+// ============================================================================
 // AI BRAIN COMMUNICATION STRUCTURES
 // ============================================================================
 
@@ -279,7 +392,6 @@ impl AIConnector {
         }
     }
 
-    #[instrument(skip(self, conn))]
     async fn listen_for_ai_decisions(
         &self,
         conn: &mut ConnectionManager,

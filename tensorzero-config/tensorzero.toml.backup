@@ -1,0 +1,81 @@
+# THE OVERMIND PROTOCOL - TensorZero Configuration
+# AI-Enhanced Trading Decision Engine
+
+[gateway]
+bind_address = "0.0.0.0:3000"
+
+# Models Configuration
+[models.gpt4o_mini]
+routing = ["openai"]
+
+[models.gpt4o_mini.providers.openai]
+type = "openai"
+model_name = "gpt-4o-mini"
+api_key_location = "env:OPENAI_API_KEY"
+
+[models.mistral_small]
+routing = ["mistral"]
+
+[models.mistral_small.providers.mistral]
+type = "mistral"
+model_name = "mistral-small-latest"
+api_key_location = "env:MISTRAL_API_KEY"
+
+# Temporarily disabled Google model due to config complexity
+# [models.gemini_flash]
+# routing = ["google_ai_studio"]
+#
+# [models.gemini_flash.providers.google_ai_studio]
+# type = "google_ai_studio_gemini"
+# model_name = "gemini-1.5-flash"
+
+# Functions Configuration
+[functions.overmind_trading_decision]
+type = "chat"
+description = "THE OVERMIND PROTOCOL - AI-enhanced trading decision engine for ultra-low latency HFT"
+
+[functions.overmind_trading_decision.variants.gpt4o_mini_fast]
+type = "chat_completion"
+model = "gpt4o_mini"
+weight = 0.85
+temperature = 0.1
+max_tokens = 500
+top_p = 0.9
+
+[functions.overmind_trading_decision.variants.mistral_fast]
+type = "chat_completion"
+model = "mistral_small"
+weight = 0.15
+temperature = 0.1
+max_tokens = 500
+top_p = 0.9
+
+# Temporarily disabled Google variant
+# [functions.overmind_trading_decision.variants.google_gemini_fast]
+# type = "chat_completion"
+# model = "gemini_flash"
+# weight = 0.05
+# temperature = 0.1
+# max_tokens = 500
+# top_p = 0.9
+
+# Metrics Configuration
+[metrics.trading_decision_latency]
+type = "float"
+optimize = "min"
+level = "inference"
+
+[metrics.ai_confidence_score]
+type = "float"
+optimize = "max"
+level = "inference"
+
+[metrics.estimated_profit]
+type = "float"
+optimize = "max"
+level = "inference"
+
+[metrics.signal_type]
+type = "float"
+optimize = "max"
+level = "inference"

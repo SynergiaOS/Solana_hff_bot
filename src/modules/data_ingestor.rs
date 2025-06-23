@@ -5,6 +5,7 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tracing::{error, info};
+use reqwest::Client;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MarketData {
@@ -21,12 +22,20 @@ pub enum DataSource {
     QuickNode,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HeliusConfig {
+    pub api_key: String,
+    pub rpc_url: String,
+}
+
 #[allow(dead_code)]
 pub struct DataIngestor {
     market_data_sender: mpsc::UnboundedSender<MarketData>,
     helius_api_key: String,
     quicknode_api_key: String,
     is_running: bool,
+    client: Client,
+    config: HeliusConfig,
 }
 
 #[allow(dead_code)]
@@ -41,6 +50,11 @@ impl DataIngestor {
             helius_api_key,
             quicknode_api_key,
             is_running: false,
+            client: Client::new(),
+            config: HeliusConfig {
+                api_key: helius_api_key,
+                rpc_url: "https://api.helius.xyz/v0/addresses/".to_string(),
+            },
         }
     }
 
@@ -90,6 +104,22 @@ impl DataIngestor {
         }
 
         Ok(())
+    }
+
+    pub async fn fetch_helius_data(&self, address: &str) -> Result<MarketData> {
+        let url = format!("{}/v0/addresses/{}/transactions", 
+                         self.config.helius.rpc_url.split('?')[0], address);
+        
+        let response = self.client
+            .get(&url)
+            .query(&[("api-key", &self.config.helius.api_key)])
+            .send()
+            .await?;
+            
+        // Przetwórz odpowiedź na MarketData
+        // ...
+        
+        Ok(market_data)
     }
 }
 
