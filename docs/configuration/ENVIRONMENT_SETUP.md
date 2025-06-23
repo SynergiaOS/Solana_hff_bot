@@ -79,7 +79,7 @@ DRAGONFLY_PASSWORD=
 
 # Message Queues
 OVERMIND_MARKET_EVENTS_QUEUE=overmind:market_events
-OVERMIND_TRADING_COMMANDS_QUEUE=overmind:trading_commands
+OVERMIND_TRADING_COMMANDS_QUEUE=overmind:commands
 OVERMIND_EXECUTION_RESULTS_QUEUE=overmind:execution_results
 ```
 

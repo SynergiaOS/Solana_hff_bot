@@ -398,7 +398,7 @@ impl AIConnector {
     ) -> Result<Option<AIDecision>> {
         // Listen for AI decisions from Python Brain
         let result: Option<(String, String)> = conn
-            .blpop("overmind:trading_commands", self.config.brain_request_timeout.as_secs() as f64)
+            .blpop("overmind:commands", self.config.brain_request_timeout.as_secs() as f64)
             .await?;
 
         if let Some((_, decision_json)) = result {
@@ -583,7 +583,7 @@ impl AIConnector {
     ) -> Result<Option<AIDecision>> {
         // Listen for AI decisions from Python Brain
         let result: Option<(String, String)> = conn
-            .blpop("overmind:trading_commands", config.brain_request_timeout.as_secs() as f64)
+            .blpop("overmind:commands", config.brain_request_timeout.as_secs() as f64)
             .await?;
 
         if let Some((_, decision_json)) = result {

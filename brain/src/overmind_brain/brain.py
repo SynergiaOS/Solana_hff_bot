@@ -266,7 +266,7 @@ class OVERMINDBrain:
 
             # Send to Rust executor
             await self.dragonfly.lpush(
-                'overmind:trading_commands',
+                'overmind:commands',
                 json.dumps(decision_message)
             )
 

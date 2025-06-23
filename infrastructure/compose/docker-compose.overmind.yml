@@ -85,10 +85,10 @@ services:
     networks:
       - overmind-network
 
-  # AI Hedge Fund Framework - Python Brain
+  # THE OVERMIND PROTOCOL - Python Brain
   overmind-brain:
     build:
-      context: ./ai-hedge-fund
+      context: ../../brain
       dockerfile: Dockerfile
     container_name: overmind-python-brain
     environment:
@@ -108,13 +108,13 @@ services:
       - OVERMIND_AI_MODE=enabled
       - PYTHONPATH=/app/src
     volumes:
-      - ./ai-hedge-fund:/app
-      - ./library:/app/library
+      - ../../brain:/app
+      - ../../library:/app/library
     depends_on:
       - overmind-dragonfly
       - chroma
       - tensorzero-gateway
-    command: ["poetry", "run", "python", "src/overmind_brain.py"]
+    command: ["python", "-m", "overmind_brain.simple_brain"]
     restart: unless-stopped
     networks:
       - overmind-network
@@ -126,8 +126,8 @@ services:
   # SNIPERCOR with OVERMIND Protocol
   overmind-trading:
     build:
-      context: .
-      dockerfile: Dockerfile.overmind
+      context: ../..
+      dockerfile: deployment/docker-compose/Dockerfile.overmind
     container_name: overmind-trading-system
     environment:
       # Trading Configuration

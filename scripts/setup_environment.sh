@@ -190,7 +190,7 @@ DRAGONFLY_HOST=localhost
 DRAGONFLY_PORT=6379
 DRAGONFLY_PASSWORD=
 OVERMIND_MARKET_EVENTS_QUEUE=overmind:market_events
-OVERMIND_TRADING_COMMANDS_QUEUE=overmind:trading_commands
+OVERMIND_TRADING_COMMANDS_QUEUE=overmind:commands
 OVERMIND_EXECUTION_RESULTS_QUEUE=overmind:execution_results
 
 # =================================================
