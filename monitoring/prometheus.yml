@@ -21,10 +21,10 @@ rule_files:
 
 # Scrape configurations
 scrape_configs:
-  # THE OVERMIND PROTOCOL - Main Trading System
-  - job_name: 'overmind-trading'
+  # THE OVERMIND PROTOCOL - Main Trading System (v2.0)
+  - job_name: 'overmind-brain'
     static_configs:
-      - targets: ['overmind-trading:8080']
+      - targets: ['host.docker.internal:9091']
     metrics_path: '/metrics'
     scrape_interval: 5s  # High frequency for trading metrics
     scrape_timeout: 4s

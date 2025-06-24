@@ -62,3 +62,11 @@ scrape_configs:
     static_configs:
       - targets: ['overmind-postgres:5432']
     scrape_interval: 30s
+
+  # LIVE Solana Data (Helius API)
+  - job_name: 'solana-helius-data'
+    static_configs:
+      - targets: ['localhost:9094']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    scrape_timeout: 8s

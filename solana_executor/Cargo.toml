@@ -1,0 +1,28 @@
+[package]
+name = "overmind-hft-executor"
+version = "1.0.0"
+edition = "2021"
+description = "THE OVERMIND PROTOCOL - Ultra-fast HFT Executor for Solana"
+authors = ["OVERMIND Protocol Team"]
+
+[dependencies]
+tokio = { version = "1.0", features = ["full"] }
+redis = { version = "0.23", features = ["aio", "tokio-comp"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+uuid = { version = "1.0", features = ["v4"] }
+rand = "0.8"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+
+[profile.contabo]
+inherits = "release"
+opt-level = 3
+lto = "thin"
+codegen-units = 16
