@@ -14,6 +14,7 @@ from pydantic import BaseModel
 import uvicorn
 
 from .brain import OVERMINDBrain
+from .overmind_brain_manager import OVERMINDBrainManager, create_overmind_brain_manager
 from .helius_integration import helius_client, get_enhanced_token_data, monitor_wallet_activity
 
 # Setup logging
@@ -23,8 +24,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Global brain instance
+# Global brain instances
 brain_instance: Optional[OVERMINDBrain] = None
+brain_manager_instance: Optional[OVERMINDBrainManager] = None
+
+# Enable new MinionAgent brain manager
+USE_MINION_AGENT_BRAIN = os.getenv("OVERMIND_USE_MINION_AGENT", "true").lower() == "true"
 
 # Pydantic models for API
 class MarketDataRequest(BaseModel):
@@ -42,20 +47,32 @@ class ExperienceOutcomeRequest(BaseModel):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage brain lifecycle"""
-    global brain_instance
+    global brain_instance, brain_manager_instance
 
     try:
         # Startup
-        logger.info("🚀 Starting THE OVERMIND PROTOCOL Brain...")
+        if USE_MINION_AGENT_BRAIN:
+            logger.info("🚀 Starting THE OVERMIND PROTOCOL Brain Manager (MinionAgent)...")
+            
+            brain_manager_instance = create_overmind_brain_manager(
+                redis_host=os.getenv("DRAGONFLY_HOST", "localhost"),
+                redis_port=int(os.getenv("DRAGONFLY_PORT", "6379")),
+                openai_api_key=os.getenv("OPENAI_API_KEY")
+            )
+            
+            # Start brain manager in background
+            brain_task = asyncio.create_task(brain_manager_instance.start())
+        else:
+            logger.info("🚀 Starting THE OVERMIND PROTOCOL Brain (Legacy)...")
 
-        brain_instance = OVERMINDBrain(
-            redis_host=os.getenv("DRAGONFLY_HOST", "localhost"),
-            redis_port=int(os.getenv("DRAGONFLY_PORT", "6379")),
-            openai_api_key=os.getenv("OPENAI_API_KEY")
-        )
+            brain_instance = OVERMINDBrain(
+                redis_host=os.getenv("DRAGONFLY_HOST", "localhost"),
+                redis_port=int(os.getenv("DRAGONFLY_PORT", "6379")),
+                openai_api_key=os.getenv("OPENAI_API_KEY")
+            )
 
-        # Start brain in background
-        brain_task = asyncio.create_task(brain_instance.start())
+            # Start brain in background
+            brain_task = asyncio.create_task(brain_instance.start())
 
         yield
 
@@ -65,6 +82,8 @@ async def lifespan(app: FastAPI):
     finally:
         # Shutdown
         logger.info("🛑 Shutting down THE OVERMIND PROTOCOL Brain...")
+        if brain_manager_instance:
+            await brain_manager_instance.stop()
         if brain_instance:
             await brain_instance.stop()
 
@@ -89,15 +108,26 @@ async def health_check():
 @app.get("/status")
 async def get_brain_status():
     """Get comprehensive brain status"""
-    if not brain_instance:
-        raise HTTPException(status_code=503, detail="Brain not initialized")
-
-    try:
-        status = await brain_instance.get_brain_status()
-        return status
-    except Exception as e:
-        logger.error(f"❌ Failed to get brain status: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    if USE_MINION_AGENT_BRAIN:
+        if not brain_manager_instance:
+            raise HTTPException(status_code=503, detail="Brain Manager not initialized")
+        try:
+            status = await brain_manager_instance.get_status()
+            status["brain_type"] = "minion_agent_manager"
+            return status
+        except Exception as e:
+            logger.error(f"❌ Failed to get brain manager status: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+    else:
+        if not brain_instance:
+            raise HTTPException(status_code=503, detail="Brain not initialized")
+        try:
+            status = await brain_instance.get_brain_status()
+            status["brain_type"] = "legacy"
+            return status
+        except Exception as e:
+            logger.error(f"❌ Failed to get brain status: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
 
 # Analysis endpoints
 @app.post("/analyze")

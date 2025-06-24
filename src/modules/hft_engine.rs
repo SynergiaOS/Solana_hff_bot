@@ -4,7 +4,7 @@
 //! and Jito bundle execution for MEV protection.
 
 use anyhow::{Context, Result};
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 use solana_client::rpc_client::RpcClient;
 use solana_sdk::{
@@ -244,22 +244,29 @@ impl HftEngine {
         if let Some(ref jito_client) = self.jito_client {
             info!("🛡️ Executing transaction via Jito bundle for MEV protection");
 
+            // Get the transaction signature before sending (since it's already signed)
+            let signature = transaction.signatures.get(0)
+                .ok_or_else(|| anyhow::anyhow!("Transaction has no signatures"))?;
+            let signature_to_return = *signature;
+
+            // Execute bundle using the Jito client
             match jito_client.execute_bundle(transaction.clone()).await {
                 Ok(bundle_result) => {
-                    info!("✅ Jito bundle executed: {} in {}ms",
+                    info!("✅ Jito bundle executed successfully: bundle_id={}, latency={}ms",
                           bundle_result.bundle_id, bundle_result.latency_ms);
 
-                    // Return the transaction signature
-                    // In production, you might want to wait for bundle confirmation
-                    Ok(transaction.signatures[0])
+                    // Return the signature that was captured before sending
+                    Ok(signature_to_return)
                 }
                 Err(e) => {
-                    warn!("Jito bundle execution failed: {}. Falling back to standard RPC.", e);
-                    self.execute_with_standard_rpc(transaction).await
+                    // Log the error and propagate it using anyhow::Result
+                    error!("❌ Jito bundle execution failed: {}", e);
+                    Err(e).context("Failed to execute transaction via Jito bundle")
                 }
             }
         } else {
-            warn!("Jito client not available, falling back to standard RPC");
+            // Log warning and fall back to standard RPC if Jito client is not available
+            warn!("⚠️ Jito client not available, falling back to standard RPC");
             self.execute_with_standard_rpc(transaction).await
         }
     }
@@ -363,40 +370,31 @@ impl HftEngine {
 
     /// Build a mock transaction for testing
     fn build_mock_transaction(&self, signal: &TradingSignal) -> Result<Transaction> {
-        // This is a placeholder for actual transaction building logic
-        // In production, this would create real Solana transactions
+        // Create a simple system transfer of 1 lamport from wallet to itself
+        // This creates a real, valid Solana transaction for testing purposes
         
         // Get recent blockhash - wrap with proper error handling
         let recent_blockhash = self.rpc_client.get_latest_blockhash()
             .context("Failed to get recent blockhash")?;
         
-        // Create a memo instruction as placeholder
-        use solana_sdk::instruction::Instruction;
+        // Create system transfer instruction (1 lamport to self)
+        let transfer_instruction = solana_sdk::system_instruction::transfer(
+            &self.wallet.pubkey(),  // From: bot's wallet
+            &self.wallet.pubkey(),  // To: same wallet (self-transfer)
+            1,                      // Amount: 1 lamport
+        );
         
-        // Use memo program for test transactions
-        let memo_program_id = Pubkey::from_str("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr")
-            .context("Failed to parse memo program ID")?;
-        
-        // Create a simple memo instruction with the signal details
-        let memo_data = format!("TEST:{}-{}-{}", 
-                               signal.action, 
-                               signal.symbol, 
-                               signal.quantity);
-        
-        let instruction = Instruction {
-            program_id: memo_program_id,
-            accounts: vec![],
-            data: memo_data.into_bytes(),
-        };
-        
-        // Create transaction with the memo instruction
+        // Create transaction with the transfer instruction
         let mut transaction = Transaction::new_with_payer(
-            &[instruction],
+            &[transfer_instruction],
             Some(&self.wallet.pubkey()),
         );
         
-        // Sign transaction
+        // Sign transaction with the wallet keypair
         transaction.sign(&[&self.wallet], recent_blockhash);
+        
+        info!("🔧 Built mock system transfer transaction: 1 lamport self-transfer for signal: {} {}", 
+              signal.action, signal.symbol);
         
         Ok(transaction)
     }
