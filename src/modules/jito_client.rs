@@ -59,6 +59,7 @@ struct BundleParams {
 
 /// Jito bundle response
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct BundleResponse {
     jsonrpc: String,
     id: u64,
@@ -75,6 +76,7 @@ struct JitoError {
 
 /// Bundle execution result
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct BundleResult {
     pub bundle_id: String,
     pub status: BundleStatus,
@@ -84,6 +86,7 @@ pub struct BundleResult {
 
 /// Bundle status
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum BundleStatus {
     Submitted,
     Accepted,

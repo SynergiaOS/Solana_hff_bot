@@ -1,0 +1,123 @@
+# TensorZero Configuration for THE OVERMIND PROTOCOL
+# Optimized for VectorMemory integration and trading decisions
+
+[gateway]
+bind_address = "0.0.0.0:3001"
+
+[clickhouse]
+url = "http://localhost:8123"
+database = "tensorzero"
+
+[models]
+
+[models.gpt4o_mini]
+routing = ["openai"]
+
+[models.gpt4o_mini.providers.openai]
+type = "openai"
+model_name = "gpt-4o-mini"
+
+[models.mistral_small]
+routing = ["mistral"]
+
+[models.mistral_small.providers.mistral]
+type = "mistral"
+model_name = "mistral-small-latest"
+
+[models.deepseek_chat]
+routing = ["deepseek"]
+
+[models.deepseek_chat.providers.deepseek]
+type = "openai"
+model_name = "deepseek-chat"
+api_base = "https://api.deepseek.com"
+
+# Trading Decision Function
+[functions.overmind_trading_decision]
+description = "Generate trading decisions for THE OVERMIND PROTOCOL"
+type = "chat"
+
+[functions.overmind_trading_decision.variants.gpt4o_mini_balanced]
+type = "chat_completion"
+model = "gpt4o_mini"
+weight = 0.4
+temperature = 0.3
+max_tokens = 1000
+
+[functions.overmind_trading_decision.variants.mistral_analytical]
+type = "chat_completion"
+model = "mistral_small"
+weight = 0.3
+temperature = 0.2
+max_tokens = 1000
+
+[functions.overmind_trading_decision.variants.deepseek_conservative]
+type = "chat_completion"
+model = "deepseek_chat"
+weight = 0.3
+temperature = 0.1
+max_tokens = 1000
+
+# Memory Query Function for VectorMemory integration
+[functions.overmind_memory_query]
+description = "Query vector memory for relevant trading experiences"
+type = "chat"
+
+[functions.overmind_memory_query.variants.gpt4o_memory_search]
+type = "chat_completion"
+model = "gpt4o_mini"
+weight = 0.5
+temperature = 0.1
+max_tokens = 500
+top_p = 0.9
+
+[functions.overmind_memory_query.variants.mistral_memory_search]
+type = "chat_completion"
+model = "mistral_small"
+weight = 0.5
+temperature = 0.1
+max_tokens = 500
+top_p = 0.9
+
+# Risk Assessment Function
+[functions.overmind_risk_assessment]
+description = "Assess trading risk for THE OVERMIND PROTOCOL"
+type = "chat"
+
+[functions.overmind_risk_assessment.variants.conservative_risk]
+type = "chat_completion"
+model = "gpt4o_mini"
+weight = 0.6
+temperature = 0.1
+max_tokens = 800
+
+[functions.overmind_risk_assessment.variants.analytical_risk]
+type = "chat_completion"
+model = "mistral_small"
+weight = 0.4
+temperature = 0.2
+max_tokens = 800
+
+# Market Analysis Function
+[functions.overmind_market_analysis]
+description = "Analyze market conditions for trading decisions"
+type = "chat"
+
+[functions.overmind_market_analysis.variants.comprehensive_analysis]
+type = "chat_completion"
+model = "gpt4o_mini"
+weight = 0.5
+temperature = 0.4
+max_tokens = 1200
+
+[functions.overmind_market_analysis.variants.technical_analysis]
+type = "chat_completion"
+model = "mistral_small"
+weight = 0.5
+temperature = 0.3
+max_tokens = 1200
+
+# Metrics Configuration
+[metrics]
+optimize_for = ["accuracy", "latency", "cost"]
+feedback_collection = true
