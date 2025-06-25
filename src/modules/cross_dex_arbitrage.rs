@@ -8,7 +8,7 @@ use crate::modules::mev_arbitrage::{DexType, PriceData};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
-use tracing::{debug, info, warn, error};
+use tracing::{debug, info};
 use std::collections::{HashMap, BTreeMap};
 use chrono::{DateTime, Utc};
 

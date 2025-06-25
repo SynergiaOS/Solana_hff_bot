@@ -3,6 +3,7 @@ FastAPI server with comprehensive endpoints for brain monitoring and control.
 """
 
 import asyncio
+import json
 import logging
 import os
 import time
@@ -18,6 +19,7 @@ import uvicorn
 import redis.asyncio as redis
 
 from .brain import OVERMINDBrain
+from .overmind_brain_manager import OVERMINDBrainManager, create_overmind_brain_manager
 from .helius_integration import helius_client, get_enhanced_token_data, monitor_wallet_activity
 
 # Setup logging
@@ -27,9 +29,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger("overmind-brain")
 
-# Global variables
-brain_instance = None
-emergency_stop_active = False
+# Global brain instances
+brain_instance: Optional[OVERMINDBrain] = None
+brain_manager_instance: Optional[OVERMINDBrainManager] = None
+
+# Enable new MinionAgent brain manager
+USE_MINION_AGENT_BRAIN = os.getenv("OVERMIND_USE_MINION_AGENT", "true").lower() == "true"
 
 # Models for API requests/responses
 class EmergencyStopRequest(BaseModel):
@@ -60,22 +65,42 @@ async def get_redis():
 # Lifespan context manager
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
-    global brain_instance
+    """Manage brain lifecycle"""
+    global brain_instance, brain_manager_instance
+
     try:
-        from .brain import OVERMINDBrain
-        brain_instance = OVERMINDBrain()
-        await brain_instance.initialize()
-        logger.info("🧠 THE OVERMIND PROTOCOL Brain initialized")
+        # Startup
+        if USE_MINION_AGENT_BRAIN:
+            logger.info("🚀 Starting THE OVERMIND PROTOCOL Brain Manager (MinionAgent)...")
+
+            brain_manager_instance = create_overmind_brain_manager(
+                redis_host=os.getenv("DRAGONFLY_HOST", "localhost"),
+                redis_port=int(os.getenv("DRAGONFLY_PORT", "6379")),
+                openai_api_key=os.getenv("OPENAI_API_KEY")
+            )
+
+            # Start brain manager in background
+            brain_task = asyncio.create_task(brain_manager_instance.start())
+        else:
+            logger.info("🚀 Starting THE OVERMIND PROTOCOL Brain (Legacy)...")
+
+            brain_instance = OVERMINDBrain()
+
+            # Start brain in background
+            brain_task = asyncio.create_task(brain_instance.start())
+
+        yield
+
     except Exception as e:
-        logger.error(f"❌ Failed to initialize brain: {e}")
-    
-    yield
-    
-    # Shutdown
-    if brain_instance:
-        await brain_instance.shutdown()
-        logger.info("🧠 THE OVERMIND PROTOCOL Brain shut down")
+        logger.error(f"❌ Failed to start brain: {e}")
+        raise
+    finally:
+        # Shutdown
+        logger.info("🛑 Shutting down THE OVERMIND PROTOCOL Brain...")
+        if brain_manager_instance:
+            await brain_manager_instance.stop()
+        if brain_instance:
+            await brain_instance.stop()
 
 # Create FastAPI app
 app = FastAPI(
@@ -107,56 +132,26 @@ async def health_check():
 @app.get("/status")
 async def get_brain_status():
     """Get comprehensive brain status"""
-    if not brain_instance:
-        raise HTTPException(status_code=503, detail="Brain not initialized")
-
-    try:
-        brain_status = await brain_instance.get_brain_status()
-        
-        # Get executor status via DragonflyDB
-        redis_client = await get_redis()
-        executor_status = "UNKNOWN"
+    if USE_MINION_AGENT_BRAIN:
+        if not brain_manager_instance:
+            raise HTTPException(status_code=503, detail="Brain Manager not initialized")
         try:
-            last_heartbeat = await redis_client.get("overmind:executor:last_heartbeat")
-            if last_heartbeat:
-                last_heartbeat_time = float(last_heartbeat)
-                if time.time() - last_heartbeat_time < 30:  # Within last 30 seconds
-                    executor_status = "RUNNING"
-                else:
-                    executor_status = "NOT_RESPONDING"
+            status = await brain_manager_instance.get_status()
+            status["brain_type"] = "minion_agent_manager"
+            return status
         except Exception as e:
-            logger.error(f"Failed to get executor status: {e}")
-            executor_status = "ERROR"
-        
-        # Get trading stats
-        trading_stats = {}
+            logger.error(f"❌ Failed to get brain manager status: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+    else:
+        if not brain_instance:
+            raise HTTPException(status_code=503, detail="Brain not initialized")
         try:
-            pnl_24h = await redis_client.get("overmind:stats:pnl_24h")
-            trading_stats["total_pnl_24h"] = float(pnl_24h) if pnl_24h else 0.0
-            
-            open_positions = await redis_client.get("overmind:stats:open_positions")
-            trading_stats["open_positions"] = int(open_positions) if open_positions else 0
-            
-            error_rate = await redis_client.get("overmind:stats:error_rate")
-            trading_stats["error_rate"] = float(error_rate) if error_rate else 0.0
+            status = await brain_instance.get_brain_status()
+            status["brain_type"] = "legacy"
+            return status
         except Exception as e:
-            logger.error(f"Failed to get trading stats: {e}")
-        
-        # Combine all status information
-        status = {
-            "status": "OPERATIONAL" if not emergency_stop_active else "EMERGENCY_STOP_ACTIVE",
-            "ai_brain_status": "RUNNING" if brain_instance.is_running else "STOPPED",
-            "rust_executor_status": executor_status,
-            "last_command_sent_at": brain_status.get("last_command_sent_at", "N/A"),
-            "emergency_stop_active": emergency_stop_active,
-            **trading_stats,
-            "detailed_brain_status": brain_status
-        }
-        
-        return status
-    except Exception as e:
-        logger.error(f"❌ Failed to get status: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+            logger.error(f"❌ Failed to get brain status: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/logs/transactions", response_model=List[TransactionLog])
 async def get_transaction_logs(limit: int = Query(50, ge=1, le=1000)):

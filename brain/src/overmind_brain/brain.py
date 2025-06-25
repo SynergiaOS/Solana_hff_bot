@@ -17,6 +17,8 @@ from .decision_engine import DecisionEngine, TradingDecision
 from .risk_analyzer import RiskAnalyzer, RiskAssessment
 from .market_analyzer import MarketAnalyzer, MarketAnalysis
 from .helius_integration import helius_client, get_enhanced_token_data
+from .strategy_manager import StrategyManager
+from .exit_strategy_manager import ExitStrategyManager, Position, ExitDecision
 
 # Import advanced AI components
 try:
@@ -133,13 +135,6 @@ class OVERMINDBrain:
 
         except Exception as e:
             logger.error(f"❌ Error during brain shutdown: {e}")
-        
-        # Queue names for communication
-        self.market_events_queue = os.getenv("OVERMIND_MARKET_EVENTS_QUEUE", "overmind:market_events")
-        self.trading_commands_queue = os.getenv("OVERMIND_TRADING_COMMANDS_QUEUE", "overmind:trading_commands")
-        self.execution_results_queue = os.getenv("OVERMIND_EXECUTION_RESULTS_QUEUE", "overmind:execution_results")
-        
-        logger.info("OVERMIND Brain initialized successfully")
 
     def get_memory_stats(self) -> Dict[str, Any]:
         """Get memory statistics from VectorMemory"""
@@ -306,6 +301,9 @@ class OVERMINDBrain:
     async def process_cycle(self):
         """Process one cycle of AI brain operations"""
         try:
+            # Check exit conditions for all active positions FIRST
+            await self._check_exit_conditions()
+            
             # Listen for market events from Rust executor
             market_event = await self.dragonfly.blpop(  # type: ignore
                 ['overmind:market_events'],
@@ -345,6 +343,15 @@ class OVERMINDBrain:
             symbol = event_data.get("symbol", "unknown")
             logger.info(f"🧠 Analyzing market event for {symbol}")
 
+            # Step 0: Strategy Selection and Validation
+            strategy_matches = self.strategy_manager.select_and_validate_strategies(event_data)
+            
+            if not strategy_matches:
+                logger.info(f"❌ No applicable strategies found for signal {event_data.get('signal_id', 'unknown')}. Ignoring.")
+                return None
+            
+            logger.info(f"✅ {len(strategy_matches)} strategies qualified for {symbol}")
+
             # Step 1: Market Analysis
             market_analysis = await self.market_analyzer.analyze_market(
                 current_data=event_data,
@@ -359,7 +366,11 @@ class OVERMINDBrain:
                 limit=5
             )
 
-            # Step 3: AI Decision Making
+            # Step 3: Generate Strategy Context for AI
+            signal = self.strategy_manager._parse_signal(event_data)
+            strategy_context = self.strategy_manager.generate_strategy_context_for_ai(strategy_matches, signal)
+            
+            # Step 4: AI Decision Making with Strategy Context
             decision = await self.decision_engine.analyze_market_data(
                 market_data=event_data,
                 historical_context=historical_context,
@@ -369,7 +380,7 @@ class OVERMINDBrain:
                 }
             )
 
-            # Step 4: Risk Assessment
+            # Step 5: Risk Assessment
             risk_assessment = await self.risk_analyzer.assess_risk(
                 market_data=event_data,
                 decision_data=asdict(decision),
@@ -377,7 +388,7 @@ class OVERMINDBrain:
                 historical_data=event_data.get("historical_data")
             )
 
-            # Step 5: Apply risk adjustments
+            # Step 6: Apply risk adjustments
             decision = self._apply_risk_adjustments(decision, risk_assessment)
 
             # Step 6: Store experience in vector memory
@@ -388,6 +399,10 @@ class OVERMINDBrain:
 
             logger.info(f"🎯 Decision generated: {decision.action} {symbol} "
                        f"(Confidence: {decision.confidence:.2f}, Risk: {risk_assessment.risk_level})")
+
+            # Handle position tracking for BUY decisions
+            if decision and decision.action == "BUY":
+                await self._track_new_position(decision, strategy_matches)
 
             return decision
 
@@ -485,11 +500,15 @@ class OVERMINDBrain:
                     "decision_engine": "operational",
                     "risk_analyzer": "operational",
                     "market_analyzer": "operational",
+                    "strategy_manager": "operational",
+                    "exit_strategy_manager": "operational",
                     "helius_integration": "premium" if helius_status['api_key_configured'] else "basic",
                     "dragonfly_connection": "connected" if self.dragonfly else "disconnected"
                 },
                 "memory_stats": memory_stats,
                 "helius_status": helius_status,
+                "strategy_summary": self.strategy_manager.get_strategy_summary(),
+                "positions_summary": await self.get_positions_summary(),
                 "version": "1.0.0"
             }
 
@@ -515,6 +534,18 @@ class OVERMINDBrain:
         try:
             logger.info(f"🔍 Manual analysis requested for {symbol}")
 
+            # Strategy selection and validation
+            strategy_matches = self.strategy_manager.select_and_validate_strategies(market_data)
+            
+            if not strategy_matches:
+                logger.warning(f"⚠️ No applicable strategies found for {symbol}")
+                return {
+                    "symbol": symbol,
+                    "error": "No applicable strategies found",
+                    "strategy_matches": [],
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+
             # Perform market analysis
             market_analysis = await self.market_analyzer.analyze_market(
                 current_data=market_data
@@ -527,10 +558,18 @@ class OVERMINDBrain:
                 limit=3
             )
 
-            # Generate decision
+            # Generate strategy context for AI
+            signal = self.strategy_manager._parse_signal(market_data)
+            strategy_context = self.strategy_manager.generate_strategy_context_for_ai(strategy_matches, signal)
+
+            # Generate decision with strategy context
             decision = await self.decision_engine.analyze_market_data(
                 market_data=market_data,
-                historical_context=historical_context
+                historical_context=historical_context,
+                additional_context={
+                    "strategy_context": strategy_context,
+                    "qualified_strategies": [match.strategy_type.value for match in strategy_matches]
+                }
             )
 
             # Assess risk
@@ -559,6 +598,8 @@ class OVERMINDBrain:
                 "risk_assessment": asdict(risk_assessment),
                 "explanation": explanation,
                 "historical_context": historical_context,
+                "strategy_matches": [asdict(match) for match in strategy_matches],
+                "strategy_context": strategy_context,
                 "command_sent": command_sent,
                 "timestamp": datetime.now(timezone.utc).isoformat()
             }
@@ -625,3 +666,114 @@ class OVERMINDBrain:
                 await self.dragonfly.close()
         except:
             pass  # Ignore errors during emergency stop
+
+    async def _check_exit_conditions(self):
+        """Check exit conditions for all active positions"""
+        try:
+            active_positions = self.exit_strategy_manager.active_positions.copy()
+            
+            for symbol, position in active_positions.items():
+                # Fetch current market data for this symbol
+                # In production, this would fetch real-time data
+                # For now, we'll simulate or skip if no data available
+                
+                # Check if we have recent market data
+                market_data = await self._get_current_market_data(symbol)
+                if not market_data:
+                    continue
+                
+                # Evaluate exit decision
+                exit_decision = self.exit_strategy_manager.evaluate_exit_decision(symbol, market_data)
+                
+                if exit_decision and exit_decision.should_exit:
+                    logger.info(f"🚪 Exit decision triggered for {symbol}: {exit_decision.exit_reason.value}")
+                    
+                    # Create SELL decision
+                    sell_decision = TradingDecision(
+                        symbol=symbol,
+                        action="SELL",
+                        confidence=exit_decision.confidence,
+                        reasoning=f"EXIT: {exit_decision.reasoning}",
+                        quantity=position.quantity * exit_decision.exit_percentage,
+                        price_target=exit_decision.suggested_price,
+                        risk_score=1.0 - exit_decision.confidence,  # Higher risk = lower confidence
+                        timestamp=datetime.utcnow().isoformat()
+                    )
+                    
+                    # Send sell decision
+                    if await self.send_trading_decision(sell_decision):
+                        # Remove position if fully exited
+                        if exit_decision.exit_percentage >= 1.0:
+                            self.exit_strategy_manager.remove_position(symbol)
+                        logger.info(f"📤 Exit order sent for {symbol}")
+                    
+        except Exception as e:
+            logger.error(f"❌ Error checking exit conditions: {e}")
+
+    async def _get_current_market_data(self, symbol: str) -> Optional[Dict[str, Any]]:
+        """Get current market data for symbol (placeholder for real implementation)"""
+        try:
+            # In production, this would fetch from market data API
+            # For now, return None to indicate no data available
+            # Real implementation would call Helius API or market data source
+            
+            # Placeholder implementation - in real system this would be:
+            # return await self.helius_client.get_token_data(symbol)
+            return None
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to get market data for {symbol}: {e}")
+            return None
+
+    async def _track_new_position(self, decision: TradingDecision, strategy_matches: List) -> bool:
+        """Track new position from BUY decision"""
+        try:
+            if not decision.quantity or decision.quantity <= 0:
+                logger.warning(f"⚠️ Invalid quantity for position tracking: {decision.quantity}")
+                return False
+            
+            # Extract strategy name from strategy matches
+            entry_strategy = strategy_matches[0].strategy_type.value if strategy_matches else "unknown"
+            
+            # Create position object
+            position = Position(
+                symbol=decision.symbol,
+                entry_price=decision.price_target or 0.0,  # Use price_target as entry price
+                quantity=decision.quantity,
+                entry_time=datetime.now(),
+                entry_strategy=entry_strategy,
+                stop_loss=decision.stop_loss,
+                take_profit=None,  # Could be calculated based on strategy
+                max_hold_time_hours=24  # Default 24 hours
+            )
+            
+            # Calculate take profit based on strategy
+            if decision.price_target:
+                if entry_strategy == "memecoin_hunter":
+                    position.take_profit = decision.price_target * 1.20  # 20% profit for memecoins
+                elif entry_strategy == "soul_meteor":
+                    position.take_profit = decision.price_target * 1.15  # 15% profit for established tokens
+                else:
+                    position.take_profit = decision.price_target * 1.12  # 12% default profit
+            
+            # Add position to exit manager
+            success = self.exit_strategy_manager.add_position(position)
+            
+            if success:
+                logger.info(f"📊 Position tracked: {decision.symbol} @ ${position.entry_price:.4f} "
+                           f"(Strategy: {entry_strategy}, SL: ${position.stop_loss or 0:.4f}, "
+                           f"TP: ${position.take_profit or 0:.4f})")
+            
+            return success
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to track position for {decision.symbol}: {e}")
+            return False
+
+    async def get_positions_summary(self) -> Dict[str, Any]:
+        """Get summary of all active positions"""
+        try:
+            return self.exit_strategy_manager.get_position_summary()
+        except Exception as e:
+            logger.error(f"❌ Failed to get positions summary: {e}")
+            return {"error": str(e), "positions": {}}

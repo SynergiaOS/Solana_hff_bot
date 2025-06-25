@@ -7,7 +7,7 @@ use crate::modules::strategy::{TradingSignal, TradeAction, StrategyType};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 use std::collections::HashMap;
 use chrono::{DateTime, Utc};
 
