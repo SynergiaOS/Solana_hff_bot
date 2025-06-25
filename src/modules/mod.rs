@@ -24,6 +24,25 @@ pub mod multi_wallet_executor;
 pub mod dev_tracker;
 pub mod meteora_damm;
 pub mod soul_meteor;
+// NEW ADVANCED STRATEGIES
+pub mod mev_arbitrage;
+pub mod cross_dex_arbitrage;
+pub mod liquidity_sniping;
+
+// PERFORMANCE OPTIMIZATION MODULES
+pub mod performance_optimizer;
+pub mod memory_optimizer;
+pub mod realtime_monitor;
+
+// ADVANCED RISK MANAGEMENT MODULES
+pub mod advanced_risk_management;
+pub mod dynamic_position_sizing;
+pub mod portfolio_rebalancer;
+
+// MULTI-WALLET & HIGH-FREQUENCY OPTIMIZATION MODULES
+pub mod multi_wallet_load_balancer;
+pub mod geographic_distribution;
+pub mod submillisecond_optimizer;
 
 // Re-export main types for easier access
 // Note: Exports commented out to avoid unused import warnings in skeleton

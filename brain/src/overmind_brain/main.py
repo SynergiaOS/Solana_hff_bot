@@ -5,13 +5,17 @@ FastAPI server with comprehensive endpoints for brain monitoring and control.
 import asyncio
 import logging
 import os
-from typing import Dict, Any, Optional
+import time
+from typing import Dict, Any, Optional, List
+from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Query
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
+import redis.asyncio as redis
 
 from .brain import OVERMINDBrain
 from .helius_integration import helius_client, get_enhanced_token_data, monitor_wallet_activity
@@ -21,52 +25,57 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("overmind-brain")
 
-# Global brain instance
-brain_instance: Optional[OVERMINDBrain] = None
+# Global variables
+brain_instance = None
+emergency_stop_active = False
 
-# Pydantic models for API
-class MarketDataRequest(BaseModel):
+# Models for API requests/responses
+class EmergencyStopRequest(BaseModel):
+    reason: Optional[str] = "Manual emergency stop"
+
+class WalletBalance(BaseModel):
+    address: str
+    balance_sol: float
+    balance_usdc: float
+    other_tokens: Dict[str, float] = {}
+
+class TransactionLog(BaseModel):
+    timestamp: str
+    action: str
     symbol: str
     price: float
-    volume: Optional[float] = None
-    timestamp: Optional[str] = None
-    additional_data: Optional[Dict[str, Any]] = None
+    quantity: float
+    result: str
+    pnl: Optional[float] = None
+    tx_hash: Optional[str] = None
 
-class ExperienceOutcomeRequest(BaseModel):
-    memory_id: str
-    outcome: Dict[str, Any]
+# Redis connection for caching
+async def get_redis():
+    redis_url = os.getenv("DRAGONFLY_URL", "redis://localhost:6379")
+    redis_client = redis.from_url(redis_url)
+    return redis_client
 
 # Lifespan context manager
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Manage brain lifecycle"""
+    # Startup
     global brain_instance
-
     try:
-        # Startup
-        logger.info("🚀 Starting THE OVERMIND PROTOCOL Brain...")
-
-        brain_instance = OVERMINDBrain(
-            redis_host=os.getenv("DRAGONFLY_HOST", "localhost"),
-            redis_port=int(os.getenv("DRAGONFLY_PORT", "6379")),
-            openai_api_key=os.getenv("OPENAI_API_KEY")
-        )
-
-        # Start brain in background
-        brain_task = asyncio.create_task(brain_instance.start())
-
-        yield
-
+        from .brain import OVERMINDBrain
+        brain_instance = OVERMINDBrain()
+        await brain_instance.initialize()
+        logger.info("🧠 THE OVERMIND PROTOCOL Brain initialized")
     except Exception as e:
-        logger.error(f"❌ Failed to start brain: {e}")
-        raise
-    finally:
-        # Shutdown
-        logger.info("🛑 Shutting down THE OVERMIND PROTOCOL Brain...")
-        if brain_instance:
-            await brain_instance.stop()
+        logger.error(f"❌ Failed to initialize brain: {e}")
+    
+    yield
+    
+    # Shutdown
+    if brain_instance:
+        await brain_instance.shutdown()
+        logger.info("🧠 THE OVERMIND PROTOCOL Brain shut down")
 
 # Create FastAPI app
 app = FastAPI(
@@ -74,6 +83,15 @@ app = FastAPI(
     description="Advanced AI Brain for autonomous trading decisions",
     version="1.0.0",
     lifespan=lifespan
+)
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, restrict this to specific origins
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Health and status endpoints
@@ -93,234 +111,197 @@ async def get_brain_status():
         raise HTTPException(status_code=503, detail="Brain not initialized")
 
     try:
-        status = await brain_instance.get_brain_status()
+        brain_status = await brain_instance.get_brain_status()
+        
+        # Get executor status via DragonflyDB
+        redis_client = await get_redis()
+        executor_status = "UNKNOWN"
+        try:
+            last_heartbeat = await redis_client.get("overmind:executor:last_heartbeat")
+            if last_heartbeat:
+                last_heartbeat_time = float(last_heartbeat)
+                if time.time() - last_heartbeat_time < 30:  # Within last 30 seconds
+                    executor_status = "RUNNING"
+                else:
+                    executor_status = "NOT_RESPONDING"
+        except Exception as e:
+            logger.error(f"Failed to get executor status: {e}")
+            executor_status = "ERROR"
+        
+        # Get trading stats
+        trading_stats = {}
+        try:
+            pnl_24h = await redis_client.get("overmind:stats:pnl_24h")
+            trading_stats["total_pnl_24h"] = float(pnl_24h) if pnl_24h else 0.0
+            
+            open_positions = await redis_client.get("overmind:stats:open_positions")
+            trading_stats["open_positions"] = int(open_positions) if open_positions else 0
+            
+            error_rate = await redis_client.get("overmind:stats:error_rate")
+            trading_stats["error_rate"] = float(error_rate) if error_rate else 0.0
+        except Exception as e:
+            logger.error(f"Failed to get trading stats: {e}")
+        
+        # Combine all status information
+        status = {
+            "status": "OPERATIONAL" if not emergency_stop_active else "EMERGENCY_STOP_ACTIVE",
+            "ai_brain_status": "RUNNING" if brain_instance.is_running else "STOPPED",
+            "rust_executor_status": executor_status,
+            "last_command_sent_at": brain_status.get("last_command_sent_at", "N/A"),
+            "emergency_stop_active": emergency_stop_active,
+            **trading_stats,
+            "detailed_brain_status": brain_status
+        }
+        
         return status
     except Exception as e:
-        logger.error(f"❌ Failed to get brain status: {e}")
+        logger.error(f"❌ Failed to get status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# Analysis endpoints
-@app.post("/analyze")
-async def analyze_market_data(request: MarketDataRequest):
-    """Perform manual market analysis"""
+@app.get("/logs/transactions", response_model=List[TransactionLog])
+async def get_transaction_logs(limit: int = Query(50, ge=1, le=1000)):
+    """Get recent transaction logs"""
+    try:
+        redis_client = await get_redis()
+        
+        # Get transaction logs from Redis
+        logs_json = await redis_client.lrange("overmind:logs:transactions", 0, limit-1)
+        
+        if not logs_json:
+            return []
+        
+        import json
+        logs = [json.loads(log) for log in logs_json]
+        
+        # Convert to TransactionLog model
+        transaction_logs = []
+        for log in logs:
+            transaction_logs.append(TransactionLog(
+                timestamp=log.get("timestamp", ""),
+                action=log.get("action", ""),
+                symbol=log.get("symbol", ""),
+                price=log.get("price", 0.0),
+                quantity=log.get("quantity", 0.0),
+                result=log.get("result", "UNKNOWN"),
+                pnl=log.get("pnl"),
+                tx_hash=log.get("tx_hash")
+            ))
+        
+        return transaction_logs
+    except Exception as e:
+        logger.error(f"❌ Failed to get transaction logs: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/wallets/status", response_model=Dict[str, WalletBalance])
+async def get_wallet_status():
+    """Get wallet balances"""
     if not brain_instance:
         raise HTTPException(status_code=503, detail="Brain not initialized")
 
     try:
-        # Prepare market data
-        market_data = {
-            "symbol": request.symbol,
-            "price": request.price,
-            "volume": request.volume,
-            "timestamp": request.timestamp,
-            **(request.additional_data or {})
+        # Request wallet balances from Rust executor
+        command = {
+            "action": "GET_WALLET_BALANCE",
+            "timestamp": datetime.utcnow().isoformat()
         }
-
-        # Perform analysis
-        results = await brain_instance.manual_analysis(
-            symbol=request.symbol,
-            market_data=market_data
-        )
-
-        return results
-
+        
+        # Send command to executor
+        redis_client = await get_redis()
+        await redis_client.lpush("overmind:commands", json.dumps(command))
+        
+        # Wait for response (with timeout)
+        response = None
+        start_time = time.time()
+        while time.time() - start_time < 5:  # 5 second timeout
+            response_json = await redis_client.brpop("overmind:wallet_balance_response", timeout=1)
+            if response_json:
+                response = json.loads(response_json[1])
+                break
+            await asyncio.sleep(0.1)
+        
+        if not response:
+            # Check cache if no response
+            cached_balance = await redis_client.get("overmind:cache:wallet_balance")
+            if cached_balance:
+                return json.loads(cached_balance)
+            raise HTTPException(status_code=504, detail="Timeout waiting for wallet balance")
+        
+        # Cache the response
+        await redis_client.set("overmind:cache:wallet_balance", json.dumps(response))
+        await redis_client.expire("overmind:cache:wallet_balance", 300)  # 5 minute cache
+        
+        return response
     except Exception as e:
-        logger.error(f"❌ Analysis failed: {e}")
+        logger.error(f"❌ Failed to get wallet status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# Memory endpoints
-@app.get("/memory/stats")
-async def get_memory_stats():
-    """Get vector memory statistics"""
-    if not brain_instance:
-        raise HTTPException(status_code=503, detail="Brain not initialized")
-
-    try:
-        stats = await brain_instance.vector_memory.get_memory_stats()
-        return stats
-    except Exception as e:
-        logger.error(f"❌ Failed to get memory stats: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/memory/recent")
-async def get_recent_experiences(limit: int = 10, symbol: Optional[str] = None):
-    """Get recent trading experiences"""
-    if not brain_instance:
-        raise HTTPException(status_code=503, detail="Brain not initialized")
-
-    try:
-        experiences = await brain_instance.vector_memory.get_recent_experiences(
-            limit=limit,
-            symbol=symbol
-        )
-        return {"experiences": experiences}
-    except Exception as e:
-        logger.error(f"❌ Failed to get recent experiences: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/memory/update-outcome")
-async def update_experience_outcome(request: ExperienceOutcomeRequest):
-    """Update experience with outcome data"""
-    if not brain_instance:
-        raise HTTPException(status_code=503, detail="Brain not initialized")
-
-    try:
-        success = await brain_instance.update_experience_outcome(
-            memory_id=request.memory_id,
-            outcome=request.outcome
-        )
-
-        return {"success": success, "memory_id": request.memory_id}
-
-    except Exception as e:
-        logger.error(f"❌ Failed to update experience outcome: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-# Control endpoints
 @app.post("/control/emergency-stop")
-async def emergency_stop():
-    """Emergency stop the brain"""
-    if not brain_instance:
-        raise HTTPException(status_code=503, detail="Brain not initialized")
-
+async def emergency_stop(request: EmergencyStopRequest):
+    """Activate emergency stop"""
+    global emergency_stop_active
+    
     try:
-        await brain_instance.emergency_stop()
-        return {"status": "emergency_stop_initiated"}
-    except Exception as e:
-        logger.error(f"❌ Emergency stop failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-# Search endpoints
-@app.get("/memory/search")
-async def search_experiences(query: str, top_k: int = 5):
-    """Search for similar experiences"""
-    if not brain_instance:
-        raise HTTPException(status_code=503, detail="Brain not initialized")
-
-    try:
-        results = await brain_instance.vector_memory.similarity_search(
-            query=query,
-            top_k=top_k
-        )
-        return {"query": query, "results": results}
-    except Exception as e:
-        logger.error(f"❌ Memory search failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-# Development and testing endpoints
-@app.get("/debug/components")
-async def debug_components():
-    """Debug information about brain components"""
-    if not brain_instance:
-        raise HTTPException(status_code=503, detail="Brain not initialized")
-
-    return {
-        "vector_memory": {
-            "collection_name": brain_instance.vector_memory.collection_name,
-            "embedding_model": brain_instance.vector_memory.embedding_model_name
-        },
-        "decision_engine": {
-            "model": brain_instance.decision_engine.model,
-            "temperature": brain_instance.decision_engine.temperature
-        },
-        "risk_analyzer": {
-            "max_portfolio_risk": brain_instance.risk_analyzer.max_portfolio_risk,
-            "max_position_size": brain_instance.risk_analyzer.max_position_size
-        },
-        "dragonfly_connection": {
-            "host": brain_instance.redis_host,
-            "port": brain_instance.redis_port
+        emergency_stop_active = True
+        
+        # Log the emergency stop
+        logger.warning(f"🚨 EMERGENCY STOP ACTIVATED: {request.reason}")
+        
+        # Send emergency stop command to executor
+        command = {
+            "action": "EMERGENCY_STOP",
+            "reason": request.reason,
+            "timestamp": datetime.utcnow().isoformat()
         }
-    }
-
-# Helius API Premium Endpoints
-@app.get("/helius/status")
-async def get_helius_status():
-    """Get Helius API integration status"""
-    try:
-        status = helius_client.get_status()
-        return status
+        
+        redis_client = await get_redis()
+        await redis_client.lpush("overmind:commands", json.dumps(command))
+        
+        # Also set a flag in Redis
+        await redis_client.set("overmind:emergency_stop", "true")
+        
+        return {"status": "EMERGENCY_STOP_ACTIVATED", "reason": request.reason}
     except Exception as e:
-        logger.error(f"Failed to get Helius status: {e}")
-        raise HTTPException(status_code=500, detail=f"Helius status error: {str(e)}")
+        logger.error(f"❌ Failed to activate emergency stop: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/helius/token/{mint_address}")
-async def get_enhanced_token_info(mint_address: str):
-    """Get enhanced token information using Helius premium features"""
+@app.post("/control/resume")
+async def resume_trading():
+    """Resume trading after emergency stop"""
+    global emergency_stop_active
+    
     try:
-        token_data = await get_enhanced_token_data(mint_address)
-        return token_data
+        if not emergency_stop_active:
+            return {"status": "ALREADY_RUNNING"}
+        
+        emergency_stop_active = False
+        
+        # Log the resume
+        logger.info("▶️ Trading resumed after emergency stop")
+        
+        # Send resume command to executor
+        command = {
+            "action": "RESUME_TRADING",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+        redis_client = await get_redis()
+        await redis_client.lpush("overmind:commands", json.dumps(command))
+        
+        # Clear the flag in Redis
+        await redis_client.delete("overmind:emergency_stop")
+        
+        return {"status": "TRADING_RESUMED"}
     except Exception as e:
-        logger.error(f"Failed to get enhanced token data: {e}")
-        raise HTTPException(status_code=500, detail=f"Token data error: {str(e)}")
+        logger.error(f"❌ Failed to resume trading: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/helius/wallet/{wallet_address}")
-async def get_wallet_activity(wallet_address: str):
-    """Monitor wallet activity using Helius enhanced features"""
-    try:
-        activity = await monitor_wallet_activity(wallet_address)
-        return activity
-    except Exception as e:
-        logger.error(f"Failed to get wallet activity: {e}")
-        raise HTTPException(status_code=500, detail=f"Wallet activity error: {str(e)}")
-
-@app.get("/helius/transactions/{address}")
-async def get_enhanced_transactions_endpoint(address: str, limit: int = 50):
-    """Get enhanced transaction data for an address"""
-    try:
-        transactions = await helius_client.get_enhanced_transactions(address, limit)
-        return {"address": address, "transactions": transactions, "count": len(transactions)}
-    except Exception as e:
-        logger.error(f"Failed to get enhanced transactions: {e}")
-        raise HTTPException(status_code=500, detail=f"Transaction data error: {str(e)}")
-
-@app.get("/helius/metadata/{mint_address}")
-async def get_token_metadata_endpoint(mint_address: str):
-    """Get comprehensive token metadata using Helius DAS API"""
-    try:
-        metadata = await helius_client.get_token_metadata(mint_address)
-        return {"mint_address": mint_address, "metadata": metadata}
-    except Exception as e:
-        logger.error(f"Failed to get token metadata: {e}")
-        raise HTTPException(status_code=500, detail=f"Metadata error: {str(e)}")
-
-# Main entry point for standalone execution
-async def main():
-    """Main entry point for standalone execution"""
-    logger.info("🧠 THE OVERMIND PROTOCOL Python Brain starting in standalone mode...")
-
-    try:
-        brain = OVERMINDBrain(
-            redis_host=os.getenv("DRAGONFLY_HOST", "localhost"),
-            redis_port=int(os.getenv("DRAGONFLY_PORT", "6379")),
-            openai_api_key=os.getenv("OPENAI_API_KEY")
-        )
-
-        await brain.start()
-
-    except KeyboardInterrupt:
-        logger.info("🛑 Received interrupt signal")
-    except Exception as e:
-        logger.error(f"❌ Brain execution failed: {e}")
-        raise
-
-# FastAPI server entry point
-def start_server():
-    """Start FastAPI server"""
-    uvicorn.run(
-        "overmind_brain.main:app",
-        host="0.0.0.0",
-        port=int(os.getenv("BRAIN_PORT", "8000")),
-        reload=False,
-        log_level="info"
-    )
-
+# Main entry point
 if __name__ == "__main__":
     import sys
-
+    
     if len(sys.argv) > 1 and sys.argv[1] == "server":
-        # Start FastAPI server
-        start_server()
+        # Run as server
+        port = int(os.getenv("AI_BRAIN_PORT", "8000"))
+        uvicorn.run("overmind_brain.main:app", host="0.0.0.0", port=port, reload=False)
     else:
-        # Run standalone brain
-        asyncio.run(main())
+        print("Usage: python -m overmind_brain.main server")

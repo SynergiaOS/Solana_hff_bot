@@ -232,6 +232,15 @@ impl MultiWalletExecutor {
             StrategyType::DeveloperTracking => Some(WalletType::Experimental),
             StrategyType::AxiomMemeCoin => Some(WalletType::Experimental),
             StrategyType::AIDecision => Some(WalletType::Primary),
+            // NEW ADVANCED STRATEGIES
+            StrategyType::MEVArbitrage => Some(WalletType::HFT),
+            StrategyType::CrossDexArbitrage => Some(WalletType::Arbitrage),
+            StrategyType::LiquiditySniping => Some(WalletType::HFT),
+            StrategyType::VolumeAnalysis => Some(WalletType::Primary),
+            StrategyType::SocialSentiment => Some(WalletType::Experimental),
+            StrategyType::FlashLoanArbitrage => Some(WalletType::HFT),
+            StrategyType::YieldFarming => Some(WalletType::Conservative),
+            StrategyType::OptionsStrategy => Some(WalletType::Experimental),
         }
     }
 

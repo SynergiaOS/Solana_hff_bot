@@ -35,7 +35,16 @@ pub enum StrategyType {
     MeteoraDAMM,
     DeveloperTracking,
     AxiomMemeCoin,
-    AIDecision, // New strategy type for AI-generated decisions
+    AIDecision, // AI-generated decisions
+    // NEW ADVANCED STRATEGIES
+    MEVArbitrage,        // MEV arbitrage opportunities
+    CrossDexArbitrage,   // Cross-DEX arbitrage
+    LiquiditySniping,    // Liquidity event sniping
+    VolumeAnalysis,      // Volume-based trading
+    SocialSentiment,     // Social sentiment analysis
+    FlashLoanArbitrage,  // Flash loan arbitrage
+    YieldFarming,        // Yield farming optimization
+    OptionsStrategy,     // Options trading strategies
 }
 
 pub struct StrategyEngine {

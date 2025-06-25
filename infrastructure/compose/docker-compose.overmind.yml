@@ -316,6 +316,21 @@ services:
     networks:
       - overmind-network
 
+  # Vector Database for long-term memory
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: overmind-qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - ./data/qdrant:/qdrant/storage
+    environment:
+      - QDRANT_ALLOW_CORS=true
+    restart: unless-stopped
+    networks:
+      - overmind-network
+
 # ============================================================================
 # Networks and Volumes
 # ============================================================================

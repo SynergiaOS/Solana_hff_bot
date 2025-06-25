@@ -6,13 +6,26 @@ import asyncio
 import logging
 import json
 from typing import Dict, List, Any, Optional, Tuple
-from datetime import datetime
+from datetime import datetime, timezone
 import openai
 from openai import AsyncOpenAI
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 
 logger = logging.getLogger(__name__)
+
+# Import new advanced AI components
+try:
+    from .advanced_ai_models import (
+        EnsembleLearning, OpenAIModel, AnthropicModel, DeepSeekModel,
+        ModelType, EnsembleDecision
+    )
+    from .advanced_rag import AdvancedRAG, ChromaVectorStore, EmbeddingModel, DocumentType
+    from .sentiment_analyzer import SentimentAnalyzer, MarketSentimentSignal
+    ADVANCED_AI_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"Advanced AI components not available: {e}")
+    ADVANCED_AI_AVAILABLE = False
 
 @dataclass
 class TradingDecision:
@@ -54,12 +67,78 @@ class DecisionEngine:
         
         # Initialize OpenAI client
         self.client = AsyncOpenAI(api_key=self.api_key)
-        
+
+        # Initialize advanced AI components
+        self.ensemble_learning = None
+        self.advanced_rag = None
+        self.sentiment_analyzer = None
+        self.use_advanced_ai = ADVANCED_AI_AVAILABLE
+
         # Decision templates and prompts
         self.system_prompt = self._create_system_prompt()
-        
+
         logger.info(f"🧠 Decision Engine initialized with model: {model}")
-    
+
+        # Initialize advanced components if available
+        if self.use_advanced_ai:
+            asyncio.create_task(self._initialize_advanced_components())
+
+    async def _initialize_advanced_components(self):
+        """Initialize advanced AI components"""
+        try:
+            if not ADVANCED_AI_AVAILABLE:
+                return
+
+            # Initialize AI models for ensemble learning
+            models = []
+
+            # OpenAI model
+            if os.getenv("OPENAI_API_KEY"):
+                openai_model = OpenAIModel(ModelType.GPT4_TURBO, {"temperature": 0.3})
+                if await openai_model.initialize():
+                    models.append(openai_model)
+
+            # Anthropic model
+            if os.getenv("ANTHROPIC_API_KEY"):
+                anthropic_model = AnthropicModel(ModelType.CLAUDE_3_5_SONNET, {"temperature": 0.3})
+                if await anthropic_model.initialize():
+                    models.append(anthropic_model)
+
+            # DeepSeek model
+            if os.getenv("DEEPSEEK_API_KEY"):
+                deepseek_model = DeepSeekModel(ModelType.DEEPSEEK_V3, {"temperature": 0.3})
+                if await deepseek_model.initialize():
+                    models.append(deepseek_model)
+
+            # Initialize ensemble learning if we have models
+            if models:
+                self.ensemble_learning = EnsembleLearning(models, {})
+                logger.info(f"🤖 Ensemble learning initialized with {len(models)} models")
+
+            # Initialize advanced RAG
+            vector_store = ChromaVectorStore()
+            embedding_model = EmbeddingModel()
+
+            if await vector_store.initialize() and await embedding_model.initialize():
+                self.advanced_rag = AdvancedRAG(vector_store, embedding_model)
+                await self.advanced_rag.initialize()
+                logger.info("📚 Advanced RAG system initialized")
+
+            # Initialize sentiment analyzer
+            sentiment_config = {
+                "twitter_api_key": os.getenv("TWITTER_API_KEY"),
+                "reddit_client_id": os.getenv("REDDIT_CLIENT_ID"),
+                "news_api_key": os.getenv("NEWS_API_KEY")
+            }
+
+            self.sentiment_analyzer = SentimentAnalyzer(sentiment_config)
+            if await self.sentiment_analyzer.initialize():
+                logger.info("📊 Sentiment analyzer initialized")
+
+        except Exception as e:
+            logger.error(f"Failed to initialize advanced components: {e}")
+            self.use_advanced_ai = False
+
     def _create_system_prompt(self) -> str:
         """Create system prompt for AI decision making"""
         return """You are THE OVERMIND PROTOCOL AI Brain, an advanced trading decision system.
@@ -90,18 +169,18 @@ Always provide:
 
 Be conservative and prioritize capital preservation."""
 
-    async def analyze_market_data(self, 
+    async def analyze_market_data(self,
                                 market_data: Dict[str, Any],
-                                historical_context: List[Dict[str, Any]] = None,
-                                additional_context: Dict[str, Any] = None) -> TradingDecision:
+                                historical_context: Optional[List[Dict[str, Any]]] = None,
+                                additional_context: Optional[Dict[str, Any]] = None) -> TradingDecision:
         """
-        Analyze market data and make trading decision
-        
+        Enhanced analyze market data with ensemble learning and advanced AI
+
         Args:
             market_data: Current market data
             historical_context: Historical experiences from vector memory
             additional_context: Additional context data
-            
+
         Returns:
             Trading decision
         """
@@ -111,12 +190,12 @@ Be conservative and prioritize capital preservation."""
                 logger.info("🎭 Running in DEMO mode - generating mock AI decision")
                 return self._generate_mock_decision(market_data)
 
-            # Prepare analysis prompt
-            analysis_prompt = self._create_analysis_prompt(
-                market_data,
-                historical_context,
-                additional_context
-            )
+            # Use advanced AI if available
+            if self.use_advanced_ai and self.ensemble_learning:
+                return await self._analyze_with_ensemble(market_data, historical_context, additional_context)
+
+            # Fallback to standard analysis
+            return await self._analyze_with_standard_ai(market_data, historical_context, additional_context)
             
             # Get AI decision
             response = await self.client.chat.completions.create(
@@ -165,10 +244,10 @@ Be conservative and prioritize capital preservation."""
                 timestamp=datetime.utcnow().isoformat()
             )
     
-    def _create_analysis_prompt(self, 
+    def _create_analysis_prompt(self,
                               market_data: Dict[str, Any],
-                              historical_context: List[Dict[str, Any]] = None,
-                              additional_context: Dict[str, Any] = None) -> str:
+                              historical_context: Optional[List[Dict[str, Any]]] = None,
+                              additional_context: Optional[Dict[str, Any]] = None) -> str:
         """Create analysis prompt for LLM"""
         
         prompt_parts = [
@@ -438,3 +517,121 @@ Provide a clear, educational explanation."""
         except Exception as e:
             logger.error(f"❌ Decision explanation failed: {e}")
             return f"Unable to generate explanation: {str(e)}"
+
+    async def _analyze_with_ensemble(self, market_data: Dict[str, Any],
+                                   historical_context: Optional[List[Dict[str, Any]]] = None,
+                                   additional_context: Optional[Dict[str, Any]] = None) -> TradingDecision:
+        """Analyze market data using ensemble learning"""
+        try:
+            # Prepare prompt for ensemble models
+            prompt = self._create_analysis_prompt(
+                market_data,
+                historical_context or [],
+                additional_context or {}
+            )
+
+            # Get ensemble decision
+            ensemble_decision = await self.ensemble_learning.get_ensemble_decision(
+                prompt,
+                {"market_data": market_data}
+            )
+
+            # Enhance with sentiment analysis if available
+            sentiment_signal = None
+            if self.sentiment_analyzer and market_data.get("symbol"):
+                sentiment_signal = await self.sentiment_analyzer.generate_sentiment_signal(
+                    market_data["symbol"]
+                )
+
+            # Enhance with RAG knowledge if available
+            rag_context = ""
+            if self.advanced_rag:
+                rag_result = await self.advanced_rag.retrieve_relevant_knowledge(
+                    f"Trading analysis for {market_data.get('symbol', 'unknown')}",
+                    limit=3,
+                    doc_types=[DocumentType.TRADING_STRATEGY, DocumentType.MARKET_DATA]
+                )
+                if rag_result.documents:
+                    rag_context = f"Relevant knowledge: {rag_result.documents[0].content[:200]}..."
+
+            # Combine all insights
+            final_confidence = ensemble_decision.confidence
+            final_reasoning = ensemble_decision.reasoning
+
+            if sentiment_signal:
+                # Adjust confidence based on sentiment
+                sentiment_weight = 0.3
+                final_confidence = (final_confidence * 0.7 +
+                                  sentiment_signal.confidence * sentiment_weight)
+                final_reasoning += f" | Sentiment: {sentiment_signal.reasoning}"
+
+            if rag_context:
+                final_reasoning += f" | {rag_context}"
+
+            return TradingDecision(
+                symbol=market_data.get("symbol", "unknown"),
+                action=ensemble_decision.final_decision,
+                confidence=final_confidence,
+                reasoning=final_reasoning,
+                timestamp=datetime.now(timezone.utc).isoformat()
+            )
+
+        except Exception as e:
+            logger.error(f"Ensemble analysis failed: {e}")
+            return await self._analyze_with_standard_ai(market_data, historical_context, additional_context)
+
+    async def _analyze_with_standard_ai(self, market_data: Dict[str, Any],
+                                      historical_context: Optional[List[Dict[str, Any]]] = None,
+                                      additional_context: Optional[Dict[str, Any]] = None) -> TradingDecision:
+        """Standard AI analysis using OpenAI"""
+        try:
+            # Prepare analysis prompt
+            analysis_prompt = self._create_analysis_prompt(
+                market_data,
+                historical_context or [],
+                additional_context or {}
+            )
+
+            # Get AI decision
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": self.system_prompt},
+                    {"role": "user", "content": analysis_prompt}
+                ],
+                temperature=self.temperature,
+                max_tokens=self.max_tokens,
+                response_format={"type": "json_object"}
+            )
+
+            # Parse response
+            content = response.choices[0].message.content
+            if not content:
+                raise ValueError("Empty response from AI model")
+
+            decision_data = json.loads(content)
+
+            # Create structured decision
+            decision = TradingDecision(
+                symbol=market_data.get("symbol", "unknown"),
+                action=decision_data.get("action", "HOLD").upper(),
+                confidence=float(decision_data.get("confidence", 0.5)),
+                reasoning=decision_data.get("reasoning", "No reasoning provided"),
+                quantity=decision_data.get("quantity"),
+                price_target=decision_data.get("price_target"),
+                stop_loss=decision_data.get("stop_loss"),
+                risk_score=decision_data.get("risk_score"),
+                timestamp=datetime.now(timezone.utc).isoformat()
+            )
+
+            # Validate decision
+            decision = self._validate_decision(decision)
+
+            logger.info(f"🎯 Standard AI Decision: {decision.action} {decision.symbol} "
+                       f"(Confidence: {decision.confidence:.2f})")
+
+            return decision
+
+        except Exception as e:
+            logger.error(f"Standard AI analysis failed: {e}")
+            return self._generate_mock_decision(market_data)

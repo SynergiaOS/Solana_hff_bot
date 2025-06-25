@@ -18,6 +18,15 @@ from .risk_analyzer import RiskAnalyzer, RiskAssessment
 from .market_analyzer import MarketAnalyzer, MarketAnalysis
 from .helius_integration import helius_client, get_enhanced_token_data
 
+# Import advanced AI components
+try:
+    from .advanced_ai_models import EnsembleLearning
+    from .advanced_rag import AdvancedRAG
+    from .sentiment_analyzer import SentimentAnalyzer
+    ADVANCED_AI_AVAILABLE = True
+except ImportError:
+    ADVANCED_AI_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 class OVERMINDBrain:
@@ -30,8 +39,13 @@ class OVERMINDBrain:
             collection_name=os.getenv("QDRANT_COLLECTION", "overmind_memory")
         )
 
-        # Initialize decision engine
-        self.decision_engine = DecisionEngine()
+        # Initialize enhanced decision engine with advanced AI
+        self.decision_engine = DecisionEngine(
+            api_key=os.getenv("OPENAI_API_KEY"),
+            model="gpt-4-turbo",
+            temperature=0.3,
+            max_tokens=2000
+        )
 
         # Initialize risk analyzer
         self.risk_analyzer = RiskAnalyzer()
@@ -62,7 +76,15 @@ class OVERMINDBrain:
         # Initialize DragonflyDB connection (alias for compatibility)
         self.dragonfly = self.redis
 
-        logger.info("🧠 THE OVERMIND PROTOCOL Brain components initialized")
+        # Advanced AI status
+        self.advanced_ai_enabled = ADVANCED_AI_AVAILABLE
+
+        if self.advanced_ai_enabled:
+            logger.info("🧠 THE OVERMIND PROTOCOL Brain initialized with ADVANCED AI capabilities")
+            logger.info("🚀 Enhanced features: Ensemble Learning, Advanced RAG, Sentiment Analysis")
+        else:
+            logger.info("🧠 THE OVERMIND PROTOCOL Brain initialized with standard AI capabilities")
+            logger.info("💡 Install advanced AI dependencies for enhanced features")
 
     async def initialize(self):
         """Async initialization of components that require async setup"""

@@ -104,3 +104,7 @@ opt-level = 3
 inherits = "release"
 opt-level = 3
 lto = "fat"
+
+[[bench]]
+name = "overmind_performance_benchmarks"
+harness = false

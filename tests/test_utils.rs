@@ -36,7 +36,7 @@ pub enum TradingMode {
 }
 
 // Use the real HFTConfig from the library
-pub use snipercor::modules::hft_engine::HFTConfig;
+pub use snipercor::modules::hft_engine::HftEngineConfig;
 
 #[derive(Debug, Clone)]
 pub struct TradingSignal {
@@ -154,44 +154,41 @@ impl TestConfigBuilder {
 
 /// HFT Config builder for testing
 pub struct TestHFTConfigBuilder {
-    config: HFTConfig,
+    config: HftEngineConfig,
 }
 
 impl TestHFTConfigBuilder {
     pub fn new() -> Self {
         Self {
-            config: HFTConfig {
-                tensorzero_gateway_url: "http://localhost:3001".to_string(),
-                jito_endpoint: "http://localhost:3002".to_string(),
-                max_execution_latency_ms: 25,
-                max_bundle_size: 5,
+            config: HftEngineConfig {
+                solana_rpc_url: "http://localhost:8899".to_string(),
+                tensorzero_url: "http://localhost:3001".to_string(),
+                jito_url: "http://localhost:3002".to_string(),
+                jito_tip_account: "96gYZGLnJYVFmbjzopPSU6QiEV5fGqZNyN9nmNhvrZU5".to_string(),
+                max_tip_lamports: 10000,
                 retry_attempts: 3,
-                ai_confidence_threshold: 0.7,
+                retry_delay_ms: 100,
+                use_jito_bundles: true,
             },
         }
     }
 
     pub fn with_tensorzero_url(mut self, url: String) -> Self {
-        self.config.tensorzero_gateway_url = url;
+        self.config.tensorzero_url = url;
         self
     }
 
     pub fn with_jito_endpoint(mut self, endpoint: String) -> Self {
-        self.config.jito_endpoint = endpoint;
+        self.config.jito_url = endpoint;
         self
     }
 
-    pub fn with_max_latency(mut self, latency_ms: u64) -> Self {
-        self.config.max_execution_latency_ms = latency_ms;
+    pub fn with_max_tip(mut self, tip_lamports: u64) -> Self {
+        self.config.max_tip_lamports = tip_lamports;
         self
     }
 
-    pub fn with_ai_confidence_threshold(mut self, threshold: f64) -> Self {
-        self.config.ai_confidence_threshold = threshold;
-        self
-    }
-
-    pub fn build(self) -> HFTConfig {
+    pub fn build(self) -> HftEngineConfig {
         self.config
     }
 }

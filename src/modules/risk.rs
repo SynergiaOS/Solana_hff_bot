@@ -149,6 +149,15 @@ impl RiskManager {
             crate::modules::strategy::StrategyType::DeveloperTracking => 0.7, // High risk
             crate::modules::strategy::StrategyType::AxiomMemeCoin => 0.9, // Extreme risk
             crate::modules::strategy::StrategyType::AIDecision => 0.7, // AI decisions have moderate-high risk
+            // NEW ADVANCED STRATEGIES
+            crate::modules::strategy::StrategyType::MEVArbitrage => 0.4, // Moderate risk
+            crate::modules::strategy::StrategyType::CrossDexArbitrage => 0.3, // Lower risk
+            crate::modules::strategy::StrategyType::LiquiditySniping => 0.6, // High risk
+            crate::modules::strategy::StrategyType::VolumeAnalysis => 0.4, // Moderate risk
+            crate::modules::strategy::StrategyType::SocialSentiment => 0.8, // High risk
+            crate::modules::strategy::StrategyType::FlashLoanArbitrage => 0.5, // Moderate-high risk
+            crate::modules::strategy::StrategyType::YieldFarming => 0.2, // Low risk
+            crate::modules::strategy::StrategyType::OptionsStrategy => 0.6, // High risk
         };
 
         Ok(risk_score.min(1.0))
