@@ -254,7 +254,7 @@ dev-full = { depends_on = ["start-overmind"] }
 dev-minion-full = { depends_on = ["docker-up", "start-minion-brain", "run-paper"] }
 
 # Mission Control UI
-start-mission-control = "cd mission_control_ui && streamlit run app.py --server.port 8501 --server.address 0.0.0.0"
+start-mission-control = "cd mission_control && streamlit run app.py --server.port 8501 --server.address 0.0.0.0"
 dev-with-ui = { depends_on = ["dev-minion-full", "start-mission-control"] }
 
 # ============================================================================

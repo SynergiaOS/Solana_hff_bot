@@ -1,0 +1,110 @@
+[project]
+name = "overmind-mission-control"
+version = "1.0.0"
+description = "THE OVERMIND PROTOCOL - Mission Control Dashboard"
+authors = [
+    {name = "THE OVERMIND PROTOCOL Team", email = "overmind@protocol.ai"}
+]
+readme = "README.md"
+requires-python = ">=3.11"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Financial and Insurance Industry",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Office/Business :: Financial :: Investment",
+]
+
+dependencies = [
+    # Core Streamlit
+    "streamlit>=1.28.0",
+    "streamlit-autorefresh>=0.0.1",
+    
+    # Data Processing
+    "pandas>=2.0.0",
+    "numpy>=1.24.0",
+    
+    # Visualization
+    "plotly>=5.15.0",
+    "matplotlib>=3.7.0",
+    "seaborn>=0.12.0",
+    
+    # HTTP Client
+    "httpx>=0.24.0",
+    "requests>=2.31.0",
+    
+    # Async Support
+    "asyncio-mqtt>=0.13.0",
+    "aiofiles>=23.0.0",
+    
+    # Redis/DragonflyDB
+    "redis>=4.5.0",
+    
+    # Date/Time
+    "python-dateutil>=2.8.0",
+    
+    # JSON/Data
+    "pydantic>=2.0.0",
+    
+    # Utilities
+    "python-dotenv>=1.0.0",
+    "typing-extensions>=4.7.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "mypy>=1.5.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+]
+
+[tool.black]
+line-length = 88
+target-version = ['py311']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 88
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra -q --strict-markers"
+testpaths = [
+    "tests",
+]
+asyncio_mode = "auto"

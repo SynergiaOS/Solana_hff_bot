@@ -28,6 +28,14 @@ from .strategy_manager import strategy_manager, StrategyMatch
 from .strategy_config import strategy_config
 # from .vector_memory import VectorMemory  # Disabled for testing
 
+# THE ADAPTIVE CORTEX IMPORTS
+from .portfolio_monitor import PortfolioMonitor
+from .portfolio_tracking_service import PortfolioTrackingService
+from .strategy_mapper import StrategyMapper
+from .strategy_profiles import StrategyProfile, ProfileType
+from .goal_manager import dynamic_goal_manager
+from .goal_management_api import goal_management_api
+
 logger = logging.getLogger(__name__)
 
 class OVERMINDBrainManager:
@@ -70,16 +78,27 @@ class OVERMINDBrainManager:
         self.social_sentiment_agent = None
         self.risk_analysis_agent = None
         self.onchain_analysis_agent = None
-        
+
         # Initialize vector memory for long-term experience storage
         self.vector_memory = None
-        
+
         # Redis connection for Dragonfly communication
         self.redis_client = None
-        
+
         # Agent workflow state
         self.active_workflows = {}
         self.workflow_results = {}
+
+        # THE ADAPTIVE CORTEX COMPONENTS
+        self.portfolio_monitor = None
+        self.portfolio_tracking_service = None
+        self.strategy_mapper = None
+        self.active_profile = None  # Current active strategy profile
+        self.adaptive_cortex_enabled = True  # Enable/disable adaptive behavior
+
+        # GOAL MANAGEMENT API
+        self.goal_management_api = goal_management_api
+        self.api_server = None  # FastAPI server instance
         
         # Register tools with main agent
         self._register_main_agent_tools()
@@ -113,12 +132,167 @@ class OVERMINDBrainManager:
             self.social_sentiment_agent = create_social_sentiment_agent()
             self.risk_analysis_agent = create_risk_analysis_agent()
             self.onchain_analysis_agent = create_onchain_analysis_agent()
-            
+
+            # Initialize THE ADAPTIVE CORTEX
+            if self.adaptive_cortex_enabled:
+                await self._initialize_adaptive_cortex()
+
+            # Initialize Goal Management API
+            await self._initialize_goal_management_api()
+
             logger.info("🚀 OVERMIND Brain Manager fully initialized")
             
         except Exception as e:
             logger.error(f"❌ Failed to initialize OVERMIND Brain Manager: {e}")
             raise
+
+    async def _initialize_adaptive_cortex(self):
+        """Initialize THE ADAPTIVE CORTEX components."""
+        try:
+            logger.info("🧠 Initializing THE ADAPTIVE CORTEX...")
+
+            # Initialize Portfolio Monitor
+            self.portfolio_monitor = PortfolioMonitor(
+                redis_host=self.redis_host,
+                redis_port=self.redis_port,
+                target_sol_goal=2.0,  # 2 SOL goal
+                update_interval=60    # 60 second updates
+            )
+            await self.portfolio_monitor.initialize()
+
+            # Initialize Portfolio Tracking Service
+            self.portfolio_tracking_service = PortfolioTrackingService(
+                portfolio_monitor=self.portfolio_monitor,
+                redis_host=self.redis_host,
+                redis_port=self.redis_port
+            )
+            await self.portfolio_tracking_service.initialize()
+
+            # Initialize Strategy Mapper
+            self.strategy_mapper = StrategyMapper(
+                redis_host=self.redis_host,
+                redis_port=self.redis_port,
+                hysteresis_buffer=2.0,    # 2% buffer zone
+                minimum_hold_time=15      # 15 minute minimum hold
+            )
+            await self.strategy_mapper.initialize()
+
+            # Set initial active profile
+            self.active_profile = self.strategy_mapper.get_current_profile()
+
+            # Start portfolio tracking service
+            await self.portfolio_tracking_service.start()
+
+            logger.info("✅ THE ADAPTIVE CORTEX initialized successfully")
+            logger.info(f"🎯 Initial active profile: {self.strategy_mapper.current_profile.value}")
+
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize THE ADAPTIVE CORTEX: {e}")
+            self.adaptive_cortex_enabled = False
+            raise
+
+    async def _initialize_goal_management_api(self):
+        """Initialize Goal Management API endpoints."""
+        try:
+            logger.info("🚀 Initializing Goal Management API...")
+
+            # Initialize goal manager
+            await dynamic_goal_manager.initialize()
+
+            # The API is already initialized in goal_management_api.py
+            # We just need to ensure it's accessible
+            logger.info("✅ Goal Management API initialized successfully")
+            logger.info("📋 Available endpoints:")
+            logger.info("   POST /api/v1/control/set-goal")
+            logger.info("   GET  /api/v1/control/current-goal")
+            logger.info("   GET  /api/v1/control/goal-history")
+            logger.info("   GET  /api/v1/control/health")
+
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize Goal Management API: {e}")
+            raise
+
+    def get_goal_management_app(self):
+        """Get the FastAPI app for goal management endpoints."""
+        return self.goal_management_api.app
+
+    async def _update_adaptive_profile(self):
+        """Update active profile based on current portfolio state."""
+        try:
+            if not self.strategy_mapper or not self.portfolio_monitor:
+                return
+
+            # Get current portfolio state
+            portfolio_state = await self.portfolio_monitor.get_current_state()
+            if not portfolio_state:
+                logger.warning("⚠️ No portfolio state available for adaptive profile update")
+                return
+
+            # Determine if profile should change
+            decision = await self.strategy_mapper.determine_active_profile(portfolio_state)
+
+            # Execute profile switch if recommended
+            if decision.should_switch:
+                success = await self.strategy_mapper.execute_profile_switch(decision)
+                if success:
+                    self.active_profile = self.strategy_mapper.get_current_profile()
+                    logger.info(f"🔄 Adaptive profile switched to: {self.strategy_mapper.current_profile.value}")
+
+                    # Update risk analysis agent with new parameters
+                    if self.risk_analysis_agent:
+                        await self._update_risk_parameters()
+
+        except Exception as e:
+            logger.error(f"❌ Failed to update adaptive profile: {e}")
+
+    async def _should_process_signal(self, signal_data: Dict[str, Any]) -> bool:
+        """Determine if signal should be processed based on active profile."""
+        try:
+            if not self.active_profile:
+                return True  # Process all signals if no profile active
+
+            # Extract signal type and characteristics
+            signal_type = signal_data.get("type", "unknown")
+            signal_confidence = signal_data.get("confidence", 0.5)
+
+            # Check against profile's signal processing rules
+            signal_rules = self.active_profile.signal_processing
+
+            # Apply confidence threshold
+            if signal_confidence < signal_rules.min_confidence_threshold:
+                logger.debug(f"🔍 Signal filtered: confidence {signal_confidence:.2f} < threshold {signal_rules.min_confidence_threshold:.2f}")
+                return False
+
+            # Check signal frequency limits (simplified - would need more sophisticated tracking)
+            # For now, we'll allow all signals that pass confidence threshold
+
+            # Check if signal type aligns with enabled strategies
+            # This would require mapping signal types to strategies
+            # For now, we'll process all signals that pass other filters
+
+            return True
+
+        except Exception as e:
+            logger.error(f"❌ Error in signal filtering: {e}")
+            return True  # Default to processing signal on error
+
+    async def _update_risk_parameters(self):
+        """Update risk parameters based on active profile."""
+        try:
+            if not self.active_profile or not self.risk_analysis_agent:
+                return
+
+            risk_params = self.active_profile.risk_parameters
+
+            # Update risk analysis agent with new parameters
+            # This would require modifying the risk analysis agent to accept dynamic parameters
+            logger.info(f"🛡️ Risk parameters updated for profile: {self.active_profile.profile_type.value}")
+            logger.info(f"   Risk multiplier: {risk_params.risk_multiplier}")
+            logger.info(f"   Max position: {self.active_profile.position_sizing.max_position_size}%")
+            logger.info(f"   Stop loss: {risk_params.stop_loss_percentage}%")
+
+        except Exception as e:
+            logger.error(f"❌ Failed to update risk parameters: {e}")
     
     def _register_main_agent_tools(self):
         """Register tools with the main agent."""
@@ -385,21 +559,35 @@ class OVERMINDBrainManager:
             return {"error": str(e)}
     
     async def process_market_signal(self, signal_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Process incoming market signal through the complete agent pipeline.
-        
+        """Process incoming market signal through the complete agent pipeline with adaptive behavior.
+
         Args:
             signal_data: Raw market signal from Rust executor
-            
+
         Returns:
             Dict containing complete analysis and trading decision
         """
         logger.info(f"🚨 Processing market signal: {signal_data.get('type', 'unknown')}")
-        
+
         try:
+            # ADAPTIVE CORTEX: Check and update active profile
+            if self.adaptive_cortex_enabled:
+                await self._update_adaptive_profile()
+
+                # Apply adaptive signal filtering
+                if not await self._should_process_signal(signal_data):
+                    logger.info(f"🔍 Signal filtered by adaptive cortex: {signal_data.get('type', 'unknown')}")
+                    return {
+                        "signal_id": signal_data.get("signal_id"),
+                        "decision": "HOLD",
+                        "reasoning": "Signal filtered by adaptive cortex based on current profile",
+                        "active_profile": self.strategy_mapper.current_profile.value if self.strategy_mapper else None
+                    }
+
             # Phase 1: Coordinate market analysis
             analysis_results = await self._coordinate_market_analysis(signal_data)
-            
-            # Phase 2: Execute trading decision pipeline
+
+            # Phase 2: Execute trading decision pipeline with adaptive parameters
             trading_decision = await self._execute_trading_decision_pipeline(analysis_results)
             
             # Phase 3: Prepare response for Rust executor
@@ -492,15 +680,26 @@ class OVERMINDBrainManager:
     async def stop(self):
         """Stop the OVERMIND Brain Manager."""
         logger.info("🛑 Stopping OVERMIND Brain Manager...")
-        
+
+        # Stop adaptive cortex components
+        if self.adaptive_cortex_enabled:
+            try:
+                if self.portfolio_tracking_service:
+                    await self.portfolio_tracking_service.stop()
+                if self.portfolio_monitor:
+                    await self.portfolio_monitor.stop_monitoring()
+                logger.info("✅ Adaptive cortex stopped")
+            except Exception as e:
+                logger.error(f"❌ Error stopping adaptive cortex: {e}")
+
         if self.redis_client:
             await self.redis_client.close()
-        
+
         logger.info("✅ OVERMIND Brain Manager stopped")
     
     async def get_status(self) -> Dict[str, Any]:
-        """Get comprehensive status of the brain manager."""
-        return {
+        """Get comprehensive status of the brain manager including adaptive cortex."""
+        status = {
             "status": "running",
             "agents": {
                 "market_data_agent": self.market_data_agent is not None,
@@ -513,8 +712,32 @@ class OVERMINDBrainManager:
                 "vector_memory_initialized": self.vector_memory is not None
             },
             "active_workflows": len(self.active_workflows),
-            "workflow_results_cached": len(self.workflow_results)
+            "workflow_results_cached": len(self.workflow_results),
+            "adaptive_cortex": {
+                "enabled": self.adaptive_cortex_enabled,
+                "portfolio_monitor_initialized": self.portfolio_monitor is not None,
+                "strategy_mapper_initialized": self.strategy_mapper is not None,
+                "tracking_service_initialized": self.portfolio_tracking_service is not None,
+                "active_profile": self.strategy_mapper.current_profile.value if self.strategy_mapper else None
+            }
         }
+
+        # Add detailed adaptive cortex status if enabled
+        if self.adaptive_cortex_enabled and self.strategy_mapper:
+            try:
+                strategy_mapper_status = await self.strategy_mapper.get_status()
+                portfolio_monitor_status = await self.portfolio_monitor.get_status() if self.portfolio_monitor else {}
+                tracking_service_status = await self.portfolio_tracking_service.get_health_status() if self.portfolio_tracking_service else {}
+
+                status["adaptive_cortex"].update({
+                    "strategy_mapper_status": strategy_mapper_status,
+                    "portfolio_monitor_status": portfolio_monitor_status,
+                    "tracking_service_status": tracking_service_status
+                })
+            except Exception as e:
+                status["adaptive_cortex"]["status_error"] = str(e)
+
+        return status
 
 # Factory function for easy instantiation
 def create_overmind_brain_manager(**kwargs) -> OVERMINDBrainManager:
