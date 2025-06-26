@@ -125,21 +125,48 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for better styling
+# Optimize Streamlit performance and disable font preloading warnings
+st.markdown("""
+<script>
+// Remove unused font preload links to prevent console warnings
+document.addEventListener('DOMContentLoaded', function() {
+    const preloadLinks = document.querySelectorAll('link[rel="preload"][as="font"]');
+    preloadLinks.forEach(link => {
+        if (link.href.includes('SourceSans') || link.href.includes('woff2')) {
+            link.remove();
+        }
+    });
+});
+</script>
+""", unsafe_allow_html=True)
+
+# Custom CSS for better styling with optimized font loading
 st.markdown("""
 <style>
+    /* Optimize font loading to prevent preload warnings */
+    * {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+    }
+
+    /* Disable Streamlit's default font preloading */
+    link[rel="preload"][as="font"] {
+        display: none !important;
+    }
+
     .main-header {
         font-size: 2.5rem;
         font-weight: bold;
         text-align: center;
         color: #1f77b4;
         margin-bottom: 2rem;
+        font-family: inherit;
     }
     .metric-card {
         background-color: #f0f2f6;
         padding: 1rem;
         border-radius: 0.5rem;
         border-left: 4px solid #1f77b4;
+        font-family: inherit;
     }
     .success-card {
         background-color: #d4edda;
@@ -158,6 +185,17 @@ st.markdown("""
         padding: 1.5rem;
         border-radius: 0.5rem;
         margin: 1rem 0;
+        font-family: inherit;
+    }
+
+    /* Optimize Streamlit components */
+    .stApp {
+        font-family: inherit;
+    }
+
+    /* Ensure consistent font usage across all elements */
+    .stMarkdown, .stText, .stMetric, .stSelectbox, .stButton {
+        font-family: inherit !important;
     }
 </style>
 """, unsafe_allow_html=True)
