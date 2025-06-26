@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::{Mutex, RwLock};
-use tracing::{info, warn, debug};
+use tracing::{info, debug};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OptimizationConfig {

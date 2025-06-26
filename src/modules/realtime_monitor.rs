@@ -398,7 +398,7 @@ impl RealtimeMonitor {
         self.monitoring_tasks.push(handle);
     }
 
-    pub async fn record_metric(&self, metric_type: MetricType, value: f64, tags: Option<HashMap<String, String>>) {
+    pub async fn record_metric(&self, metric_type: MetricType, value: f64, _tags: Option<HashMap<String, String>>) {
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()

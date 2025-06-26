@@ -7,9 +7,9 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::{Mutex, RwLock};
-use tracing::{info, warn, debug};
+use tracing::{info, debug};
 use rand;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -399,7 +399,7 @@ impl GeographicDistribution {
     pub async fn select_optimal_region(&self, user_location: Option<(f64, f64)>, requirements: Option<RegionRequirements>) -> Result<RegionSelection> {
         let regions_guard = self.regions.read().await;
         let monitor_guard = self.network_monitor.lock().await;
-        let matrix_guard = self.latency_matrix.read().await;
+        let _matrix_guard = self.latency_matrix.read().await;
 
         let mut scored_regions = Vec::new();
 
@@ -514,7 +514,7 @@ impl GeographicDistribution {
         let jitter_score = 1.0 / (1.0 + metrics.jitter_ms / 10.0);
 
         // Weighted average
-        (latency_score * 0.3 + loss_score * 0.2 + uptime_score * 0.3 + jitter_score * 0.2)
+        latency_score * 0.3 + loss_score * 0.2 + uptime_score * 0.3 + jitter_score * 0.2
     }
 
     async fn measure_replication_lag(_source_region: &str, _target_region: &str) -> f64 {

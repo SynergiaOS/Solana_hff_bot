@@ -432,7 +432,7 @@ impl CrossDexArbitrageStrategy {
     }
 
     /// Estimate execution time
-    fn estimate_execution_time(&self, buy_dex: &DexType, sell_dex: &DexType) -> u64 {
+    fn estimate_execution_time(&self, _buy_dex: &DexType, _sell_dex: &DexType) -> u64 {
         // Base execution time per DEX
         let base_time = 1000; // 1 second base
         let dex_multiplier = 2; // 2 DEXes

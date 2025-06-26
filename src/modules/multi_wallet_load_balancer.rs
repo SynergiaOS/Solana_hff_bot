@@ -7,11 +7,19 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::{Mutex, RwLock};
 use tracing::{info, warn, debug};
 use rand;
 use solana_sdk::pubkey::Pubkey;
+
+// Type aliases to reduce complexity and improve readability
+type PerformanceData = Vec<(u64, f64)>; // (timestamp, latency)
+type PerformanceTracker = Arc<Mutex<HashMap<String, PerformanceData>>>;
+type WalletNodes = Arc<RwLock<HashMap<String, WalletNode>>>;
+type RoutingHistory = Arc<Mutex<Vec<RoutingDecision>>>;
+type GeographicZones = Arc<RwLock<HashMap<String, Vec<String>>>>; // region -> wallet_ids
+type ActiveTransactions = Arc<RwLock<HashMap<String, TransactionRequest>>>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LoadBalancerConfig {
@@ -119,12 +127,12 @@ pub struct RoutingDecision {
 
 pub struct MultiWalletLoadBalancer {
     config: LoadBalancerConfig,
-    wallet_nodes: Arc<RwLock<HashMap<String, WalletNode>>>,
-    routing_history: Arc<Mutex<Vec<RoutingDecision>>>,
-    performance_tracker: Arc<Mutex<HashMap<String, Vec<(u64, f64)>>>>, // wallet_id -> (timestamp, latency)
+    wallet_nodes: WalletNodes,
+    routing_history: RoutingHistory,
+    performance_tracker: PerformanceTracker,
     current_round_robin_index: Arc<Mutex<usize>>,
-    geographic_zones: Arc<RwLock<HashMap<String, Vec<String>>>>, // region -> wallet_ids
-    active_transactions: Arc<RwLock<HashMap<String, TransactionRequest>>>,
+    geographic_zones: GeographicZones,
+    active_transactions: ActiveTransactions,
 }
 
 impl MultiWalletLoadBalancer {
@@ -211,7 +219,7 @@ impl MultiWalletLoadBalancer {
                     performance_data.retain(|(timestamp, _)| *timestamp > cutoff_time);
                     
                     // Update wallet performance metrics
-                    if let Some(node) = nodes_guard.get(wallet_id) {
+                    if let Some(_node) = nodes_guard.get(wallet_id) {
                         // Performance metrics would be updated here
                         debug!("Updated performance metrics for wallet {}", wallet_id);
                     }
@@ -401,7 +409,7 @@ impl MultiWalletLoadBalancer {
                 let success_score = node.performance_metrics.success_rate;
                 let load_score = 1.0 - (node.current_load as f64 / node.max_concurrent as f64);
                 
-                let total_score = (latency_score * 0.4 + success_score * 0.4 + load_score * 0.2);
+                let total_score = latency_score * 0.4 + success_score * 0.4 + load_score * 0.2;
                 (wallet_id, node, total_score)
             })
             .collect();
