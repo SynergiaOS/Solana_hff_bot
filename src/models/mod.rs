@@ -1,5 +1,5 @@
 //! Models for THE OVERMIND PROTOCOL
-//! 
+//!
 //! This module contains data structures used throughout the application.
 
 pub mod ai_models;

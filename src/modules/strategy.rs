@@ -37,14 +37,14 @@ pub enum StrategyType {
     AxiomMemeCoin,
     AIDecision, // AI-generated decisions
     // NEW ADVANCED STRATEGIES
-    MEVArbitrage,        // MEV arbitrage opportunities
-    CrossDexArbitrage,   // Cross-DEX arbitrage
-    LiquiditySniping,    // Liquidity event sniping
-    VolumeAnalysis,      // Volume-based trading
-    SocialSentiment,     // Social sentiment analysis
-    FlashLoanArbitrage,  // Flash loan arbitrage
-    YieldFarming,        // Yield farming optimization
-    OptionsStrategy,     // Options trading strategies
+    MEVArbitrage,       // MEV arbitrage opportunities
+    CrossDexArbitrage,  // Cross-DEX arbitrage
+    LiquiditySniping,   // Liquidity event sniping
+    VolumeAnalysis,     // Volume-based trading
+    SocialSentiment,    // Social sentiment analysis
+    FlashLoanArbitrage, // Flash loan arbitrage
+    YieldFarming,       // Yield farming optimization
+    OptionsStrategy,    // Options trading strategies
 }
 
 pub struct StrategyEngine {

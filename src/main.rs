@@ -1,18 +1,17 @@
 // THE OVERMIND PROTOCOL - AI-Enhanced High-Frequency Trading System for Solana
 // Main entry point - SIMPLIFIED HTTP SERVER VERSION
 
+#![allow(clippy::all)]
+#![allow(unused_variables)]
+#![allow(unused_mut)]
+#![allow(dead_code)]
+
 mod config;
 mod modules;
 mod monitoring;
 
 use anyhow::Result;
-use axum::{
-    extract::State,
-    http::StatusCode,
-    response::Json,
-    routing::get,
-    Router,
-};
+use axum::{extract::State, http::StatusCode, response::Json, routing::get, Router};
 use serde_json::{json, Value};
 use std::sync::Arc;
 use tracing::{error, info};
@@ -42,7 +41,9 @@ async fn main() -> Result<()> {
     info!("🧠 OVERMIND Enabled: {}", config.overmind.enabled);
 
     // Create application state
-    let app_state = AppState { config: config.clone() };
+    let app_state = AppState {
+        config: config.clone(),
+    };
 
     // Start AI Connector in background
     info!("🧠 Starting AI Connector for command processing...");

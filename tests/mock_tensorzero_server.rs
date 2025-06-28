@@ -131,21 +131,62 @@ impl MockTensorZeroServer {
     fn generate_ai_decision(&self, _market_data: &str) -> Value {
         use rand::Rng;
         let mut rng = rand::thread_rng();
-        
+
         // Parse market data to make realistic decisions
-        let confidence = rng.gen_range(self.config.ai_confidence_range.0..=self.config.ai_confidence_range.1);
-        
+        let confidence =
+            rng.gen_range(self.config.ai_confidence_range.0..=self.config.ai_confidence_range.1);
+
         // Simulate different trading scenarios
         let scenarios = vec![
-            ("arbitrage", "buy", "SOL", "USDC", 1000, 1050, "Arbitrage opportunity detected between DEXs"),
-            ("momentum", "buy", "SOL", "USDC", 500, 525, "Strong upward momentum detected"),
-            ("mean_reversion", "sell", "SOL", "USDC", 800, 760, "Price above moving average, expecting reversion"),
-            ("mev", "buy", "SOL", "USDC", 2000, 2100, "MEV opportunity in upcoming transaction"),
-            ("hold", "hold", "SOL", "USDC", 0, 0, "Market conditions unclear, holding position"),
+            (
+                "arbitrage",
+                "buy",
+                "SOL",
+                "USDC",
+                1000,
+                1050,
+                "Arbitrage opportunity detected between DEXs",
+            ),
+            (
+                "momentum",
+                "buy",
+                "SOL",
+                "USDC",
+                500,
+                525,
+                "Strong upward momentum detected",
+            ),
+            (
+                "mean_reversion",
+                "sell",
+                "SOL",
+                "USDC",
+                800,
+                760,
+                "Price above moving average, expecting reversion",
+            ),
+            (
+                "mev",
+                "buy",
+                "SOL",
+                "USDC",
+                2000,
+                2100,
+                "MEV opportunity in upcoming transaction",
+            ),
+            (
+                "hold",
+                "hold",
+                "SOL",
+                "USDC",
+                0,
+                0,
+                "Market conditions unclear, holding position",
+            ),
         ];
-        
+
         let scenario = &scenarios[rng.gen_range(0..scenarios.len())];
-        
+
         json!({
             "signal_type": scenario.0,
             "confidence": confidence,
@@ -179,13 +220,13 @@ async fn inference_endpoint(
     Json(request): Json<InferenceRequest>,
 ) -> Result<Json<InferenceResponse>, StatusCode> {
     let start_time = Instant::now();
-    
+
     // Update metrics
     {
         let mut metrics = server.metrics.lock().await;
         metrics.requests_received += 1;
     }
-    
+
     // Simulate processing delay
     let delay = if server.config.simulate_high_latency {
         Duration::from_millis(server.config.response_delay_ms * 3)
@@ -193,7 +234,7 @@ async fn inference_endpoint(
         Duration::from_millis(server.config.response_delay_ms)
     };
     tokio::time::sleep(delay).await;
-    
+
     // Simulate errors
     if server.config.error_rate > 0.0 {
         use rand::Rng;
@@ -203,17 +244,19 @@ async fn inference_endpoint(
             return Err(StatusCode::INTERNAL_SERVER_ERROR);
         }
     }
-    
+
     // Extract market data from request
-    let market_data = request.input.messages
+    let market_data = request
+        .input
+        .messages
         .iter()
         .find(|msg| msg.role == "user")
         .map(|msg| msg.content.as_str())
         .unwrap_or("");
-    
+
     // Generate AI decision
     let ai_decision = server.generate_ai_decision(market_data);
-    
+
     let response = InferenceResponse {
         inference_id: Uuid::new_v4(),
         episode_id: Uuid::new_v4(),
@@ -227,17 +270,17 @@ async fn inference_endpoint(
             output_tokens: ai_decision.to_string().len() as u32 / 4,
         }),
     };
-    
+
     // Update metrics
     {
         let mut metrics = server.metrics.lock().await;
         metrics.responses_sent += 1;
         let response_time = start_time.elapsed().as_millis() as f64;
-        metrics.avg_response_time_ms = 
-            (metrics.avg_response_time_ms * (metrics.responses_sent - 1) as f64 + response_time) 
-            / metrics.responses_sent as f64;
+        metrics.avg_response_time_ms =
+            (metrics.avg_response_time_ms * (metrics.responses_sent - 1) as f64 + response_time)
+                / metrics.responses_sent as f64;
     }
-    
+
     Ok(Json(response))
 }
 
@@ -246,7 +289,7 @@ async fn metrics_endpoint(
     axum::extract::State(server): axum::extract::State<Arc<MockTensorZeroServer>>,
 ) -> Json<Value> {
     let metrics = server.metrics.lock().await;
-    
+
     Json(json!({
         "requests_received": metrics.requests_received,
         "responses_sent": metrics.responses_sent,
@@ -270,7 +313,6 @@ async fn metrics_endpoint(
 mod tests {
     use super::*;
 
-
     #[tokio::test]
     async fn test_mock_server_creation() {
         let config = MockServerConfig::default();
@@ -282,7 +324,7 @@ mod tests {
     async fn test_ai_decision_generation() {
         let config = MockServerConfig::default();
         let server = MockTensorZeroServer::new(3001, config);
-        
+
         let decision = server.generate_ai_decision("test market data");
         assert!(decision["confidence"].as_f64().unwrap() >= 0.6);
         assert!(decision["confidence"].as_f64().unwrap() <= 0.95);

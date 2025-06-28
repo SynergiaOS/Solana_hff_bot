@@ -1,10 +1,9 @@
 //! HFT Engine Module
-//! 
+//!
 //! Provides high-frequency trading capabilities with TensorZero optimization
 //! and Jito bundle execution for MEV protection.
 
 use anyhow::{Context, Result};
-use tracing::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 use solana_client::rpc_client::RpcClient;
 use solana_sdk::{
@@ -16,13 +15,14 @@ use solana_sdk::{
 };
 use std::{str::FromStr, time::Duration};
 use tokio::time::sleep;
+use tracing::{debug, error, info, warn};
 
 // Import our TensorZero, Jito, DEX, error handling, and metrics modules
-use crate::modules::tensorzero_client::{TensorZeroClient, TensorZeroConfig, OptimizationResponse};
-use crate::modules::jito_client::{JitoClient, JitoConfig};
 use crate::modules::dex_integration::{DexIntegration, SwapParams};
 use crate::modules::error_handling::ErrorHandler;
+use crate::modules::jito_client::{JitoClient, JitoConfig};
 use crate::modules::metrics::MetricsCollector;
+use crate::modules::tensorzero_client::{OptimizationResponse, TensorZeroClient, TensorZeroConfig};
 
 /// Configuration for the HFT Engine
 #[derive(Debug, Clone)]
@@ -129,7 +129,10 @@ impl HftEngine {
             match JitoClient::new(jito_config) {
                 Ok(client) => Some(client),
                 Err(e) => {
-                    warn!("Failed to initialize Jito client: {}. Continuing without MEV protection.", e);
+                    warn!(
+                        "Failed to initialize Jito client: {}. Continuing without MEV protection.",
+                        e
+                    );
                     None
                 }
             }
@@ -148,27 +151,33 @@ impl HftEngine {
             metrics_collector: MetricsCollector::new(),
         })
     }
-    
+
     /// Execute a trading signal with TensorZero optimization
     pub async fn execute_signal(&self, signal: TradingSignal) -> Result<Signature> {
-        info!("🚀 Executing signal: {} {} with confidence {:.2}", 
-              signal.action, signal.symbol, signal.confidence);
-        
+        info!(
+            "🚀 Executing signal: {} {} with confidence {:.2}",
+            signal.action, signal.symbol, signal.confidence
+        );
+
         // Step 1: Optimize transaction via TensorZero
-        let optimized_tx = self.optimize_with_tensorzero(&signal)
+        let optimized_tx = self
+            .optimize_with_tensorzero(&signal)
             .await
             .context("Failed to optimize transaction with TensorZero")?;
-        
+
         // Step 2: Execute with retries
         let signature = self.execute_with_retry(optimized_tx).await?;
-        
+
         info!("✅ Transaction executed successfully: {}", signature);
         Ok(signature)
     }
-    
+
     /// Optimize transaction parameters using TensorZero
     async fn optimize_with_tensorzero(&self, signal: &TradingSignal) -> Result<Transaction> {
-        debug!("Optimizing transaction with TensorZero for {}", signal.symbol);
+        debug!(
+            "Optimizing transaction with TensorZero for {}",
+            signal.symbol
+        );
 
         // Use TensorZero client if available
         if let Some(ref tensorzero_client) = self.tensorzero_client {
@@ -189,14 +198,21 @@ impl HftEngine {
             // Get optimization from TensorZero
             match tensorzero_client.optimize_signal(tz_signal).await {
                 Ok(optimization) => {
-                    info!("✅ TensorZero optimization successful - confidence: {:.2}, latency: {}ms",
-                          optimization.confidence_score, optimization.estimated_latency_ms);
+                    info!(
+                        "✅ TensorZero optimization successful - confidence: {:.2}, latency: {}ms",
+                        optimization.confidence_score, optimization.estimated_latency_ms
+                    );
 
                     // Build optimized transaction using TensorZero parameters
-                    return self.build_optimized_transaction(signal, &optimization).await;
+                    return self
+                        .build_optimized_transaction(signal, &optimization)
+                        .await;
                 }
                 Err(e) => {
-                    warn!("TensorZero optimization failed: {}. Falling back to default parameters.", e);
+                    warn!(
+                        "TensorZero optimization failed: {}. Falling back to default parameters.",
+                        e
+                    );
                 }
             }
         } else {
@@ -206,31 +222,33 @@ impl HftEngine {
         // Fallback to DEX transaction without optimization if TensorZero is not available or fails
         self.build_dex_transaction(signal, None).await
     }
-    
+
     /// Execute transaction with retry logic
     async fn execute_with_retry(&self, transaction: Transaction) -> Result<Signature> {
         let mut attempts = 0;
         let max_attempts = self.config.retry_attempts as usize;
-        
+
         loop {
             attempts += 1;
-            
+
             match self.execute_transaction(transaction.clone()).await {
                 Ok(signature) => return Ok(signature),
                 Err(e) => {
                     if attempts >= max_attempts {
                         return Err(e).context("Max retry attempts reached");
                     }
-                    
-                    warn!("Transaction attempt {}/{} failed: {}. Retrying...", 
-                          attempts, max_attempts, e);
-                    
+
+                    warn!(
+                        "Transaction attempt {}/{} failed: {}. Retrying...",
+                        attempts, max_attempts, e
+                    );
+
                     sleep(Duration::from_millis(self.config.retry_delay_ms)).await;
                 }
             }
         }
     }
-    
+
     /// Execute a single transaction attempt
     async fn execute_transaction(&self, transaction: Transaction) -> Result<Signature> {
         if self.config.use_jito_bundles {
@@ -239,22 +257,26 @@ impl HftEngine {
             self.execute_with_standard_rpc(transaction).await
         }
     }
-    
+
     /// Execute transaction using Jito bundles for MEV protection
     async fn execute_with_jito_bundle(&self, transaction: Transaction) -> Result<Signature> {
         if let Some(ref jito_client) = self.jito_client {
             info!("🛡️ Executing transaction via Jito bundle for MEV protection");
 
             // Get the transaction signature before sending (since it's already signed)
-            let signature = transaction.signatures.get(0)
+            let signature = transaction
+                .signatures
+                .get(0)
                 .ok_or_else(|| anyhow::anyhow!("Transaction has no signatures"))?;
             let signature_to_return = *signature;
 
             // Execute bundle using the Jito client
             match jito_client.execute_bundle(transaction.clone()).await {
                 Ok(bundle_result) => {
-                    info!("✅ Jito bundle executed successfully: bundle_id={}, latency={}ms",
-                          bundle_result.bundle_id, bundle_result.latency_ms);
+                    info!(
+                        "✅ Jito bundle executed successfully: bundle_id={}, latency={}ms",
+                        bundle_result.bundle_id, bundle_result.latency_ms
+                    );
 
                     // Return the signature that was captured before sending
                     Ok(signature_to_return)
@@ -271,26 +293,39 @@ impl HftEngine {
             self.execute_with_standard_rpc(transaction).await
         }
     }
-    
+
     /// Execute transaction using standard Solana RPC
     async fn execute_with_standard_rpc(&self, transaction: Transaction) -> Result<Signature> {
         // In production, this would send the transaction to the Solana network
         // For now, we'll just return a mock signature
-        
+
         // TODO: Replace with actual transaction submission
         let signature = transaction.signatures[0];
-        
+
         Ok(signature)
     }
-    
+
     /// Build an optimized transaction using TensorZero parameters
-    async fn build_optimized_transaction(&self, signal: &TradingSignal, optimization: &OptimizationResponse) -> Result<Transaction> {
+    async fn build_optimized_transaction(
+        &self,
+        signal: &TradingSignal,
+        optimization: &OptimizationResponse,
+    ) -> Result<Transaction> {
         info!("🧠 Building optimized transaction with TensorZero parameters");
 
         debug!("Using optimized parameters:");
-        debug!("  Slippage tolerance: {:.4}%", optimization.optimized_params.slippage_tolerance * 100.0);
-        debug!("  Priority fee: {} lamports", optimization.optimized_params.priority_fee_lamports);
-        debug!("  Compute unit limit: {}", optimization.optimized_params.compute_unit_limit);
+        debug!(
+            "  Slippage tolerance: {:.4}%",
+            optimization.optimized_params.slippage_tolerance * 100.0
+        );
+        debug!(
+            "  Priority fee: {} lamports",
+            optimization.optimized_params.priority_fee_lamports
+        );
+        debug!(
+            "  Compute unit limit: {}",
+            optimization.optimized_params.compute_unit_limit
+        );
         debug!("  Execution strategy: {}", optimization.execution_strategy);
 
         // Build DEX-specific transaction using TensorZero optimization
@@ -298,8 +333,15 @@ impl HftEngine {
     }
 
     /// Build DEX-specific transaction
-    async fn build_dex_transaction(&self, signal: &TradingSignal, optimization: Option<&OptimizationResponse>) -> Result<Transaction> {
-        info!("🔄 Building DEX transaction for {} {}", signal.action, signal.symbol);
+    async fn build_dex_transaction(
+        &self,
+        signal: &TradingSignal,
+        optimization: Option<&OptimizationResponse>,
+    ) -> Result<Transaction> {
+        info!(
+            "🔄 Building DEX transaction for {} {}",
+            signal.action, signal.symbol
+        );
 
         // Parse trading pair from signal
         let (input_mint, output_mint) = self.parse_trading_pair(&signal.symbol)?;
@@ -320,11 +362,15 @@ impl HftEngine {
         let route = self.dex_integration.find_best_route(&swap_params).await?;
 
         // Build transaction for the selected DEX
-        let transaction = self.dex_integration
+        let transaction = self
+            .dex_integration
             .build_swap_transaction(swap_params, route.dex_type, &self.wallet)
             .await?;
 
-        info!("✅ DEX transaction built successfully for {:?}", route.dex_type);
+        info!(
+            "✅ DEX transaction built successfully for {:?}",
+            route.dex_type
+        );
         Ok(transaction)
     }
 
@@ -351,7 +397,11 @@ impl HftEngine {
     }
 
     /// Calculate minimum output amount considering slippage
-    fn calculate_minimum_output(&self, signal: &TradingSignal, optimization: Option<&OptimizationResponse>) -> Result<u64> {
+    fn calculate_minimum_output(
+        &self,
+        signal: &TradingSignal,
+        optimization: Option<&OptimizationResponse>,
+    ) -> Result<u64> {
         let slippage = optimization
             .map(|opt| opt.optimized_params.slippage_tolerance)
             .unwrap_or(0.01);
@@ -374,30 +424,32 @@ impl HftEngine {
     fn build_mock_transaction(&self, signal: &TradingSignal) -> Result<Transaction> {
         // Create a simple system transfer of 1 lamport from wallet to itself
         // This creates a real, valid Solana transaction for testing purposes
-        
+
         // Get recent blockhash - wrap with proper error handling
-        let recent_blockhash = self.rpc_client.get_latest_blockhash()
+        let recent_blockhash = self
+            .rpc_client
+            .get_latest_blockhash()
             .context("Failed to get recent blockhash")?;
-        
+
         // Create system transfer instruction (1 lamport to self)
         let transfer_instruction = solana_sdk::system_instruction::transfer(
-            &self.wallet.pubkey(),  // From: bot's wallet
-            &self.wallet.pubkey(),  // To: same wallet (self-transfer)
-            1,                      // Amount: 1 lamport
+            &self.wallet.pubkey(), // From: bot's wallet
+            &self.wallet.pubkey(), // To: same wallet (self-transfer)
+            1,                     // Amount: 1 lamport
         );
-        
+
         // Create transaction with the transfer instruction
-        let mut transaction = Transaction::new_with_payer(
-            &[transfer_instruction],
-            Some(&self.wallet.pubkey()),
-        );
-        
+        let mut transaction =
+            Transaction::new_with_payer(&[transfer_instruction], Some(&self.wallet.pubkey()));
+
         // Sign transaction with the wallet keypair
         transaction.sign(&[&self.wallet], recent_blockhash);
-        
-        info!("🔧 Built mock system transfer transaction: 1 lamport self-transfer for signal: {} {}", 
-              signal.action, signal.symbol);
-        
+
+        info!(
+            "🔧 Built mock system transfer transaction: 1 lamport self-transfer for signal: {} {}",
+            signal.action, signal.symbol
+        );
+
         Ok(transaction)
     }
 
@@ -420,16 +472,16 @@ impl HftEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mockall::predicate::*;
     use mockall::mock;
-    
+    use mockall::predicate::*;
+
     // Mock RpcClient for testing
     mock! {
         pub RpcClient {
             pub fn get_latest_blockhash(&self) -> Result<solana_sdk::hash::Hash>;
         }
     }
-    
+
     #[tokio::test]
     async fn test_hft_engine_mock_execution() {
         // Skip test if not in test environment to avoid RPC calls
@@ -437,20 +489,20 @@ mod tests {
             println!("Skipping HFT engine test in development environment");
             return;
         }
-        
+
         // Create test wallet
         let wallet = Keypair::new();
-        
+
         // Create test config
         let config = HftEngineConfig {
             solana_rpc_url: "https://api.devnet.solana.com".to_string(),
             use_jito_bundles: false,
             ..HftEngineConfig::default()
         };
-        
+
         // Create HFT engine
         let engine = HftEngine::new(config, wallet);
-        
+
         // Create test signal
         let signal = TradingSignal {
             symbol: "SOL/USDC".to_string(),
@@ -460,12 +512,16 @@ mod tests {
             confidence: 0.85,
             reasoning: "Test signal".to_string(),
         };
-        
+
         // Execute signal
         let engine = engine.expect("Failed to create HFT engine");
         let result = engine.execute_signal(signal).await;
-        
+
         // Verify result
-        assert!(result.is_ok(), "Signal execution should succeed: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Signal execution should succeed: {:?}",
+            result.err()
+        );
     }
 }

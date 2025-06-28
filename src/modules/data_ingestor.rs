@@ -2,10 +2,10 @@
 // Handles real-time market data ingestion from Helius and QuickNode
 
 use anyhow::Result;
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tracing::{error, info};
-use reqwest::Client;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MarketData {
@@ -107,10 +107,18 @@ impl DataIngestor {
     }
 
     pub async fn fetch_helius_data(&self, address: &str) -> Result<MarketData> {
-        let url = format!("{}/v0/addresses/{}/transactions",
-                         self.config.rpc_url.split('?').next().unwrap_or(&self.config.rpc_url), address);
+        let url = format!(
+            "{}/v0/addresses/{}/transactions",
+            self.config
+                .rpc_url
+                .split('?')
+                .next()
+                .unwrap_or(&self.config.rpc_url),
+            address
+        );
 
-        let _response = self.client
+        let _response = self
+            .client
             .get(&url)
             .query(&[("api-key", &self.config.api_key)])
             .send()

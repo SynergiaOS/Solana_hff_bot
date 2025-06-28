@@ -1,0 +1,378 @@
+id: historical-backtest
+namespace: overmind.testing
+
+description: |
+  THE OVERMIND PROTOCOL - Historical Data Backtesting
+  Automated backtesting workflow using premium APIs and real market data
+  
+  This flow:
+  1. Sets up the environment (development/production)
+  2. Initializes the Historical Data Testing Framework
+  3. Runs all predefined test scenarios
+  4. Generates comprehensive performance reports
+  5. Stores results for analysis
+
+labels:
+  project: overmind-protocol
+  type: backtesting
+  environment: "{{ vars.app_env | default('development') }}"
+
+inputs:
+  - id: app_env
+    type: SELECT
+    defaults: development
+    values:
+      - development
+      - production
+    description: "Environment to run backtest (development=devnet, production=mainnet paper trading)"
+  
+  - id: scenarios
+    type: MULTISELECT
+    defaults: 
+      - "Bull Market - SOL Rally"
+      - "Bear Market - Market Correction"
+    values:
+      - "Bull Market - SOL Rally"
+      - "Bear Market - Market Correction"
+      - "High Volatility - DeFi Token"
+      - "Stable Conditions - USDC"
+      - "New Token Launch"
+    description: "Test scenarios to run"
+  
+  - id: notification_email
+    type: STRING
+    defaults: "admin@overmind-protocol.com"
+    description: "Email for notifications"
+
+variables:
+  app_env: "development"
+  workspace_path: "/workspace"
+  python_env: "mission_control/.venv/bin/python"
+
+tasks:
+  # Task 1: Environment Setup
+  - id: setup-environment
+    type: io.kestra.plugin.scripts.shell.Commands
+    description: "Setup environment and validate configuration"
+    commands:
+      - echo "🎯 THE OVERMIND PROTOCOL - Historical Backtesting"
+      - echo "Environment development"
+      - echo "Scenarios Selected scenarios"
+      - echo "Workspace /workspace"
+      - cd /workspace
+      - export APP_ENV=development
+      - export PAPER_TRADING_MODE=true
+      - echo "✅ Environment variables set"
+      - ls -la
+      - echo "✅ Workspace validated"
+    workingDir: "/workspace"
+
+  # Task 2: Configuration Validation
+  - id: validate-configuration
+    type: io.kestra.plugin.scripts.python.Script
+    description: "Validate dynamic configuration system"
+    beforeCommands:
+      - cd /workspace
+      - export APP_ENV=development
+      - export PAPER_TRADING_MODE=true
+    script: |
+      import sys
+      import os
+      
+      # Add config to path
+      sys.path.insert(0, 'config')
+      
+      from environment_loader import initialize_environment
+      
+      print("🔍 Validating configuration...")
+      
+      # Initialize environment
+      loader = initialize_environment()
+      status = loader.get_status_report()
+      
+      print(f"Environment: {status['environment']}")
+      print(f"Network: {status['network']}")
+      print(f"Trading mode: {status['trading_mode']}")
+      print(f"Configuration valid: {status['all_valid']}")
+      
+      if not status['all_valid']:
+          print("⚠️ Configuration warnings:")
+          for warning in status['warnings']:
+              print(f"  - {warning}")
+          
+          print("📋 Next steps:")
+          for step in status['next_steps']:
+              print(f"  - {step}")
+      
+      if status['environment'] == 'production' and not status['all_valid']:
+          raise Exception("Production environment requires valid configuration")
+      
+      print("✅ Configuration validation completed")
+    workingDir: "/workspace"
+
+  # Task 3: API Connectivity Test
+  - id: test-api-connectivity
+    type: io.kestra.plugin.scripts.python.Script
+    description: "Test premium API connectivity"
+    beforeCommands:
+      - cd /workspace
+      - export APP_ENV=development
+    script: |
+      import sys
+      import os
+      import asyncio
+      
+      # Add paths
+      sys.path.insert(0, 'tests/historical_data')
+      sys.path.insert(0, 'brain/src')
+      
+      from test_real_api_data import test_helius_api_direct, test_quicknode_api_direct
+      
+      async def main():
+          print("🔌 Testing API connectivity...")
+          
+          # Test Helius API
+          helius_ok = await test_helius_api_direct()
+          
+          # Test QuickNode API
+          quicknode_ok = await test_quicknode_api_direct()
+          
+          if not helius_ok:
+              print("⚠️ Helius API issues detected")
+          if not quicknode_ok:
+              print("⚠️ QuickNode API issues detected")
+          
+          if helius_ok and quicknode_ok:
+              print("✅ All APIs operational")
+          elif helius_ok or quicknode_ok:
+              print("⚠️ Partial API connectivity - proceeding with available APIs")
+          else:
+              raise Exception("No API connectivity - cannot proceed")
+      
+      asyncio.run(main())
+    workingDir: "{{ vars.workspace_path }}"
+
+  # Task 4: Run Historical Backtesting
+  - id: run-backtest
+    type: io.kestra.plugin.scripts.python.Script
+    description: "Execute historical backtesting scenarios"
+    beforeCommands:
+      - cd {{ vars.workspace_path }}
+      - export APP_ENV={{ vars.app_env }}
+      - export PAPER_TRADING_MODE=true
+    script: |
+      import sys
+      import os
+      import asyncio
+      import json
+      from datetime import datetime
+      
+      # Add paths
+      sys.path.insert(0, 'tests/historical_data')
+      sys.path.insert(0, 'brain/src')
+      
+      from historical_testing_framework import HistoricalTestRunner, get_test_scenarios
+      
+      async def main():
+          print("🚀 Starting historical backtesting...")
+          
+          # Get scenarios to run
+          scenarios_to_run = {{ inputs.scenarios | tojson }}
+          print(f"Running scenarios: {scenarios_to_run}")
+          
+          # Initialize test runner
+          runner = HistoricalTestRunner()
+          await runner.initialize()
+          
+          results = []
+          
+          try:
+              # Run each selected scenario
+              for scenario_name in scenarios_to_run:
+                  print(f"\n📊 Running scenario: {scenario_name}")
+                  result = await runner.run_scenario(scenario_name)
+                  
+                  if result:
+                      results.append({
+                          'scenario': scenario_name,
+                          'return': result.total_return,
+                          'sharpe_ratio': result.sharpe_ratio,
+                          'win_rate': result.win_rate,
+                          'max_drawdown': result.max_drawdown,
+                          'total_trades': result.total_trades,
+                          'timestamp': datetime.now().isoformat()
+                      })
+                      print(f"✅ {scenario_name}: {result.total_return:.2f}% return")
+                  else:
+                      print(f"❌ {scenario_name}: Failed to execute")
+              
+              # Generate comprehensive report
+              report = runner.generate_report()
+              
+              # Save results
+              with open('/tmp/backtest_results.json', 'w') as f:
+                  json.dump({
+                      'individual_results': results,
+                      'summary_report': report,
+                      'environment': '{{ vars.app_env }}',
+                      'timestamp': datetime.now().isoformat()
+                  }, f, indent=2)
+              
+              print(f"\n📈 BACKTEST SUMMARY:")
+              print(f"Total scenarios: {len(results)}")
+              print(f"Average return: {report['summary']['average_return']:.2f}%")
+              print(f"Success rate: {report['summary']['success_rate']:.1f}%")
+              
+              print("✅ Backtesting completed successfully")
+              
+          finally:
+              await runner.close()
+      
+      asyncio.run(main())
+    workingDir: "{{ vars.workspace_path }}"
+    outputs:
+      - id: results_file
+        type: FILE
+        from: "/tmp/backtest_results.json"
+
+  # Task 5: Generate Report
+  - id: generate-report
+    type: io.kestra.plugin.scripts.python.Script
+    description: "Generate comprehensive backtest report"
+    beforeCommands:
+      - cd {{ vars.workspace_path }}
+    script: |
+      import json
+      import os
+      from datetime import datetime
+      
+      # Load results
+      with open('/tmp/backtest_results.json', 'r') as f:
+          data = json.load(f)
+      
+      results = data['individual_results']
+      report = data['summary_report']
+      
+      # Generate HTML report
+      html_report = f"""
+      <!DOCTYPE html>
+      <html>
+      <head>
+          <title>THE OVERMIND PROTOCOL - Backtest Report</title>
+          <style>
+              body {{ font-family: Arial, sans-serif; margin: 20px; }}
+              .header {{ background: #1e3a8a; color: white; padding: 20px; border-radius: 8px; }}
+              .summary {{ background: #f3f4f6; padding: 15px; margin: 20px 0; border-radius: 8px; }}
+              .scenario {{ border: 1px solid #d1d5db; margin: 10px 0; padding: 15px; border-radius: 8px; }}
+              .positive {{ color: #059669; }}
+              .negative {{ color: #dc2626; }}
+              table {{ width: 100%; border-collapse: collapse; margin: 20px 0; }}
+              th, td {{ border: 1px solid #d1d5db; padding: 8px; text-align: left; }}
+              th {{ background: #f9fafb; }}
+          </style>
+      </head>
+      <body>
+          <div class="header">
+              <h1>🧠 THE OVERMIND PROTOCOL</h1>
+              <h2>Historical Backtesting Report</h2>
+              <p>Environment: {data['environment']} | Generated: {data['timestamp']}</p>
+          </div>
+          
+          <div class="summary">
+              <h3>📊 Summary</h3>
+              <p><strong>Total Scenarios:</strong> {report['summary']['total_scenarios']}</p>
+              <p><strong>Success Rate:</strong> {report['summary']['success_rate']:.1f}%</p>
+              <p><strong>Average Return:</strong> <span class="{'positive' if report['summary']['average_return'] > 0 else 'negative'}">{report['summary']['average_return']:.2f}%</span></p>
+              <p><strong>Average Sharpe Ratio:</strong> {report['summary']['average_sharpe_ratio']:.2f}</p>
+          </div>
+          
+          <h3>📈 Individual Scenario Results</h3>
+          <table>
+              <tr>
+                  <th>Scenario</th>
+                  <th>Return (%)</th>
+                  <th>Sharpe Ratio</th>
+                  <th>Win Rate (%)</th>
+                  <th>Max Drawdown (%)</th>
+                  <th>Total Trades</th>
+              </tr>
+      """
+      
+      for result in results:
+          return_class = "positive" if result['return'] > 0 else "negative"
+          html_report += f"""
+              <tr>
+                  <td>{result['scenario']}</td>
+                  <td class="{return_class}">{result['return']:.2f}%</td>
+                  <td>{result['sharpe_ratio']:.2f}</td>
+                  <td>{result['win_rate']:.1f}%</td>
+                  <td>{result['max_drawdown']:.2f}%</td>
+                  <td>{result['total_trades']}</td>
+              </tr>
+          """
+      
+      html_report += """
+          </table>
+          
+          <div class="summary">
+              <h3>🎯 Recommendations</h3>
+              <ul>
+      """
+      
+      for rec in report.get('recommendations', []):
+          html_report += f"<li>{rec}</li>"
+      
+      html_report += """
+              </ul>
+          </div>
+      </body>
+      </html>
+      """
+      
+      # Save HTML report
+      with open('/tmp/backtest_report.html', 'w') as f:
+          f.write(html_report)
+      
+      print("✅ HTML report generated")
+    workingDir: "{{ vars.workspace_path }}"
+    outputs:
+      - id: html_report
+        type: FILE
+        from: "/tmp/backtest_report.html"
+
+  # Task 6: Notification
+  - id: send-notification
+    type: io.kestra.plugin.notifications.mail.MailSend
+    description: "Send completion notification"
+    from: "overmind-protocol@localhost"
+    to: ["{{ inputs.notification_email }}"]
+    subject: "THE OVERMIND PROTOCOL - Backtest Completed ({{ vars.app_env }})"
+    htmlTextContent: |
+      <h2>🧠 THE OVERMIND PROTOCOL</h2>
+      <h3>Historical Backtesting Completed</h3>
+      
+      <p><strong>Environment:</strong> {{ vars.app_env }}</p>
+      <p><strong>Scenarios:</strong> {{ inputs.scenarios | join(', ') }}</p>
+      <p><strong>Timestamp:</strong> {{ execution.startDate }}</p>
+      
+      <p>The historical backtesting workflow has completed successfully.</p>
+      <p>Please check the Kestra UI for detailed results and reports.</p>
+      
+      <p><em>THE OVERMIND PROTOCOL - Autonomous AI Trading System</em></p>
+    attachments:
+      - name: "backtest_results.json"
+        uri: "{{ outputs.run-backtest.results_file }}"
+      - name: "backtest_report.html"
+        uri: "{{ outputs.generate-report.html_report }}"
+
+triggers:
+  # Daily backtesting trigger
+  - id: daily-backtest
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "0 2 * * *"  # Run at 2 AM daily
+    inputs:
+      app_env: "development"
+      scenarios: 
+        - "Bull Market - SOL Rally"
+        - "Bear Market - Market Correction"
+      notification_email: "admin@overmind-protocol.com"

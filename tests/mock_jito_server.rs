@@ -1,6 +1,8 @@
 // THE OVERMIND PROTOCOL - Mock Jito Bundle Server for Testing
 // Simulates Jito Bundle API for comprehensive MEV protection testing
 
+#![allow(dead_code)]
+
 use axum::{
     http::StatusCode,
     response::Json,
@@ -121,31 +123,31 @@ impl MockJitoServer {
         } else {
             Duration::from_millis(self.config.bundle_processing_delay_ms)
         };
-        
+
         // Set to processing
         {
             let mut bundles = self.bundles.lock().await;
             bundles.insert(bundle_id.clone(), BundleStatus::Processing);
         }
-        
+
         tokio::time::sleep(processing_delay).await;
-        
+
         // Determine final status
         use rand::Rng;
         let success = rand::thread_rng().gen::<f64>() < self.config.bundle_success_rate;
-        
+
         let final_status = if success {
             BundleStatus::Confirmed
         } else {
             BundleStatus::Failed("Network congestion".to_string())
         };
-        
+
         // Update status
         {
             let mut bundles = self.bundles.lock().await;
             bundles.insert(bundle_id, final_status);
         }
-        
+
         // Update metrics
         {
             let mut metrics = self.metrics.lock().await;
@@ -174,37 +176,35 @@ async fn send_bundle_endpoint(
     Json(request): Json<SendBundleRequest>,
 ) -> Result<Json<SendBundleResponse>, StatusCode> {
     let _start_time = Instant::now();
-    
+
     // Validate bundle size
     if request.transactions.len() > server.config.max_bundle_size {
         return Err(StatusCode::BAD_REQUEST);
     }
-    
+
     // Update metrics
     {
         let mut metrics = server.metrics.lock().await;
         metrics.bundles_received += 1;
     }
-    
+
     // Generate bundle ID
     let bundle_id = format!("bundle_{}", Uuid::new_v4());
-    
+
     // Add to pending bundles
     {
         let mut bundles = server.bundles.lock().await;
         bundles.insert(bundle_id.clone(), BundleStatus::Pending);
     }
-    
+
     // Start async processing
     let server_clone = server.clone();
     let bundle_id_clone = bundle_id.clone();
     tokio::spawn(async move {
         server_clone.process_bundle(bundle_id_clone).await;
     });
-    
-    Ok(Json(SendBundleResponse {
-        result: bundle_id,
-    }))
+
+    Ok(Json(SendBundleResponse { result: bundle_id }))
 }
 
 /// Bundle status endpoint
@@ -213,7 +213,7 @@ async fn bundle_status_endpoint(
     axum::extract::Path(bundle_id): axum::extract::Path<String>,
 ) -> Result<Json<BundleStatusResponse>, StatusCode> {
     let bundles = server.bundles.lock().await;
-    
+
     match bundles.get(&bundle_id) {
         Some(status) => {
             let (status_str, error) = match status {
@@ -222,7 +222,7 @@ async fn bundle_status_endpoint(
                 BundleStatus::Confirmed => ("confirmed", None),
                 BundleStatus::Failed(err) => ("failed", Some(err.clone())),
             };
-            
+
             Ok(Json(BundleStatusResponse {
                 bundle_id,
                 status: status_str.to_string(),
@@ -244,12 +244,24 @@ async fn jito_metrics_endpoint(
 ) -> Json<Value> {
     let metrics = server.metrics.lock().await;
     let bundles = server.bundles.lock().await;
-    
-    let pending_count = bundles.values().filter(|s| matches!(s, BundleStatus::Pending)).count();
-    let processing_count = bundles.values().filter(|s| matches!(s, BundleStatus::Processing)).count();
-    let confirmed_count = bundles.values().filter(|s| matches!(s, BundleStatus::Confirmed)).count();
-    let failed_count = bundles.values().filter(|s| matches!(s, BundleStatus::Failed(_))).count();
-    
+
+    let pending_count = bundles
+        .values()
+        .filter(|s| matches!(s, BundleStatus::Pending))
+        .count();
+    let processing_count = bundles
+        .values()
+        .filter(|s| matches!(s, BundleStatus::Processing))
+        .count();
+    let confirmed_count = bundles
+        .values()
+        .filter(|s| matches!(s, BundleStatus::Confirmed))
+        .count();
+    let failed_count = bundles
+        .values()
+        .filter(|s| matches!(s, BundleStatus::Failed(_)))
+        .count();
+
     Json(json!({
         "bundles_received": metrics.bundles_received,
         "bundles_processed": metrics.bundles_processed,
@@ -294,12 +306,15 @@ mod tests {
             max_bundle_size: 5,
         };
         let server = MockJitoServer::new(3002, config);
-        
+
         let bundle_id = "test_bundle".to_string();
         server.process_bundle(bundle_id.clone()).await;
-        
+
         let bundles = server.bundles.lock().await;
-        assert!(matches!(bundles.get(&bundle_id), Some(BundleStatus::Confirmed)));
+        assert!(matches!(
+            bundles.get(&bundle_id),
+            Some(BundleStatus::Confirmed)
+        ));
     }
 
     #[tokio::test]

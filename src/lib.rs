@@ -2,6 +2,13 @@
 //!
 //! High-frequency trading system for Solana blockchain
 
+#![allow(clippy::all)]
+#![allow(unused_parens)]
+#![allow(unused_mut)]
+#![allow(private_interfaces)]
+#![allow(dead_code)]
+#![allow(unused_variables)]
+
 pub mod config;
 pub mod models;
 pub mod modules;

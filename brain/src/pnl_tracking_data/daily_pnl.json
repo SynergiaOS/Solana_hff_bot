@@ -1,0 +1,112 @@
+{
+  "initial_balance": 10000.0,
+  "current_balance": 10450,
+  "records": [
+    {
+      "date": "2025-06-27",
+      "opening_balance": 10000,
+      "closing_balance": 10050,
+      "daily_pnl": 50,
+      "daily_pnl_pct": 0.5,
+      "total_pnl": 50.0,
+      "total_pnl_pct": 0.5,
+      "trades_count": 2,
+      "winning_trades": 1,
+      "losing_trades": 1,
+      "largest_win": 25,
+      "largest_loss": -15,
+      "total_fees": 4.0,
+      "sharpe_ratio_daily": 0.0,
+      "max_drawdown": 0.0,
+      "positions_held": {
+        "SOL": {
+          "quantity": 1.5,
+          "value": 150
+        }
+      },
+      "notes": ""
+    },
+    {
+      "date": "2025-06-28",
+      "opening_balance": 10100,
+      "closing_balance": 10050,
+      "daily_pnl": -50,
+      "daily_pnl_pct": -0.49504950495049505,
+      "total_pnl": 50.0,
+      "total_pnl_pct": 0.5,
+      "trades_count": 1,
+      "winning_trades": 0,
+      "losing_trades": 1,
+      "largest_win": -30,
+      "largest_loss": -30,
+      "total_fees": 3.0,
+      "sharpe_ratio_daily": 0.0,
+      "max_drawdown": 0.0,
+      "positions_held": {},
+      "notes": ""
+    },
+    {
+      "date": "2025-06-29",
+      "opening_balance": 10200,
+      "closing_balance": 10250,
+      "daily_pnl": 50,
+      "daily_pnl_pct": 0.49019607843137253,
+      "total_pnl": 250.0,
+      "total_pnl_pct": 2.5,
+      "trades_count": 2,
+      "winning_trades": 1,
+      "losing_trades": 1,
+      "largest_win": 25,
+      "largest_loss": -15,
+      "total_fees": 4.0,
+      "sharpe_ratio_daily": 0.054055026639534515,
+      "max_drawdown": 0.0,
+      "positions_held": {},
+      "notes": ""
+    },
+    {
+      "date": "2025-06-30",
+      "opening_balance": 10300,
+      "closing_balance": 10250,
+      "daily_pnl": -50,
+      "daily_pnl_pct": -0.48543689320388345,
+      "total_pnl": 250.0,
+      "total_pnl_pct": 2.5,
+      "trades_count": 1,
+      "winning_trades": 0,
+      "losing_trades": 1,
+      "largest_win": -30,
+      "largest_loss": -30,
+      "total_fees": 3.0,
+      "sharpe_ratio_daily": 4.5808772659465316,
+      "max_drawdown": 0.0,
+      "positions_held": {
+        "SOL": {
+          "quantity": 1.5,
+          "value": 150
+        }
+      },
+      "notes": ""
+    },
+    {
+      "date": "2025-06-31",
+      "opening_balance": 10400,
+      "closing_balance": 10450,
+      "daily_pnl": 50,
+      "daily_pnl_pct": 0.4807692307692308,
+      "total_pnl": 450.0,
+      "total_pnl_pct": 4.5,
+      "trades_count": 2,
+      "winning_trades": 1,
+      "losing_trades": 1,
+      "largest_win": 25,
+      "largest_loss": -15,
+      "total_fees": 4.0,
+      "sharpe_ratio_daily": 0.06551811914131181,
+      "max_drawdown": 0.0,
+      "positions_held": {},
+      "notes": ""
+    }
+  ],
+  "last_updated": "2025-06-27T20:18:14.101873"
+}

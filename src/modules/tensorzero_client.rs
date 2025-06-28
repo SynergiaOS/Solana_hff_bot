@@ -1,14 +1,14 @@
 //! TensorZero Client Module
-//! 
+//!
 //! Provides real TensorZero API integration for AI-optimized transaction execution
 //! in THE OVERMIND PROTOCOL.
 
 use anyhow::{Context, Result};
-use tracing::{debug, error, info, warn};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
 use tokio::time::timeout;
+use tracing::{debug, error, info, warn};
 
 /// Configuration for TensorZero client
 #[derive(Debug, Clone)]
@@ -135,9 +135,12 @@ impl TensorZeroClient {
     /// Optimize trading signal using TensorZero AI
     pub async fn optimize_signal(&self, signal: TradingSignal) -> Result<OptimizationResponse> {
         let start_time = Instant::now();
-        
-        info!("🧠 Optimizing signal with TensorZero: {} {}", signal.action, signal.symbol);
-        
+
+        info!(
+            "🧠 Optimizing signal with TensorZero: {} {}",
+            signal.action, signal.symbol
+        );
+
         // Prepare optimization request
         let request = OptimizationRequest {
             signal: signal.clone(),
@@ -150,15 +153,19 @@ impl TensorZeroClient {
         // Make API request with timeout
         let response = timeout(
             Duration::from_millis(self.config.max_latency_ms),
-            self.make_optimization_request(request)
-        ).await
+            self.make_optimization_request(request),
+        )
+        .await
         .context("TensorZero optimization request timed out")?
         .context("TensorZero optimization request failed")?;
 
         let elapsed = start_time.elapsed();
-        
-        info!("✅ TensorZero optimization completed in {}ms, confidence: {:.2}", 
-              elapsed.as_millis(), response.confidence_score);
+
+        info!(
+            "✅ TensorZero optimization completed in {}ms, confidence: {:.2}",
+            elapsed.as_millis(),
+            response.confidence_score
+        );
 
         // Validate response
         self.validate_optimization_response(&response)?;
@@ -167,12 +174,16 @@ impl TensorZeroClient {
     }
 
     /// Make the actual HTTP request to TensorZero
-    async fn make_optimization_request(&self, request: OptimizationRequest) -> Result<OptimizationResponse> {
+    async fn make_optimization_request(
+        &self,
+        request: OptimizationRequest,
+    ) -> Result<OptimizationResponse> {
         let url = format!("{}/optimize", self.config.gateway_url);
-        
+
         debug!("Making TensorZero request to: {}", url);
-        
-        let response = self.http_client
+
+        let response = self
+            .http_client
             .post(&url)
             .header("Authorization", format!("Bearer {}", self.config.api_key))
             .header("Content-Type", "application/json")
@@ -185,7 +196,9 @@ impl TensorZeroClient {
             let status = response.status();
             let error_text = response.text().await.unwrap_or_default();
             return Err(anyhow::anyhow!(
-                "TensorZero API error {}: {}", status, error_text
+                "TensorZero API error {}: {}",
+                status,
+                error_text
             ));
         }
 
@@ -198,22 +211,25 @@ impl TensorZeroClient {
     }
 
     /// Build optimization context from current market conditions
-    async fn build_optimization_context(&self, signal: &TradingSignal) -> Result<OptimizationContext> {
+    async fn build_optimization_context(
+        &self,
+        signal: &TradingSignal,
+    ) -> Result<OptimizationContext> {
         // In production, this would gather real market data
         // For now, we'll use reasonable defaults based on the signal
-        
+
         let volatility = match signal.confidence {
-            c if c > 0.8 => 0.1,  // Low volatility for high confidence
-            c if c > 0.6 => 0.2,  // Medium volatility
-            _ => 0.3,             // High volatility for low confidence
+            c if c > 0.8 => 0.1, // Low volatility for high confidence
+            c if c > 0.6 => 0.2, // Medium volatility
+            _ => 0.3,            // High volatility for low confidence
         };
 
         Ok(OptimizationContext {
             market_conditions: "normal".to_string(),
             volatility,
-            liquidity: 0.8,  // Assume good liquidity
-            gas_price: 5000,  // Default priority fee
-            network_congestion: 0.3,  // Moderate congestion
+            liquidity: 0.8,          // Assume good liquidity
+            gas_price: 5000,         // Default priority fee
+            network_congestion: 0.3, // Moderate congestion
         })
     }
 
@@ -221,7 +237,10 @@ impl TensorZeroClient {
     fn validate_optimization_response(&self, response: &OptimizationResponse) -> Result<()> {
         // Check confidence score
         if response.confidence_score < 0.5 {
-            warn!("Low confidence score from TensorZero: {:.2}", response.confidence_score);
+            warn!(
+                "Low confidence score from TensorZero: {:.2}",
+                response.confidence_score
+            );
         }
 
         // Check estimated latency
@@ -235,7 +254,10 @@ impl TensorZeroClient {
 
         // Check risk assessment
         if response.risk_assessment.overall_risk > 0.8 {
-            warn!("High risk assessment from TensorZero: {:.2}", response.risk_assessment.overall_risk);
+            warn!(
+                "High risk assessment from TensorZero: {:.2}",
+                response.risk_assessment.overall_risk
+            );
         }
 
         Ok(())
@@ -244,16 +266,13 @@ impl TensorZeroClient {
     /// Health check for TensorZero service
     pub async fn health_check(&self) -> Result<bool> {
         let url = format!("{}/health", self.config.gateway_url);
-        
-        match timeout(
-            Duration::from_secs(5),
-            self.http_client.get(&url).send()
-        ).await {
+
+        match timeout(Duration::from_secs(5), self.http_client.get(&url).send()).await {
             Ok(Ok(response)) => Ok(response.status().is_success()),
             Ok(Err(e)) => {
                 error!("TensorZero health check failed: {}", e);
                 Ok(false)
-            },
+            }
             Err(_) => {
                 error!("TensorZero health check timed out");
                 Ok(false)
@@ -277,7 +296,7 @@ mod tests {
     async fn test_optimization_context_building() {
         let config = TensorZeroConfig::default();
         let client = TensorZeroClient::new(config).unwrap();
-        
+
         let signal = TradingSignal {
             symbol: "SOL/USDC".to_string(),
             action: "BUY".to_string(),

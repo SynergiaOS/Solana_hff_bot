@@ -1,13 +1,13 @@
 //! Metrics and Monitoring Module
-//! 
+//!
 //! Provides comprehensive performance metrics, latency tracking,
 //! and monitoring integration for THE OVERMIND PROTOCOL.
 
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use tracing::{info, debug};
-use serde::{Deserialize, Serialize};
+use tracing::{debug, info};
 
 /// Performance metrics for THE OVERMIND PROTOCOL
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -114,14 +114,23 @@ impl LatencyTracker {
     /// Finish tracking and return elapsed time
     pub fn finish(self) -> Duration {
         let elapsed = self.start_time.elapsed();
-        info!("✅ {} completed in {}ms", self.operation_name, elapsed.as_millis());
+        info!(
+            "✅ {} completed in {}ms",
+            self.operation_name,
+            elapsed.as_millis()
+        );
         elapsed
     }
 
     /// Finish tracking with a custom message
     pub fn finish_with_message(self, message: &str) -> Duration {
         let elapsed = self.start_time.elapsed();
-        info!("✅ {} - {} ({}ms)", self.operation_name, message, elapsed.as_millis());
+        info!(
+            "✅ {} - {} ({}ms)",
+            self.operation_name,
+            message,
+            elapsed.as_millis()
+        );
         elapsed
     }
 }
@@ -152,24 +161,28 @@ impl MetricsCollector {
             metrics.trading.total_trades += 1;
             metrics.trading.successful_trades += 1;
             metrics.trading.total_volume_usd += volume_usd;
-            
+
             // Update execution time metrics
             let execution_ms = execution_time.as_millis() as f64;
-            metrics.trading.avg_execution_time_ms = 
-                (metrics.trading.avg_execution_time_ms * (metrics.trading.total_trades - 1) as f64 + execution_ms) 
+            metrics.trading.avg_execution_time_ms = (metrics.trading.avg_execution_time_ms
+                * (metrics.trading.total_trades - 1) as f64
+                + execution_ms)
                 / metrics.trading.total_trades as f64;
-            
-            if metrics.trading.best_execution_time_ms == 0.0 || execution_ms < metrics.trading.best_execution_time_ms {
+
+            if metrics.trading.best_execution_time_ms == 0.0
+                || execution_ms < metrics.trading.best_execution_time_ms
+            {
                 metrics.trading.best_execution_time_ms = execution_ms;
             }
-            
+
             if execution_ms > metrics.trading.worst_execution_time_ms {
                 metrics.trading.worst_execution_time_ms = execution_ms;
             }
-            
+
             // Update win rate
-            metrics.trading.win_rate = 
-                (metrics.trading.successful_trades as f64 / metrics.trading.total_trades as f64) * 100.0;
+            metrics.trading.win_rate = (metrics.trading.successful_trades as f64
+                / metrics.trading.total_trades as f64)
+                * 100.0;
         }
     }
 
@@ -178,17 +191,19 @@ impl MetricsCollector {
         if let Ok(mut metrics) = self.metrics.lock() {
             metrics.trading.total_trades += 1;
             metrics.trading.failed_trades += 1;
-            
+
             // Update win rate
-            metrics.trading.win_rate = 
-                (metrics.trading.successful_trades as f64 / metrics.trading.total_trades as f64) * 100.0;
+            metrics.trading.win_rate = (metrics.trading.successful_trades as f64
+                / metrics.trading.total_trades as f64)
+                * 100.0;
         }
     }
 
     /// Record latency measurement
     pub fn record_latency(&self, operation: &str, latency: Duration) {
         if let Ok(mut measurements) = self.latency_measurements.lock() {
-            measurements.entry(operation.to_string())
+            measurements
+                .entry(operation.to_string())
                 .or_insert_with(Vec::new)
                 .push(latency);
         }
@@ -196,7 +211,7 @@ impl MetricsCollector {
         // Update specific latency metrics
         if let Ok(mut metrics) = self.metrics.lock() {
             let latency_ms = latency.as_millis() as f64;
-            
+
             match operation {
                 "rpc_call" => metrics.network.rpc_latency_ms = latency_ms,
                 "websocket" => metrics.network.websocket_latency_ms = latency_ms,
@@ -212,30 +227,38 @@ impl MetricsCollector {
     pub fn record_ai_optimization(&self, success: bool, confidence: f64, duration: Duration) {
         if let Ok(mut metrics) = self.metrics.lock() {
             metrics.ai.optimizations_performed += 1;
-            
+
             if success {
                 metrics.ai.successful_optimizations += 1;
             }
-            
+
             // Update average optimization time
             let duration_ms = duration.as_millis() as f64;
-            metrics.ai.avg_optimization_time_ms = 
-                (metrics.ai.avg_optimization_time_ms * (metrics.ai.optimizations_performed - 1) as f64 + duration_ms) 
+            metrics.ai.avg_optimization_time_ms = (metrics.ai.avg_optimization_time_ms
+                * (metrics.ai.optimizations_performed - 1) as f64
+                + duration_ms)
                 / metrics.ai.optimizations_performed as f64;
-            
+
             // Update average confidence score
-            metrics.ai.avg_confidence_score = 
-                (metrics.ai.avg_confidence_score * (metrics.ai.optimizations_performed - 1) as f64 + confidence) 
+            metrics.ai.avg_confidence_score = (metrics.ai.avg_confidence_score
+                * (metrics.ai.optimizations_performed - 1) as f64
+                + confidence)
                 / metrics.ai.optimizations_performed as f64;
-            
+
             // Update success rate
-            metrics.ai.optimization_success_rate = 
-                (metrics.ai.successful_optimizations as f64 / metrics.ai.optimizations_performed as f64) * 100.0;
+            metrics.ai.optimization_success_rate = (metrics.ai.successful_optimizations as f64
+                / metrics.ai.optimizations_performed as f64)
+                * 100.0;
         }
     }
 
     /// Update system metrics
-    pub fn update_system_metrics(&self, cpu_usage: f64, memory_usage_mb: f64, active_connections: u32) {
+    pub fn update_system_metrics(
+        &self,
+        cpu_usage: f64,
+        memory_usage_mb: f64,
+        active_connections: u32,
+    ) {
         if let Ok(mut metrics) = self.metrics.lock() {
             metrics.system.cpu_usage = cpu_usage;
             metrics.system.memory_usage_mb = memory_usage_mb;
@@ -265,7 +288,7 @@ impl MetricsCollector {
     /// Export metrics in Prometheus format
     pub fn export_prometheus_metrics(&self) -> String {
         let metrics = self.get_metrics();
-        
+
         format!(
             "# HELP overmind_trades_total Total number of trades executed\n\
              # TYPE overmind_trades_total counter\n\
@@ -302,22 +325,38 @@ impl MetricsCollector {
     /// Log performance summary
     pub fn log_performance_summary(&self) {
         let metrics = self.get_metrics();
-        
+
         info!("📊 PERFORMANCE SUMMARY:");
-        info!("  Trading: {} trades, {:.2}% win rate, ${:.2} volume", 
-              metrics.trading.total_trades, metrics.trading.win_rate, metrics.trading.total_volume_usd);
-        info!("  Execution: {:.1}ms avg, {:.1}ms best, {:.1}ms worst", 
-              metrics.trading.avg_execution_time_ms, metrics.trading.best_execution_time_ms, metrics.trading.worst_execution_time_ms);
-        info!("  Network: {:.1}ms RPC, {:.1}ms TensorZero, {:.1}ms Jito", 
-              metrics.network.rpc_latency_ms, metrics.network.tensorzero_latency_ms, metrics.network.jito_latency_ms);
-        info!("  AI: {} optimizations, {:.2}% success rate, {:.3} avg confidence", 
-              metrics.ai.optimizations_performed, metrics.ai.optimization_success_rate, metrics.ai.avg_confidence_score);
-        info!("  System: {:.1}% CPU, {:.1}MB RAM, {}s uptime", 
-              metrics.system.cpu_usage, metrics.system.memory_usage_mb, metrics.system.uptime_seconds);
+        info!(
+            "  Trading: {} trades, {:.2}% win rate, ${:.2} volume",
+            metrics.trading.total_trades,
+            metrics.trading.win_rate,
+            metrics.trading.total_volume_usd
+        );
+        info!(
+            "  Execution: {:.1}ms avg, {:.1}ms best, {:.1}ms worst",
+            metrics.trading.avg_execution_time_ms,
+            metrics.trading.best_execution_time_ms,
+            metrics.trading.worst_execution_time_ms
+        );
+        info!(
+            "  Network: {:.1}ms RPC, {:.1}ms TensorZero, {:.1}ms Jito",
+            metrics.network.rpc_latency_ms,
+            metrics.network.tensorzero_latency_ms,
+            metrics.network.jito_latency_ms
+        );
+        info!(
+            "  AI: {} optimizations, {:.2}% success rate, {:.3} avg confidence",
+            metrics.ai.optimizations_performed,
+            metrics.ai.optimization_success_rate,
+            metrics.ai.avg_confidence_score
+        );
+        info!(
+            "  System: {:.1}% CPU, {:.1}MB RAM, {}s uptime",
+            metrics.system.cpu_usage, metrics.system.memory_usage_mb, metrics.system.uptime_seconds
+        );
     }
 }
-
-
 
 impl Default for TradingMetrics {
     fn default() -> Self {
@@ -402,7 +441,7 @@ mod tests {
     fn test_trade_recording() {
         let collector = MetricsCollector::new();
         collector.record_successful_trade(100.0, Duration::from_millis(50));
-        
+
         let metrics = collector.get_metrics();
         assert_eq!(metrics.trading.total_trades, 1);
         assert_eq!(metrics.trading.successful_trades, 1);

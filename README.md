@@ -1,48 +1,65 @@
-# 🚀 THE OVERMIND PROTOCOL - Refactored Structure
+# 🚀 THE OVERMIND PROTOCOL - Clean Architecture
 
 ## 📁 Project Structure
 
 ```
-├── brain/                  # AI Brain (Python)
-├── src/                   # Rust Executor
-├── deployment/            # Deployment files
-│   ├── docker-compose/    # Docker compose files
-│   ├── scripts/          # Deployment scripts
-│   └── configs/          # Configuration files
-├── testing/              # Testing framework
-│   ├── scripts/         # Test scripts
-│   └── results/         # Test results
-├── docs/                # Documentation
-├── infrastructure/      # Infrastructure configs
-├── monitoring/         # Monitoring setup
-├── config/             # Environment configs
-├── scripts/            # Core utility scripts
-├── archive/            # Archived files
-│   └── backups/        # Old backups
-└── logs/               # System logs
-    └── archive/        # Archived logs
+├── brain/                     # 🧠 AI Brain (Python) - Layer 3: Intelligence
+│   ├── src/                   # Core AI components
+│   ├── Dockerfile             # Container definition
+│   └── pyproject.toml         # Python dependencies (uv managed)
+├── src/                       # ⚡ Rust HFT Executor - Layer 4: Execution
+│   ├── modules/               # Trading modules
+│   ├── config/                # Rust configuration
+│   └── main.rs                # Main entry point
+├── mission_control/           # 🎛️ Mission Control Dashboard
+│   ├── app.py                 # Streamlit dashboard (FIXED AttributeError)
+│   ├── Dockerfile             # Container definition
+│   └── pyproject.toml         # Dependencies (uv managed)
+├── deployment/                # 🚀 Deployment & Infrastructure
+│   ├── docker-compose/        # Production compose files
+│   └── scripts/               # Deployment automation
+├── docs/                      # 📚 Documentation
+│   ├── LOCAL_DEVELOPMENT_GUIDE.md  # Local dev workflow
+│   └── architecture/          # System architecture docs
+├── scripts/                   # 🛠️ Utility Scripts
+│   ├── start-local-dev.sh     # Local development startup
+│   └── deployment/            # Production deployment scripts
+├── monitoring/                # 📊 Observability
+│   ├── prometheus.yml         # Metrics collection
+│   └── grafana/               # Dashboards
+├── wallets/                   # 🔐 Wallet Management
+├── logs/                      # 📋 System Logs
+├── tests/                     # 🧪 Test Suite
+├── docker-compose.local.yml   # 🏗️ Local Development Environment
+├── .env.local                 # 🔧 Local Environment Template
+└── pixi.toml                  # 📦 Unified Dependency Management
 ```
 
 ## 🚀 Quick Start
 
-### Development
+### 🏗️ Local Development (NEW!)
+
 ```bash
-docker-compose -f deployment/docker-compose/docker-compose.yml up
+# Professional local development environment
+./scripts/start-local-dev.sh
+
+# Access Mission Control Dashboard
+open http://localhost:8501
 ```
 
-### Production
+### 🚀 Production Deployment
+
 ```bash
-docker-compose -f deployment/docker-compose/docker-compose.overmind.yml up
+# Deploy to production server
+docker-compose -f deployment/docker-compose/docker-compose.overmind.yml up --build -d
 ```
 
-### Deployment
-```bash
-./deployment/scripts/deploy-overmind.sh
-```
+### 🧪 Testing
 
-### Testing
 ```bash
-./testing/scripts/test-overmind-complete.sh
+# Run complete test suite
+pixi run test-agent  # Python tests
+cargo test           # Rust tests
 ```
 
 ## 📊 Test Results

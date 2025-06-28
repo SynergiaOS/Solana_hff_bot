@@ -1,5 +1,5 @@
 //! Real-time Performance Monitor Module
-//! 
+//!
 //! Advanced real-time monitoring and alerting system for THE OVERMIND PROTOCOL
 //! with sub-millisecond precision and adaptive thresholds.
 
@@ -9,7 +9,7 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::{broadcast, Mutex, RwLock};
-use tracing::{debug, info, warn, error};
+use tracing::{debug, error, info, warn};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MonitoringConfig {
@@ -27,14 +27,14 @@ pub struct MonitoringConfig {
 impl Default for MonitoringConfig {
     fn default() -> Self {
         Self {
-            latency_threshold_ms: 25.0,    // Sub-25ms target
+            latency_threshold_ms: 25.0,      // Sub-25ms target
             throughput_threshold_tps: 100.0, // 100 TPS minimum
-            error_rate_threshold: 0.01,    // 1% error rate
-            memory_threshold_mb: 1024.0,   // 1GB memory threshold
-            cpu_threshold_percent: 80.0,   // 80% CPU threshold
-            alert_cooldown_seconds: 300,   // 5 minutes between alerts
-            metrics_retention_minutes: 60, // Keep 1 hour of metrics
-            sampling_interval_ms: 100,     // Sample every 100ms
+            error_rate_threshold: 0.01,      // 1% error rate
+            memory_threshold_mb: 1024.0,     // 1GB memory threshold
+            cpu_threshold_percent: 80.0,     // 80% CPU threshold
+            alert_cooldown_seconds: 300,     // 5 minutes between alerts
+            metrics_retention_minutes: 60,   // Keep 1 hour of metrics
+            sampling_interval_ms: 100,       // Sample every 100ms
             adaptive_thresholds_enabled: true,
         }
     }
@@ -100,7 +100,7 @@ impl MetricWindow {
 
     pub fn add_value(&mut self, timestamp: u64, value: f64) {
         self.values.push_back((timestamp, value));
-        
+
         // Remove old values outside the window
         let cutoff = timestamp.saturating_sub(self.window_duration.as_millis() as u64);
         while let Some(&(ts, _)) = self.values.front() {
@@ -116,7 +116,7 @@ impl MetricWindow {
         if self.values.is_empty() {
             return 0.0;
         }
-        
+
         let sum: f64 = self.values.iter().map(|(_, v)| v).sum();
         sum / self.values.len() as f64
     }
@@ -130,7 +130,10 @@ impl MetricWindow {
         sorted_values.sort_by(|a, b| a.partial_cmp(b).unwrap());
 
         let index = (sorted_values.len() as f64 * percentile / 100.0) as usize;
-        sorted_values.get(index.min(sorted_values.len() - 1)).copied().unwrap_or(0.0)
+        sorted_values
+            .get(index.min(sorted_values.len() - 1))
+            .copied()
+            .unwrap_or(0.0)
     }
 
     pub fn get_max(&self) -> f64 {
@@ -138,7 +141,10 @@ impl MetricWindow {
     }
 
     pub fn get_min(&self) -> f64 {
-        self.values.iter().map(|(_, v)| *v).fold(f64::INFINITY, f64::min)
+        self.values
+            .iter()
+            .map(|(_, v)| *v)
+            .fold(f64::INFINITY, f64::min)
     }
 
     pub fn get_count(&self) -> usize {
@@ -168,7 +174,8 @@ impl AdaptiveThreshold {
 
     pub fn update(&mut self, current_average: f64) {
         // Exponential moving average for baseline
-        self.baseline = self.baseline * (1.0 - self.adaptation_rate) + current_average * self.adaptation_rate;
+        self.baseline =
+            self.baseline * (1.0 - self.adaptation_rate) + current_average * self.adaptation_rate;
     }
 
     pub fn get_threshold(&self) -> f64 {
@@ -207,17 +214,19 @@ impl RealtimeMonitor {
             MetricType::AIDecisionLatency,
         ] {
             metrics.insert(metric_type.clone(), MetricWindow::new(window_duration));
-            
+
             let threshold = match metric_type {
-                MetricType::Latency | MetricType::TradingSignalLatency | 
-                MetricType::ExecutionLatency | MetricType::AIDecisionLatency => config.latency_threshold_ms,
+                MetricType::Latency
+                | MetricType::TradingSignalLatency
+                | MetricType::ExecutionLatency
+                | MetricType::AIDecisionLatency => config.latency_threshold_ms,
                 MetricType::Throughput => config.throughput_threshold_tps,
                 MetricType::ErrorRate => config.error_rate_threshold,
                 MetricType::MemoryUsage => config.memory_threshold_mb,
                 MetricType::CpuUsage => config.cpu_threshold_percent,
                 _ => 100.0,
             };
-            
+
             adaptive_thresholds.insert(metric_type, AdaptiveThreshold::new(threshold, 1.5));
         }
 
@@ -254,8 +263,9 @@ impl RealtimeMonitor {
         let config = self.config.clone();
 
         let handle = tokio::spawn(async move {
-            let mut interval = tokio::time::interval(Duration::from_millis(config.sampling_interval_ms));
-            
+            let mut interval =
+                tokio::time::interval(Duration::from_millis(config.sampling_interval_ms));
+
             loop {
                 interval.tick().await;
                 let timestamp = SystemTime::now()
@@ -270,15 +280,15 @@ impl RealtimeMonitor {
 
                 // Update metrics
                 let mut metrics_guard = metrics.write().await;
-                
+
                 if let Some(window) = metrics_guard.get_mut(&MetricType::CpuUsage) {
                     window.add_value(timestamp, cpu_usage);
                 }
-                
+
                 if let Some(window) = metrics_guard.get_mut(&MetricType::MemoryUsage) {
                     window.add_value(timestamp, memory_usage);
                 }
-                
+
                 if let Some(window) = metrics_guard.get_mut(&MetricType::NetworkLatency) {
                     window.add_value(timestamp, network_latency);
                 }
@@ -294,20 +304,23 @@ impl RealtimeMonitor {
 
         let handle = tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(60)); // Update every minute
-            
+
             loop {
                 interval.tick().await;
-                
+
                 let metrics_guard = metrics.read().await;
                 let mut thresholds_guard = adaptive_thresholds.write().await;
-                
+
                 for (metric_type, window) in metrics_guard.iter() {
                     if let Some(threshold) = thresholds_guard.get_mut(metric_type) {
                         let current_average = window.get_average();
                         threshold.update(current_average);
-                        
-                        debug!("Updated adaptive threshold for {:?}: {:.2}", 
-                               metric_type, threshold.get_threshold());
+
+                        debug!(
+                            "Updated adaptive threshold for {:?}: {:.2}",
+                            metric_type,
+                            threshold.get_threshold()
+                        );
                     }
                 }
             }
@@ -324,15 +337,16 @@ impl RealtimeMonitor {
         let config = self.config.clone();
 
         let handle = tokio::spawn(async move {
-            let mut interval = tokio::time::interval(Duration::from_millis(config.sampling_interval_ms));
-            
+            let mut interval =
+                tokio::time::interval(Duration::from_millis(config.sampling_interval_ms));
+
             loop {
                 interval.tick().await;
-                
+
                 let metrics_guard = metrics.read().await;
                 let thresholds_guard = adaptive_thresholds.read().await;
                 let mut alert_times_guard = last_alert_times.lock().await;
-                
+
                 for (metric_type, window) in metrics_guard.iter() {
                     if let Some(threshold_config) = thresholds_guard.get(metric_type) {
                         let current_value = window.get_average();
@@ -340,8 +354,10 @@ impl RealtimeMonitor {
                             threshold_config.get_threshold()
                         } else {
                             match metric_type {
-                                MetricType::Latency | MetricType::TradingSignalLatency | 
-                                MetricType::ExecutionLatency | MetricType::AIDecisionLatency => config.latency_threshold_ms,
+                                MetricType::Latency
+                                | MetricType::TradingSignalLatency
+                                | MetricType::ExecutionLatency
+                                | MetricType::AIDecisionLatency => config.latency_threshold_ms,
                                 MetricType::Throughput => config.throughput_threshold_tps,
                                 MetricType::ErrorRate => config.error_rate_threshold,
                                 MetricType::MemoryUsage => config.memory_threshold_mb,
@@ -359,25 +375,36 @@ impl RealtimeMonitor {
                         if should_alert {
                             let alert_key = format!("{:?}", metric_type);
                             let now = Instant::now();
-                            
+
                             // Check cooldown
-                            let should_send_alert = if let Some(last_alert) = alert_times_guard.get(&alert_key) {
-                                now.duration_since(*last_alert).as_secs() >= config.alert_cooldown_seconds
-                            } else {
-                                true
-                            };
+                            let should_send_alert =
+                                if let Some(last_alert) = alert_times_guard.get(&alert_key) {
+                                    now.duration_since(*last_alert).as_secs()
+                                        >= config.alert_cooldown_seconds
+                                } else {
+                                    true
+                                };
 
                             if should_send_alert {
-                                let severity = Self::determine_alert_severity(current_value, threshold, metric_type);
+                                let severity = Self::determine_alert_severity(
+                                    current_value,
+                                    threshold,
+                                    metric_type,
+                                );
                                 let alert = Alert {
                                     id: uuid::Uuid::new_v4().to_string(),
                                     timestamp: SystemTime::now()
                                         .duration_since(UNIX_EPOCH)
                                         .unwrap()
-                                        .as_millis() as u64,
+                                        .as_millis()
+                                        as u64,
                                     severity,
                                     metric_type: metric_type.clone(),
-                                    message: Self::generate_alert_message(metric_type, current_value, threshold),
+                                    message: Self::generate_alert_message(
+                                        metric_type,
+                                        current_value,
+                                        threshold,
+                                    ),
                                     current_value,
                                     threshold,
                                     tags: HashMap::new(),
@@ -398,7 +425,12 @@ impl RealtimeMonitor {
         self.monitoring_tasks.push(handle);
     }
 
-    pub async fn record_metric(&self, metric_type: MetricType, value: f64, _tags: Option<HashMap<String, String>>) {
+    pub async fn record_metric(
+        &self,
+        metric_type: MetricType,
+        value: f64,
+        _tags: Option<HashMap<String, String>>,
+    ) {
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
@@ -411,9 +443,14 @@ impl RealtimeMonitor {
 
         // Log high-priority metrics
         match metric_type {
-            MetricType::TradingSignalLatency | MetricType::ExecutionLatency | MetricType::AIDecisionLatency => {
+            MetricType::TradingSignalLatency
+            | MetricType::ExecutionLatency
+            | MetricType::AIDecisionLatency => {
                 if value > self.config.latency_threshold_ms {
-                    warn!("High latency detected for {:?}: {:.2}ms", metric_type, value);
+                    warn!(
+                        "High latency detected for {:?}: {:.2}ms",
+                        metric_type, value
+                    );
                 }
             }
             _ => {}
@@ -459,12 +496,18 @@ impl RealtimeMonitor {
         10.0 + rand::random::<f64>() * 20.0
     }
 
-    fn determine_alert_severity(current_value: f64, threshold: f64, metric_type: &MetricType) -> AlertSeverity {
+    fn determine_alert_severity(
+        current_value: f64,
+        threshold: f64,
+        metric_type: &MetricType,
+    ) -> AlertSeverity {
         let ratio = current_value / threshold;
-        
+
         match metric_type {
-            MetricType::Latency | MetricType::TradingSignalLatency | 
-            MetricType::ExecutionLatency | MetricType::AIDecisionLatency => {
+            MetricType::Latency
+            | MetricType::TradingSignalLatency
+            | MetricType::ExecutionLatency
+            | MetricType::AIDecisionLatency => {
                 if ratio > 3.0 {
                     AlertSeverity::Emergency
                 } else if ratio > 2.0 {
@@ -487,23 +530,55 @@ impl RealtimeMonitor {
         }
     }
 
-    fn generate_alert_message(metric_type: &MetricType, current_value: f64, threshold: f64) -> String {
+    fn generate_alert_message(
+        metric_type: &MetricType,
+        current_value: f64,
+        threshold: f64,
+    ) -> String {
         match metric_type {
-            MetricType::Latency => format!("High latency detected: {:.2}ms (threshold: {:.2}ms)", current_value, threshold),
-            MetricType::TradingSignalLatency => format!("Trading signal latency exceeded: {:.2}ms (threshold: {:.2}ms)", current_value, threshold),
-            MetricType::ExecutionLatency => format!("Execution latency exceeded: {:.2}ms (threshold: {:.2}ms)", current_value, threshold),
-            MetricType::AIDecisionLatency => format!("AI decision latency exceeded: {:.2}ms (threshold: {:.2}ms)", current_value, threshold),
-            MetricType::Throughput => format!("Low throughput detected: {:.2} TPS (threshold: {:.2} TPS)", current_value, threshold),
-            MetricType::ErrorRate => format!("High error rate detected: {:.2}% (threshold: {:.2}%)", current_value * 100.0, threshold * 100.0),
-            MetricType::MemoryUsage => format!("High memory usage detected: {:.2}MB (threshold: {:.2}MB)", current_value, threshold),
-            MetricType::CpuUsage => format!("High CPU usage detected: {:.2}% (threshold: {:.2}%)", current_value, threshold),
-            _ => format!("Threshold exceeded for {:?}: {:.2} (threshold: {:.2})", metric_type, current_value, threshold),
+            MetricType::Latency => format!(
+                "High latency detected: {:.2}ms (threshold: {:.2}ms)",
+                current_value, threshold
+            ),
+            MetricType::TradingSignalLatency => format!(
+                "Trading signal latency exceeded: {:.2}ms (threshold: {:.2}ms)",
+                current_value, threshold
+            ),
+            MetricType::ExecutionLatency => format!(
+                "Execution latency exceeded: {:.2}ms (threshold: {:.2}ms)",
+                current_value, threshold
+            ),
+            MetricType::AIDecisionLatency => format!(
+                "AI decision latency exceeded: {:.2}ms (threshold: {:.2}ms)",
+                current_value, threshold
+            ),
+            MetricType::Throughput => format!(
+                "Low throughput detected: {:.2} TPS (threshold: {:.2} TPS)",
+                current_value, threshold
+            ),
+            MetricType::ErrorRate => format!(
+                "High error rate detected: {:.2}% (threshold: {:.2}%)",
+                current_value * 100.0,
+                threshold * 100.0
+            ),
+            MetricType::MemoryUsage => format!(
+                "High memory usage detected: {:.2}MB (threshold: {:.2}MB)",
+                current_value, threshold
+            ),
+            MetricType::CpuUsage => format!(
+                "High CPU usage detected: {:.2}% (threshold: {:.2}%)",
+                current_value, threshold
+            ),
+            _ => format!(
+                "Threshold exceeded for {:?}: {:.2} (threshold: {:.2})",
+                metric_type, current_value, threshold
+            ),
         }
     }
 
     pub async fn shutdown(&mut self) -> Result<()> {
         info!("🛑 Shutting down Real-time Performance Monitor");
-        
+
         // Cancel all monitoring tasks
         for handle in self.monitoring_tasks.drain(..) {
             handle.abort();

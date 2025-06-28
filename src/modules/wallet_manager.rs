@@ -158,20 +158,23 @@ impl WalletManager {
     /// Initialize wallet manager with configuration
     pub async fn initialize(&mut self, wallet_configs: Vec<WalletConfig>) -> Result<()> {
         info!("🏦 Initializing THE OVERMIND PROTOCOL Multi-Wallet Manager");
-        
+
         let mut wallets = self.wallets.write().await;
         let mut strategy_mapping = self.strategy_wallet_mapping.write().await;
-        
+
         for config in wallet_configs {
             // Validate wallet configuration
             self.validate_wallet_config(&config)?;
-            
+
             // Set first active wallet as default
             if self.default_wallet_id.is_none() && config.status == WalletStatus::Active {
                 self.default_wallet_id = Some(config.wallet_id.clone());
-                info!("🎯 Set default wallet: {} ({})", config.name, config.wallet_id);
+                info!(
+                    "🎯 Set default wallet: {} ({})",
+                    config.name, config.wallet_id
+                );
             }
-            
+
             // Build strategy mapping
             for allocation in &config.strategy_allocation {
                 if allocation.enabled {
@@ -181,26 +184,29 @@ impl WalletManager {
                         .push(config.wallet_id.clone());
                 }
             }
-            
+
             info!(
                 "✅ Loaded wallet: {} ({}) - Type: {:?}, Status: {:?}",
                 config.name, config.wallet_id, config.wallet_type, config.status
             );
-            
+
             wallets.insert(config.wallet_id.clone(), config);
         }
-        
-        info!("🏦 Multi-Wallet Manager initialized with {} wallets", wallets.len());
+
+        info!(
+            "🏦 Multi-Wallet Manager initialized with {} wallets",
+            wallets.len()
+        );
         Ok(())
     }
 
     /// Add new wallet to the system
     pub async fn add_wallet(&self, config: WalletConfig) -> Result<()> {
         self.validate_wallet_config(&config)?;
-        
+
         let mut wallets = self.wallets.write().await;
         let mut strategy_mapping = self.strategy_wallet_mapping.write().await;
-        
+
         // Update strategy mapping
         for allocation in &config.strategy_allocation {
             if allocation.enabled {
@@ -210,68 +216,74 @@ impl WalletManager {
                     .push(config.wallet_id.clone());
             }
         }
-        
-        info!("➕ Added new wallet: {} ({})", config.name, config.wallet_id);
+
+        info!(
+            "➕ Added new wallet: {} ({})",
+            config.name, config.wallet_id
+        );
         wallets.insert(config.wallet_id.clone(), config);
-        
+
         Ok(())
     }
 
     /// Select optimal wallet for trade execution
-    pub async fn select_wallet(&self, criteria: WalletSelectionCriteria) -> Result<WalletSelection> {
+    pub async fn select_wallet(
+        &self,
+        criteria: WalletSelectionCriteria,
+    ) -> Result<WalletSelection> {
         let wallets = self.wallets.read().await;
         let metrics = self.wallet_metrics.read().await;
         let strategy_mapping = self.strategy_wallet_mapping.read().await;
-        
+
         // Get candidate wallets for this strategy
         let candidate_wallet_ids = strategy_mapping
             .get(&criteria.strategy_type)
             .cloned()
             .unwrap_or_default();
-        
+
         if candidate_wallet_ids.is_empty() {
-            return Err(anyhow!("No wallets configured for strategy: {:?}", criteria.strategy_type));
+            return Err(anyhow!(
+                "No wallets configured for strategy: {:?}",
+                criteria.strategy_type
+            ));
         }
-        
+
         let mut best_wallet: Option<WalletSelection> = None;
         let mut best_score = 0.0;
-        
+
         for wallet_id in candidate_wallet_ids {
             if criteria.exclude_wallets.contains(&wallet_id) {
                 continue;
             }
-            
-            let wallet_config = wallets.get(&wallet_id)
+
+            let wallet_config = wallets
+                .get(&wallet_id)
                 .ok_or_else(|| anyhow!("Wallet not found: {}", wallet_id))?;
-            
+
             // Skip inactive wallets
             if wallet_config.status != WalletStatus::Active {
                 continue;
             }
-            
+
             // Check wallet type preference
             if let Some(preferred_type) = &criteria.preferred_wallet_type {
                 if &wallet_config.wallet_type != preferred_type {
                     continue;
                 }
             }
-            
+
             let wallet_metrics = metrics.get(&wallet_id);
-            
+
             // Calculate selection score
-            let score = self.calculate_wallet_score(
-                wallet_config,
-                wallet_metrics,
-                &criteria,
-            ).await?;
-            
+            let score = self
+                .calculate_wallet_score(wallet_config, wallet_metrics, &criteria)
+                .await?;
+
             if score > best_score {
-                let available_balance = wallet_metrics
-                    .map(|m| m.sol_balance)
-                    .unwrap_or(0.0);
-                
+                let available_balance = wallet_metrics.map(|m| m.sol_balance).unwrap_or(0.0);
+
                 let risk_capacity = self.calculate_risk_capacity(wallet_config, wallet_metrics);
-                
+
                 best_score = score;
                 best_wallet = Some(WalletSelection {
                     wallet_id: wallet_id.clone(),
@@ -282,14 +294,15 @@ impl WalletManager {
                 });
             }
         }
-        
+
         best_wallet.ok_or_else(|| anyhow!("No suitable wallet found for criteria"))
     }
 
     /// Get wallet by ID
     pub async fn get_wallet(&self, wallet_id: &str) -> Result<WalletConfig> {
         let wallets = self.wallets.read().await;
-        wallets.get(wallet_id)
+        wallets
+            .get(wallet_id)
             .cloned()
             .ok_or_else(|| anyhow!("Wallet not found: {}", wallet_id))
     }
@@ -297,7 +310,8 @@ impl WalletManager {
     /// Get wallet metrics
     pub async fn get_wallet_metrics(&self, wallet_id: &str) -> Result<WalletMetrics> {
         let metrics = self.wallet_metrics.read().await;
-        metrics.get(wallet_id)
+        metrics
+            .get(wallet_id)
             .cloned()
             .ok_or_else(|| anyhow!("Wallet metrics not found: {}", wallet_id))
     }
@@ -331,27 +345,31 @@ impl WalletManager {
         if config.wallet_id.is_empty() {
             return Err(anyhow!("Wallet ID cannot be empty"));
         }
-        
+
         // Validate private key format
         self.parse_private_key(&config.private_key)
             .context("Invalid private key format")?;
-        
+
         // Validate strategy allocations
-        let total_allocation: f64 = config.strategy_allocation
+        let total_allocation: f64 = config
+            .strategy_allocation
             .iter()
             .filter(|a| a.enabled)
             .map(|a| a.allocation_percentage)
             .sum();
-        
+
         if total_allocation > 100.0 {
-            return Err(anyhow!("Total strategy allocation exceeds 100%: {:.2}%", total_allocation));
+            return Err(anyhow!(
+                "Total strategy allocation exceeds 100%: {:.2}%",
+                total_allocation
+            ));
         }
-        
+
         // Validate risk limits
         if config.risk_limits.max_exposure_percentage > 100.0 {
             return Err(anyhow!("Max exposure percentage cannot exceed 100%"));
         }
-        
+
         Ok(())
     }
 
@@ -361,23 +379,21 @@ impl WalletManager {
         if private_key.starts_with('[') && private_key.ends_with(']') {
             let bytes: Vec<u8> = serde_json::from_str(private_key)
                 .context("Failed to parse private key as JSON array")?;
-            
+
             if bytes.len() != 64 {
                 return Err(anyhow!("Private key must be 64 bytes, got {}", bytes.len()));
             }
-            
-            return Keypair::from_bytes(&bytes)
-                .context("Failed to create keypair from bytes");
+
+            return Keypair::from_bytes(&bytes).context("Failed to create keypair from bytes");
         }
-        
+
         // Try base58 format
         if let Ok(bytes) = bs58::decode(private_key).into_vec() {
             if bytes.len() == 64 {
-                return Keypair::from_bytes(&bytes)
-                    .context("Failed to create keypair from base58");
+                return Keypair::from_bytes(&bytes).context("Failed to create keypair from base58");
             }
         }
-        
+
         Err(anyhow!("Unsupported private key format"))
     }
 
@@ -389,7 +405,7 @@ impl WalletManager {
         criteria: &WalletSelectionCriteria,
     ) -> Result<f64> {
         let mut score = 0.0;
-        
+
         // Base score from wallet type
         score += match wallet_config.wallet_type {
             WalletType::Primary => 10.0,
@@ -401,7 +417,7 @@ impl WalletManager {
             WalletType::Experimental => 4.0,
             WalletType::Emergency => 1.0,
         };
-        
+
         // Strategy allocation score
         for allocation in &wallet_config.strategy_allocation {
             if allocation.strategy_type == criteria.strategy_type && allocation.enabled {
@@ -409,27 +425,32 @@ impl WalletManager {
                 break;
             }
         }
-        
+
         // Balance and capacity score
         if let Some(metrics) = wallet_metrics {
             if metrics.sol_balance >= criteria.required_balance {
                 score += 5.0;
             }
-            
+
             // Performance score
             score += metrics.performance_score.min(5.0);
-            
+
             // Risk utilization (lower is better)
             score += (100.0 - metrics.risk_utilization) / 20.0; // Max 5 points
         }
-        
+
         Ok(score)
     }
 
     /// Calculate risk capacity for a wallet
-    fn calculate_risk_capacity(&self, config: &WalletConfig, metrics: Option<&WalletMetrics>) -> f64 {
+    fn calculate_risk_capacity(
+        &self,
+        config: &WalletConfig,
+        metrics: Option<&WalletMetrics>,
+    ) -> f64 {
         if let Some(metrics) = metrics {
-            let max_risk = config.risk_limits.max_exposure_percentage / 100.0 * metrics.total_value_usd;
+            let max_risk =
+                config.risk_limits.max_exposure_percentage / 100.0 * metrics.total_value_usd;
             let current_risk = metrics.risk_utilization / 100.0 * max_risk;
             max_risk - current_risk
         } else {
@@ -521,15 +542,13 @@ impl WalletConfigBuilder {
                 return Err(anyhow!("Private key must be 64 bytes, got {}", bytes.len()));
             }
 
-            return Keypair::from_bytes(&bytes)
-                .context("Failed to create keypair from bytes");
+            return Keypair::from_bytes(&bytes).context("Failed to create keypair from bytes");
         }
 
         // Try base58 format
         if let Ok(bytes) = bs58::decode(private_key).into_vec() {
             if bytes.len() == 64 {
-                return Keypair::from_bytes(&bytes)
-                    .context("Failed to create keypair from base58");
+                return Keypair::from_bytes(&bytes).context("Failed to create keypair from base58");
             }
         }
 
@@ -549,8 +568,6 @@ impl Default for WalletRiskLimits {
         }
     }
 }
-
-
 
 /// Multi-wallet transaction builder
 pub struct MultiWalletTransaction {
@@ -612,7 +629,10 @@ impl WalletManager {
             }
 
             let wallet_metrics = metrics.get(wallet_id);
-            let wallet_positions = positions.get(wallet_id).map(|p| p.len() as u32).unwrap_or(0);
+            let wallet_positions = positions
+                .get(wallet_id)
+                .map(|p| p.len() as u32)
+                .unwrap_or(0);
 
             if let Some(metrics) = wallet_metrics {
                 summary.total_value_usd += metrics.total_value_usd;
@@ -692,7 +712,8 @@ impl WalletManager {
 
     /// Load wallet configurations from file
     pub async fn load_from_config_file(&mut self, config_path: &str) -> Result<()> {
-        let config_content = tokio::fs::read_to_string(config_path).await
+        let config_content = tokio::fs::read_to_string(config_path)
+            .await
             .context("Failed to read wallet configuration file")?;
 
         let wallet_configs: Vec<WalletConfig> = serde_json::from_str(&config_content)
@@ -709,10 +730,15 @@ impl WalletManager {
         let config_content = serde_json::to_string_pretty(&wallet_configs)
             .context("Failed to serialize wallet configurations")?;
 
-        tokio::fs::write(config_path, config_content).await
+        tokio::fs::write(config_path, config_content)
+            .await
             .context("Failed to write wallet configuration file")?;
 
-        info!("💾 Saved {} wallet configurations to {}", wallet_configs.len(), config_path);
+        info!(
+            "💾 Saved {} wallet configurations to {}",
+            wallet_configs.len(),
+            config_path
+        );
         Ok(())
     }
 }

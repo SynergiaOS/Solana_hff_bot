@@ -54,14 +54,14 @@ impl MultiWalletConfig {
             .context("OVERMIND_MANAGED_WALLETS environment variable not set")?;
 
         let wallet_configs = Self::parse_managed_wallets(&managed_wallets)?;
-        
+
         // Set default wallet
-        let default_wallet_id = env::var("OVERMIND_DEFAULT_WALLET")
-            .unwrap_or_else(|_| {
-                wallet_configs.first()
-                    .map(|w| w.wallet_id.clone())
-                    .unwrap_or_else(|| "primary".to_string())
-            });
+        let default_wallet_id = env::var("OVERMIND_DEFAULT_WALLET").unwrap_or_else(|_| {
+            wallet_configs
+                .first()
+                .map(|w| w.wallet_id.clone())
+                .unwrap_or_else(|| "primary".to_string())
+        });
 
         // Build wallet configurations
         let mut wallets = HashMap::new();
@@ -69,7 +69,7 @@ impl MultiWalletConfig {
 
         for env_config in wallet_configs {
             let wallet_config = Self::build_wallet_config(env_config)?;
-            
+
             // Add to strategy routing
             for allocation in &wallet_config.strategy_allocation {
                 if allocation.enabled {
@@ -79,7 +79,7 @@ impl MultiWalletConfig {
                         .push(wallet_config.wallet_id.clone());
                 }
             }
-            
+
             wallets.insert(wallet_config.wallet_id.clone(), wallet_config);
         }
 
@@ -100,7 +100,7 @@ impl MultiWalletConfig {
 
         for wallet_def in managed_wallets.split(',') {
             let parts: Vec<&str> = wallet_def.split(':').collect();
-            
+
             if parts.len() != 5 {
                 return Err(anyhow!(
                     "Invalid wallet definition format. Expected 'id:path:type:risk:allocation', got: {}",
@@ -120,11 +120,13 @@ impl MultiWalletConfig {
                 _ => return Err(anyhow!("Invalid wallet type: {}", parts[2])),
             };
 
-            let max_allocation: f64 = parts[4].parse()
-                .context("Invalid allocation percentage")?;
+            let max_allocation: f64 = parts[4].parse().context("Invalid allocation percentage")?;
 
             if !(0.0..=1.0).contains(&max_allocation) {
-                return Err(anyhow!("Allocation must be between 0.0 and 1.0, got: {}", max_allocation));
+                return Err(anyhow!(
+                    "Allocation must be between 0.0 and 1.0, got: {}",
+                    max_allocation
+                ));
             }
 
             configs.push(EnvWalletConfig {
@@ -150,33 +152,37 @@ impl MultiWalletConfig {
         // Load private key from file or environment
         let private_key = if env_config.private_key_path.starts_with("env:") {
             let env_var = &env_config.private_key_path[4..];
-            env::var(env_var)
-                .context(format!("Environment variable {} not found", env_var))?
+            env::var(env_var).context(format!("Environment variable {} not found", env_var))?
         } else if Path::new(&env_config.private_key_path).exists() {
             std::fs::read_to_string(&env_config.private_key_path)
                 .context("Failed to read private key file")?
                 .trim()
                 .to_string()
         } else {
-            return Err(anyhow!("Private key path not found: {}", env_config.private_key_path));
+            return Err(anyhow!(
+                "Private key path not found: {}",
+                env_config.private_key_path
+            ));
         };
 
         // Create risk limits based on risk profile
-        let risk_limits = Self::create_risk_limits(&env_config.risk_profile, env_config.max_allocation)?;
+        let risk_limits =
+            Self::create_risk_limits(&env_config.risk_profile, env_config.max_allocation)?;
 
         // Create strategy allocations based on wallet type
-        let strategy_allocations = Self::create_strategy_allocations(&env_config.wallet_type, env_config.max_allocation);
+        let strategy_allocations =
+            Self::create_strategy_allocations(&env_config.wallet_type, env_config.max_allocation);
 
-        let mut builder = WalletConfigBuilder::new(
-            env_config.wallet_id.clone(),
-            env_config.name,
-            private_key,
-        )?;
+        let mut builder =
+            WalletConfigBuilder::new(env_config.wallet_id.clone(), env_config.name, private_key)?;
 
         builder = builder
             .wallet_type(env_config.wallet_type)
             .risk_limits(risk_limits)
-            .description(format!("Auto-configured {} wallet", env_config.risk_profile));
+            .description(format!(
+                "Auto-configured {} wallet",
+                env_config.risk_profile
+            ));
 
         // Add strategy allocations
         for (strategy_type, allocation_pct, max_position) in strategy_allocations {
@@ -236,9 +242,12 @@ impl MultiWalletConfig {
     }
 
     /// Create strategy allocations based on wallet type
-    fn create_strategy_allocations(wallet_type: &WalletType, max_allocation: f64) -> Vec<(StrategyType, f64, f64)> {
+    fn create_strategy_allocations(
+        wallet_type: &WalletType,
+        max_allocation: f64,
+    ) -> Vec<(StrategyType, f64, f64)> {
         let base_allocation = max_allocation * 100.0; // Convert to percentage
-        
+
         match wallet_type {
             WalletType::Primary => vec![
                 (StrategyType::TokenSniping, base_allocation * 0.4, 5000.0),
@@ -254,20 +263,26 @@ impl MultiWalletConfig {
                 (StrategyType::Arbitrage, base_allocation * 0.3, 500.0),
             ],
             WalletType::Experimental => vec![
-                (StrategyType::SoulMeteorSniping, base_allocation * 0.5, 200.0),
+                (
+                    StrategyType::SoulMeteorSniping,
+                    base_allocation * 0.5,
+                    200.0,
+                ),
                 (StrategyType::MeteoraDAMM, base_allocation * 0.3, 150.0),
-                (StrategyType::DeveloperTracking, base_allocation * 0.2, 100.0),
+                (
+                    StrategyType::DeveloperTracking,
+                    base_allocation * 0.2,
+                    100.0,
+                ),
             ],
-            WalletType::Arbitrage => vec![
-                (StrategyType::Arbitrage, base_allocation * 1.0, 15000.0),
-            ],
+            WalletType::Arbitrage => {
+                vec![(StrategyType::Arbitrage, base_allocation * 1.0, 15000.0)]
+            }
             WalletType::MEVProtection => vec![
                 (StrategyType::TokenSniping, base_allocation * 0.6, 8000.0),
                 (StrategyType::Arbitrage, base_allocation * 0.4, 5000.0),
             ],
-            _ => vec![
-                (StrategyType::MomentumTrading, base_allocation * 1.0, 1000.0),
-            ],
+            _ => vec![(StrategyType::MomentumTrading, base_allocation * 1.0, 1000.0)],
         }
     }
 
@@ -275,22 +290,24 @@ impl MultiWalletConfig {
     pub async fn save_to_file(&self, path: &str) -> Result<()> {
         let content = serde_json::to_string_pretty(self)
             .context("Failed to serialize multi-wallet configuration")?;
-        
-        tokio::fs::write(path, content).await
+
+        tokio::fs::write(path, content)
+            .await
             .context("Failed to write configuration file")?;
-        
+
         info!("💾 Saved multi-wallet configuration to {}", path);
         Ok(())
     }
 
     /// Load configuration from file
     pub async fn load_from_file(path: &str) -> Result<Self> {
-        let content = tokio::fs::read_to_string(path).await
+        let content = tokio::fs::read_to_string(path)
+            .await
             .context("Failed to read configuration file")?;
-        
-        let config: Self = serde_json::from_str(&content)
-            .context("Failed to parse configuration file")?;
-        
+
+        let config: Self =
+            serde_json::from_str(&content).context("Failed to parse configuration file")?;
+
         info!("📂 Loaded multi-wallet configuration from {}", path);
         Ok(config)
     }
@@ -303,27 +320,27 @@ impl GlobalWalletSettings {
                 .unwrap_or_else(|_| "10".to_string())
                 .parse()
                 .context("Invalid OVERMIND_MAX_CONCURRENT_WALLETS")?,
-            
+
             wallet_selection_timeout_ms: env::var("OVERMIND_WALLET_SELECTION_TIMEOUT_MS")
                 .unwrap_or_else(|_| "5000".to_string())
                 .parse()
                 .context("Invalid OVERMIND_WALLET_SELECTION_TIMEOUT_MS")?,
-            
+
             balance_check_interval_sec: env::var("OVERMIND_BALANCE_CHECK_INTERVAL_SEC")
                 .unwrap_or_else(|_| "300".to_string())
                 .parse()
                 .context("Invalid OVERMIND_BALANCE_CHECK_INTERVAL_SEC")?,
-            
+
             emergency_stop_threshold: env::var("OVERMIND_EMERGENCY_STOP_THRESHOLD")
                 .unwrap_or_else(|_| "0.1".to_string())
                 .parse()
                 .context("Invalid OVERMIND_EMERGENCY_STOP_THRESHOLD")?,
-            
+
             auto_rebalance_enabled: env::var("OVERMIND_AUTO_REBALANCE_ENABLED")
                 .unwrap_or_else(|_| "true".to_string())
                 .parse()
                 .context("Invalid OVERMIND_AUTO_REBALANCE_ENABLED")?,
-            
+
             risk_aggregation_enabled: env::var("OVERMIND_RISK_AGGREGATION_ENABLED")
                 .unwrap_or_else(|_| "true".to_string())
                 .parse()
@@ -357,7 +374,9 @@ impl ToTitleCase for str {
                 let mut chars = word.chars();
                 match chars.next() {
                     None => String::new(),
-                    Some(first) => first.to_uppercase().collect::<String>() + &chars.as_str().to_lowercase(),
+                    Some(first) => {
+                        first.to_uppercase().collect::<String>() + &chars.as_str().to_lowercase()
+                    }
                 }
             })
             .collect::<Vec<String>>()

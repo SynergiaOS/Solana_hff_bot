@@ -10,10 +10,60 @@ import json
 import time
 import pandas as pd
 import plotly.graph_objects as go
-import plotly.express as px
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, Optional, List
 import httpx
+from dataclasses import dataclass
+from enum import Enum
+
+# Data classes for proper type safety
+@dataclass
+class Goal:
+    """Goal data class for type-safe goal management."""
+    goal_type: str
+    target_sol: float
+    target_usd: float = 0.0
+    description: str = ""
+    created_at: str = ""
+    modified_at: str = ""
+    modified_by: str = ""
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'Goal':
+        """Create Goal from dictionary data."""
+        return cls(
+            goal_type=data.get('goal_type', 'REACH_BALANCE'),
+            target_sol=data.get('target_sol', 2.0),
+            target_usd=data.get('target_usd', 300.0),
+            description=data.get('description', ''),
+            created_at=data.get('created_at', datetime.now().isoformat()),
+            modified_at=data.get('modified_at', datetime.now().isoformat()),
+            modified_by=data.get('modified_by', 'system')
+        )
+
+class GoalType:
+    """Goal type constants."""
+    REACH_BALANCE = "REACH_BALANCE"
+    CAPITAL_PRESERVATION = "CAPITAL_PRESERVATION"
+    MAXIMIZE_PROFIT = "MAXIMIZE_PROFIT"
+
+# Helper function for timezone-aware UTC datetime
+def utc_now():
+    """Get current UTC time as timezone-aware datetime."""
+    return datetime.now(timezone.utc)
+
+# Helper function for safe goal attribute access
+def safe_goal_attr(goal, attr_name, default=None):
+    """Safely access goal attributes whether goal is object or dict."""
+    if goal is None:
+        return default
+
+    if hasattr(goal, attr_name):
+        return getattr(goal, attr_name)
+    elif isinstance(goal, dict):
+        return goal.get(attr_name, default)
+    else:
+        return default
 
 # Enhanced brain module path resolution for production environment
 def setup_brain_imports():
@@ -45,6 +95,8 @@ brain_paths = setup_brain_imports()
 
 # Import OVERMIND components with enhanced error handling
 OVERMIND_COMPONENTS_AVAILABLE = False
+INTELLIGENCE_LAYER_AVAILABLE = False
+
 try:
     from overmind_brain.goal_manager import dynamic_goal_manager, GoalType
     from overmind_brain.portfolio_monitor import PortfolioMonitor
@@ -55,6 +107,16 @@ except ImportError as e:
     print(f"⚠️ OVERMIND components not available: {e}")
     print("🔄 Running in simulation mode with mock data")
 
+# Try to import real Intelligence Layer
+try:
+    from overmind_brain.intelligence_layer import intelligence_layer, MarketIntelligence, TokenAnalysis
+    from overmind_brain.premium_api_manager import premium_api_manager
+    INTELLIGENCE_LAYER_AVAILABLE = True
+    print("✅ Successfully imported Intelligence Layer (real APIs)")
+except ImportError as e:
+    print(f"⚠️ Intelligence Layer not available: {e}")
+    print("🔄 Using mock intelligence data")
+
     # Create mock components for demonstration
     class MockGoalType:
         REACH_BALANCE = "REACH_BALANCE"
@@ -63,15 +125,23 @@ except ImportError as e:
 
     class MockDynamicGoalManager:
         async def get_current_goal(self):
-            return {"goal_type": "REACH_BALANCE", "target_sol": 2.0, "target_usd": 300.0}
+            return Goal.from_dict({
+                "goal_type": "REACH_BALANCE",
+                "target_sol": 2.0,
+                "target_usd": 300.0,
+                "description": "Reach target balance of 2.0 SOL",
+                "created_at": "2025-06-26T10:00:00Z",
+                "modified_at": "2025-06-26T10:00:00Z",
+                "modified_by": "mock_system"
+            })
 
         async def set_goal(self, goal_type=None, target_sol=None, target_usd=None, changed_by=None, change_reason=None, **kwargs):
             return {"success": True, "message": "Goal set successfully (mock mode)"}
 
         async def get_goal_history(self, limit=10):
             return [
-                {"goal_type": "REACH_BALANCE", "target_sol": 2.0, "created_at": "2025-06-26T10:00:00Z"},
-                {"goal_type": "MAXIMIZE_PROFIT", "target_sol": 1.5, "created_at": "2025-06-25T15:30:00Z"}
+                Goal.from_dict({"goal_type": "REACH_BALANCE", "target_sol": 2.0, "created_at": "2025-06-26T10:00:00Z"}),
+                Goal.from_dict({"goal_type": "MAXIMIZE_PROFIT", "target_sol": 1.5, "created_at": "2025-06-25T15:30:00Z"})
             ]
 
         async def get_status(self):
@@ -116,6 +186,77 @@ except ImportError as e:
     StrategyMapper = MockStrategyMapper
 
     st.warning("Using mock components for testing")
+
+# Real Intelligence Layer functions
+async def get_real_market_intelligence(token_address: str = "So11111111111111111111111111111111111111112"):
+    """Get real market intelligence using Intelligence Layer"""
+    if INTELLIGENCE_LAYER_AVAILABLE:
+        try:
+            if not intelligence_layer.initialized:
+                await intelligence_layer.initialize()
+
+            market_intel = await intelligence_layer.get_market_intelligence(token_address)
+            return {
+                'token_address': market_intel.token_address,
+                'price_data': market_intel.price_data,
+                'volume_data': market_intel.volume_data,
+                'confidence_score': market_intel.confidence_score,
+                'data_sources': market_intel.data_sources,
+                'timestamp': market_intel.timestamp,
+                'status': 'real_data'
+            }
+        except Exception as e:
+            print(f"Error getting real market intelligence: {e}")
+            return {'status': 'error', 'error': str(e)}
+    else:
+        return {'status': 'mock_data', 'message': 'Intelligence Layer not available'}
+
+async def get_real_token_analysis(mint_address: str):
+    """Get real token analysis using Intelligence Layer"""
+    if INTELLIGENCE_LAYER_AVAILABLE:
+        try:
+            if not intelligence_layer.initialized:
+                await intelligence_layer.initialize()
+
+            analysis = await intelligence_layer.analyze_token(mint_address)
+            return {
+                'mint_address': analysis.mint_address,
+                'metadata': analysis.metadata,
+                'recommendation': analysis.recommendation,
+                'confidence': analysis.confidence,
+                'risk_assessment': analysis.risk_assessment,
+                'timestamp': analysis.timestamp,
+                'status': 'real_analysis'
+            }
+        except Exception as e:
+            print(f"Error getting real token analysis: {e}")
+            return {'status': 'error', 'error': str(e)}
+    else:
+        return {'status': 'mock_data', 'message': 'Intelligence Layer not available'}
+
+async def get_api_utilization_status():
+    """Get API utilization status from premium API manager"""
+    if INTELLIGENCE_LAYER_AVAILABLE:
+        try:
+            report = premium_api_manager.get_api_utilization_report()
+            return {
+                'total_monthly_cost': report['total_monthly_cost'],
+                'helius_utilization': report['helius_utilization']['features_utilized'],
+                'quicknode_utilization': report['quicknode_utilization']['features_utilized'],
+                'overall_utilization': report['value_optimization']['overall_utilization'],
+                'status': 'real_data'
+            }
+        except Exception as e:
+            print(f"Error getting API utilization status: {e}")
+            return {'status': 'error', 'error': str(e)}
+    else:
+        return {
+            'status': 'mock_data',
+            'total_monthly_cost': 148.0,
+            'helius_utilization': 0,
+            'quicknode_utilization': 0,
+            'overall_utilization': 0.0
+        }
 
 # Page configuration
 st.set_page_config(
@@ -274,8 +415,18 @@ async def update_data():
                 # Enhanced simulated data with realistic progression
                 base_sol = 1.5
                 if st.session_state.current_goal:
-                    target_sol = st.session_state.current_goal.target_sol
-                    progress = min((base_sol / target_sol) * 100, 100.0)
+                    try:
+                        # Safe access to target_sol
+                        if hasattr(st.session_state.current_goal, 'target_sol'):
+                            target_sol = st.session_state.current_goal.target_sol
+                        elif isinstance(st.session_state.current_goal, dict):
+                            target_sol = st.session_state.current_goal.get('target_sol', 2.0)
+                        else:
+                            target_sol = 2.0
+                        progress = min((base_sol / target_sol) * 100, 100.0)
+                    except Exception as e:
+                        progress = 0.0
+                        print(f"Error calculating progress: {e}")
                 else:
                     progress = 0.0
 
@@ -283,7 +434,7 @@ async def update_data():
                     'total_value_sol': base_sol,
                     'total_value_usd': base_sol * 150.0,  # Simulated SOL price
                     'goal_progress_percentage': progress,
-                    'last_updated': datetime.utcnow().isoformat(),
+                    'last_updated': utc_now().isoformat(),
                     'current_goal': None,
                     'goal_last_modified': None
                 }
@@ -299,7 +450,7 @@ async def update_data():
                     'strategy_mapper': 'operational' if st.session_state.strategy_mapper else 'offline',
                     'adaptive_cortex': 'operational' if st.session_state.initialized else 'offline',
                     'api_connectivity': 'healthy',
-                    'last_api_call': datetime.utcnow().isoformat(),
+                    'last_api_call': utc_now().isoformat(),
                     'api_response_time': '15ms'
                 }
                 st.session_state.system_status = system_status
@@ -317,7 +468,7 @@ async def update_data():
                 st.error(f"⚠️ System status update failed: {e}")
 
             # Update timestamp
-            st.session_state.last_update = datetime.utcnow()
+            st.session_state.last_update = utc_now()
 
             # Log successful update
             if 'update_count' not in st.session_state:
@@ -347,7 +498,18 @@ def render_header():
     
     with col2:
         if st.session_state.current_goal:
-            st.info(f"🎯 Goal: {st.session_state.current_goal.target_sol} SOL")
+            try:
+                # Ensure we have a Goal object, not a dictionary
+                if hasattr(st.session_state.current_goal, 'target_sol'):
+                    target_sol = st.session_state.current_goal.target_sol
+                elif isinstance(st.session_state.current_goal, dict):
+                    target_sol = st.session_state.current_goal.get('target_sol', 0.0)
+                else:
+                    target_sol = 0.0
+                st.info(f"🎯 Goal: {target_sol} SOL")
+            except Exception as e:
+                st.error(f"⚠️ Goal display error: {e}")
+                st.warning("⚠️ Goal Data Issue")
         else:
             st.warning("⚠️ No Goal Set")
     
@@ -360,7 +522,7 @@ def render_header():
     
     with col4:
         if st.session_state.last_update:
-            time_diff = datetime.utcnow() - st.session_state.last_update
+            time_diff = utc_now() - st.session_state.last_update
             st.metric("🕒 Last Update", f"{time_diff.seconds}s ago")
         else:
             st.metric("🕒 Last Update", "Never")
@@ -382,17 +544,42 @@ def render_goal_management():
                 'REACH_BALANCE': '#1f77b4',
                 'CAPITAL_PRESERVATION': '#2ca02c',
                 'MAXIMIZE_PROFIT': '#ff7f0e'
-            }.get(goal.goal_type.value, '#1f77b4')
+            }.get(goal.goal_type, '#1f77b4')
+
+            # Safe access to goal attributes
+            goal_type = safe_goal_attr(goal, 'goal_type', 'UNKNOWN')
+            target_sol = safe_goal_attr(goal, 'target_sol', 0.0)
+            description = safe_goal_attr(goal, 'description', 'No description')
+            created_at = safe_goal_attr(goal, 'created_at', 'Unknown')
+            modified_at = safe_goal_attr(goal, 'modified_at', 'Unknown')
+            modified_by = safe_goal_attr(goal, 'modified_by', 'Unknown')
+
+            # Format datetime strings safely
+            if isinstance(created_at, str):
+                created_display = created_at
+            else:
+                try:
+                    created_display = created_at.strftime('%Y-%m-%d %H:%M:%S')
+                except:
+                    created_display = str(created_at)
+
+            if isinstance(modified_at, str):
+                modified_display = modified_at
+            else:
+                try:
+                    modified_display = modified_at.strftime('%Y-%m-%d %H:%M:%S')
+                except:
+                    modified_display = str(modified_at)
 
             st.markdown(f"""
             <div class="metric-card success-card" style="border-left-color: {goal_type_color};">
                 <h4>🎯 Current Trading Goal</h4>
-                <p><strong>Type:</strong> <span style="color: {goal_type_color}; font-weight: bold;">{goal.goal_type.value}</span></p>
-                <p><strong>Target:</strong> {goal.target_sol} SOL</p>
-                <p><strong>Description:</strong> {goal.description}</p>
-                <p><strong>Created:</strong> {goal.created_at[:19].replace('T', ' ')}</p>
-                <p><strong>Last Modified:</strong> {goal.modified_at[:19].replace('T', ' ')}</p>
-                <p><strong>Modified by:</strong> {goal.modified_by}</p>
+                <p><strong>Type:</strong> <span style="color: {goal_type_color}; font-weight: bold;">{goal_type}</span></p>
+                <p><strong>Target:</strong> {target_sol} SOL</p>
+                <p><strong>Description:</strong> {description}</p>
+                <p><strong>Created:</strong> {created_display}</p>
+                <p><strong>Last Modified:</strong> {modified_display}</p>
+                <p><strong>Modified by:</strong> {modified_by}</p>
                 <p><strong>Status:</strong> <span style="color: green;">✅ Active</span></p>
             </div>
             """, unsafe_allow_html=True)
@@ -435,8 +622,9 @@ def render_goal_management():
             # Goal metrics
             if st.session_state.portfolio_state:
                 current_sol = st.session_state.portfolio_state.get('total_value_sol', 0)
-                remaining_sol = max(0, goal.target_sol - current_sol)
-                progress_pct = min(100, (current_sol / goal.target_sol) * 100)
+                target_sol = safe_goal_attr(goal, 'target_sol', 2.0)
+                remaining_sol = max(0, target_sol - current_sol)
+                progress_pct = min(100, (current_sol / target_sol) * 100)
 
                 st.metric(
                     "Current SOL",
@@ -445,7 +633,7 @@ def render_goal_management():
                 )
                 st.metric(
                     "Target SOL",
-                    f"{goal.target_sol:.1f}",
+                    f"{target_sol:.1f}",
                     delta=None
                 )
                 st.metric(
@@ -541,14 +729,15 @@ def render_goal_management():
             )
 
             # Impact assessment preview
-            if st.session_state.current_goal and target_sol != st.session_state.current_goal.target_sol:
-                old_target = st.session_state.current_goal.target_sol
-                change_pct = ((target_sol - old_target) / old_target) * 100
+            if st.session_state.current_goal:
+                old_target = safe_goal_attr(st.session_state.current_goal, 'target_sol', 2.0)
+                if target_sol != old_target:
+                    change_pct = ((target_sol - old_target) / old_target) * 100
 
-                if abs(change_pct) > 10:
-                    st.warning(f"⚠️ Significant change: {change_pct:+.1f}% target adjustment")
-                else:
-                    st.info(f"📊 Target change: {change_pct:+.1f}%")
+                    if abs(change_pct) > 10:
+                        st.warning(f"⚠️ Significant change: {change_pct:+.1f}% target adjustment")
+                    else:
+                        st.info(f"📊 Target change: {change_pct:+.1f}%")
 
         # Validation and submission
         st.markdown("### Confirmation")
@@ -597,10 +786,12 @@ def render_goal_management():
 
             if st.session_state.current_goal:
                 old_goal = st.session_state.current_goal
+                old_goal_type = safe_goal_attr(old_goal, 'goal_type', 'UNKNOWN')
+                old_target_sol = safe_goal_attr(old_goal, 'target_sol', 0.0)
                 st.markdown(f"""
-                **Current Goal:** {old_goal.goal_type.value} - {old_goal.target_sol} SOL
+                **Current Goal:** {old_goal_type} - {old_target_sol} SOL
                 **New Goal:** {goal_type} - {target_sol} SOL
-                **Change:** {target_sol - old_goal.target_sol:+.1f} SOL
+                **Change:** {target_sol - old_target_sol:+.1f} SOL
                 **Reason:** {reason}
                 """)
             else:
@@ -664,15 +855,16 @@ def render_goal_management():
             if history:
                 # Create history table
                 history_data = []
-                for i, event in enumerate(history):
+                for i, goal in enumerate(history):
+                    # Since we're in mock mode, treat history items as Goal objects
                     history_data.append({
                         '#': i + 1,
-                        'Timestamp': event.timestamp[:19].replace('T', ' '),
-                        'Goal Type': event.new_goal.goal_type.value,
-                        'Target SOL': f"{event.new_goal.target_sol:.1f}",
-                        'Changed By': event.changed_by,
-                        'Reason': event.change_reason,
-                        'Impact': f"{event.impact_assessment.get('percentage_change', 0):+.1f}%"
+                        'Timestamp': goal.created_at if isinstance(goal.created_at, str) else goal.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                        'Goal Type': goal.goal_type,
+                        'Target SOL': f"{safe_goal_attr(goal, 'target_sol', 0.0):.1f}",
+                        'Changed By': goal.modified_by,
+                        'Reason': 'Mock goal change',
+                        'Impact': f"+{i*5:.1f}%"  # Simulated impact
                     })
 
                 # Display as interactive table
@@ -699,16 +891,16 @@ def render_goal_management():
                     st.metric("Total Changes", len(history))
 
                 with col2:
-                    goal_types = [event.new_goal.goal_type.value for event in history]
+                    goal_types = [goal.goal_type for goal in history]
                     most_common = max(set(goal_types), key=goal_types.count) if goal_types else "N/A"
                     st.metric("Most Common Type", most_common)
 
                 with col3:
-                    avg_target = sum(event.new_goal.target_sol for event in history) / len(history)
+                    avg_target = sum(safe_goal_attr(goal, 'target_sol', 0.0) for goal in history) / len(history)
                     st.metric("Avg Target", f"{avg_target:.1f} SOL")
 
                 with col4:
-                    recent_changes = len([e for e in history if (datetime.utcnow() - datetime.fromisoformat(e.timestamp.replace('Z', '+00:00'))).days <= 7])
+                    recent_changes = len([g for g in history if (datetime.now() - datetime.fromisoformat(g.created_at.replace('Z', '+00:00'))).days <= 7])
                     st.metric("Recent (7d)", recent_changes)
 
             else:
@@ -782,7 +974,7 @@ def render_portfolio_tracking():
         with col5:
             # Real-time update indicator
             if st.session_state.last_update:
-                time_diff = (datetime.utcnow() - st.session_state.last_update).seconds
+                time_diff = (utc_now() - st.session_state.last_update).seconds
                 st.metric(
                     "Last Update",
                     f"{time_diff}s ago",
@@ -796,7 +988,7 @@ def render_portfolio_tracking():
         st.subheader("🎯 Goal Progress Visualization")
 
         if st.session_state.current_goal:
-            target_sol = st.session_state.current_goal.target_sol
+            target_sol = safe_goal_attr(st.session_state.current_goal, 'target_sol', 2.0)
 
             col1, col2 = st.columns([2, 1])
 
@@ -903,7 +1095,7 @@ def render_portfolio_tracking():
             'Hours Ago': [24-i for i in hours],
             'SOL Value': values,
             'USD Value': [v * 150 for v in values],  # Convert to USD
-            'Timestamp': [datetime.utcnow() - timedelta(hours=24-i) for i in hours]
+            'Timestamp': [utc_now() - timedelta(hours=24-i) for i in hours]
         })
 
         # Multi-line chart with SOL and USD
@@ -1009,16 +1201,16 @@ def render_portfolio_tracking():
 
         # Simulated profile switching data
         profile_history = [
-            {'time': datetime.utcnow() - timedelta(hours=6), 'profile': 'AGGRESSIVE', 'reason': 'Portfolio below 25% of goal', 'progress': 15.2},
-            {'time': datetime.utcnow() - timedelta(hours=4), 'profile': 'BALANCED', 'reason': 'Portfolio reached 25% of goal', 'progress': 28.7},
-            {'time': datetime.utcnow() - timedelta(hours=2), 'profile': 'BALANCED', 'reason': 'Maintaining balanced approach', 'progress': 45.3},
-            {'time': datetime.utcnow() - timedelta(hours=1), 'profile': 'BALANCED', 'reason': 'Steady progress toward goal', 'progress': 62.1},
-            {'time': datetime.utcnow() - timedelta(minutes=30), 'profile': 'BALANCED', 'reason': 'Current active profile', 'progress': 75.0}
+            {'time': utc_now() - timedelta(hours=6), 'profile': 'AGGRESSIVE', 'reason': 'Portfolio below 25% of goal', 'progress': 15.2},
+            {'time': utc_now() - timedelta(hours=4), 'profile': 'BALANCED', 'reason': 'Portfolio reached 25% of goal', 'progress': 28.7},
+            {'time': utc_now() - timedelta(hours=2), 'profile': 'BALANCED', 'reason': 'Maintaining balanced approach', 'progress': 45.3},
+            {'time': utc_now() - timedelta(hours=1), 'profile': 'BALANCED', 'reason': 'Steady progress toward goal', 'progress': 62.1},
+            {'time': utc_now() - timedelta(minutes=30), 'profile': 'BALANCED', 'reason': 'Current active profile', 'progress': 75.0}
         ]
 
         # Create timeline visualization
         timeline_data = pd.DataFrame(profile_history)
-        timeline_data['hours_ago'] = [(datetime.utcnow() - t).total_seconds() / 3600 for t in timeline_data['time']]
+        timeline_data['hours_ago'] = [(utc_now() - t).total_seconds() / 3600 for t in timeline_data['time']]
 
         # Color mapping for profiles
         profile_colors = {
@@ -1097,7 +1289,7 @@ def render_portfolio_tracking():
             st.metric("Current Profile", f"🎯 {current_profile}")
 
         with col3:
-            time_in_current = (datetime.utcnow() - timeline_data.iloc[-1]['time']).total_seconds() / 60
+            time_in_current = (utc_now() - timeline_data.iloc[-1]['time']).total_seconds() / 60
             st.metric("Time in Current", f"{time_in_current:.0f}m")
 
         with col4:
@@ -1124,7 +1316,7 @@ def render_trading_activity():
     random.seed(42)  # For consistent demo data
 
     for i in range(50):
-        timestamp = datetime.utcnow() - timedelta(minutes=random.randint(1, 1440))  # Last 24 hours
+        timestamp = utc_now() - timedelta(minutes=random.randint(1, 1440))  # Last 24 hours
         strategy = random.choice(strategies)
         action = random.choice(actions)
         amount = round(random.uniform(0.01, 0.5), 3)
@@ -1201,7 +1393,7 @@ def render_trading_activity():
     if time_filter != 'All Time':
         hours_map = {'Last 1 Hour': 1, 'Last 6 Hours': 6, 'Last 24 Hours': 24}
         hours = hours_map[time_filter]
-        cutoff_time = datetime.utcnow() - timedelta(hours=hours)
+        cutoff_time = utc_now() - timedelta(hours=hours)
         filtered_data = [d for d in filtered_data if datetime.strptime(d['Timestamp'], '%Y-%m-%d %H:%M:%S') >= cutoff_time]
 
     # Display filtered results count
@@ -1334,7 +1526,7 @@ def render_trading_activity():
     confidence_levels = ['HIGH', 'MEDIUM', 'LOW']
 
     for i in range(20):
-        timestamp = datetime.utcnow() - timedelta(minutes=random.randint(1, 360))  # Last 6 hours
+        timestamp = utc_now() - timedelta(minutes=random.randint(1, 360))  # Last 6 hours
         decision_type = random.choice(decision_types)
         confidence = random.choice(confidence_levels)
         confidence_score = random.uniform(0.6, 0.95)
@@ -1439,8 +1631,8 @@ def render_trading_activity():
 
     with col1:
         st.markdown("### 🔄 Last 1 Hour")
-        recent_trades = [d for d in trading_data if (datetime.utcnow() - datetime.strptime(d['Timestamp'], '%Y-%m-%d %H:%M:%S')).seconds <= 3600]
-        recent_ai = [d for d in ai_decisions if (datetime.utcnow() - datetime.strptime(d['Timestamp'], '%Y-%m-%d %H:%M:%S')).seconds <= 3600]
+        recent_trades = [d for d in trading_data if (utc_now() - datetime.strptime(d['Timestamp'], '%Y-%m-%d %H:%M:%S').replace(tzinfo=timezone.utc)).seconds <= 3600]
+        recent_ai = [d for d in ai_decisions if (utc_now() - datetime.strptime(d['Timestamp'], '%Y-%m-%d %H:%M:%S').replace(tzinfo=timezone.utc)).seconds <= 3600]
 
         st.metric("Trades", len(recent_trades))
         st.metric("AI Decisions", len(recent_ai))
@@ -1476,7 +1668,7 @@ def render_trading_activity():
         # Last activity timestamp
         if trading_data:
             last_activity = max([datetime.strptime(d['Timestamp'], '%Y-%m-%d %H:%M:%S') for d in trading_data])
-            time_since = (datetime.utcnow() - last_activity).seconds
+            time_since = (utc_now() - last_activity.replace(tzinfo=timezone.utc)).seconds
             st.metric("Last Activity", f"{time_since}s ago")
 
 def render_system_health():
@@ -1754,7 +1946,7 @@ def main():
             if st.session_state.last_update is None:
                 should_refresh = True
             else:
-                time_since_update = (datetime.utcnow() - st.session_state.last_update).seconds
+                time_since_update = (utc_now() - st.session_state.last_update).seconds
                 should_refresh = time_since_update >= refresh_interval
 
             if should_refresh:
@@ -1765,7 +1957,7 @@ def main():
                         loop.run_until_complete(update_data())
 
                         # Show refresh success in sidebar
-                        st.sidebar.success(f"✅ Data refreshed at {datetime.utcnow().strftime('%H:%M:%S')}")
+                        st.sidebar.success(f"✅ Data refreshed at {utc_now().strftime('%H:%M:%S')}")
 
                         # Auto-rerun to update the display
                         time.sleep(0.1)  # Brief pause
@@ -1777,7 +1969,7 @@ def main():
 
         # Display refresh status in sidebar
         if st.session_state.last_update:
-            time_since = (datetime.utcnow() - st.session_state.last_update).seconds
+            time_since = (utc_now() - st.session_state.last_update).seconds
             st.sidebar.info(f"⏱️ Last refresh: {time_since}s ago")
 
             if 'update_count' in st.session_state:
@@ -1789,7 +1981,7 @@ def main():
     st.sidebar.title("🧠 Navigation")
     page = st.sidebar.selectbox(
         "Select Page",
-        ["Goal Management", "Portfolio Tracking", "Trading Activity", "System Health"]
+        ["Goal Management", "Portfolio Tracking", "Trading Activity", "System Health", "Intelligence Layer"]
     )
     
     # Render selected page
@@ -1801,7 +1993,9 @@ def main():
         render_trading_activity()
     elif page == "System Health":
         render_system_health()
-    
+    elif page == "Intelligence Layer":
+        render_intelligence_layer_status()
+
     # Auto-refresh button
     if st.sidebar.button("🔄 Refresh Data"):
         if st.session_state.initialized:
@@ -1809,6 +2003,111 @@ def main():
             asyncio.set_event_loop(loop)
             loop.run_until_complete(update_data())
             st.rerun()
+
+def render_intelligence_layer_status():
+    """Render Intelligence Layer status and real API data."""
+    st.header("🧠 Intelligence Layer Status")
+
+    # API Status Overview
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        if INTELLIGENCE_LAYER_AVAILABLE:
+            st.success("✅ Intelligence Layer Active")
+        else:
+            st.error("❌ Intelligence Layer Offline")
+
+    with col2:
+        if INTELLIGENCE_LAYER_AVAILABLE:
+            st.info("🔗 Real APIs Connected")
+        else:
+            st.warning("🔄 Mock Data Mode")
+
+    with col3:
+        # Show API utilization button
+        if st.button("📊 View API Utilization"):
+            with st.spinner("Getting API utilization data..."):
+                try:
+                    utilization = asyncio.run(get_api_utilization_status())
+
+                    if utilization['status'] == 'real_data':
+                        st.success("💰 Premium API Utilization Report")
+
+                        col_a, col_b = st.columns(2)
+                        with col_a:
+                            st.metric("💵 Monthly Cost", f"${utilization['total_monthly_cost']}")
+                            st.metric("🔥 Helius Features", utilization['helius_utilization'])
+
+                        with col_b:
+                            st.metric("⚡ QuickNode Features", utilization['quicknode_utilization'])
+                            st.metric("📈 Overall Utilization", f"{utilization['overall_utilization']:.1f}%")
+                    else:
+                        st.warning(f"Mock data: {utilization.get('message', 'API not available')}")
+
+                except Exception as e:
+                    st.error(f"Error getting utilization data: {e}")
+
+    # Real-time Market Intelligence
+    if INTELLIGENCE_LAYER_AVAILABLE:
+        st.subheader("📈 Real-time Market Intelligence")
+
+        # Token analysis input
+        token_input = st.text_input(
+            "Token Address for Analysis",
+            value="So11111111111111111111111111111111111111112",
+            help="Enter Solana token mint address (default: SOL)"
+        )
+
+        col_analyze1, col_analyze2 = st.columns(2)
+
+        with col_analyze1:
+            if st.button("🔍 Analyze Token", type="primary"):
+                with st.spinner("Analyzing token with real APIs..."):
+                    try:
+                        analysis = asyncio.run(get_real_token_analysis(token_input))
+
+                        if analysis['status'] == 'real_analysis':
+                            st.success("✅ Real Token Analysis Complete")
+
+                            # Display analysis results
+                            st.json({
+                                'recommendation': analysis['recommendation'],
+                                'confidence': analysis['confidence'],
+                                'risk_level': analysis['risk_assessment'].get('risk_level', 'Unknown'),
+                                'timestamp': analysis['timestamp']
+                            })
+                        else:
+                            st.warning(f"Analysis failed: {analysis.get('error', 'Unknown error')}")
+
+                    except Exception as e:
+                        st.error(f"Error analyzing token: {e}")
+
+        with col_analyze2:
+            if st.button("📊 Market Intelligence", type="secondary"):
+                with st.spinner("Getting market intelligence..."):
+                    try:
+                        intel = asyncio.run(get_real_market_intelligence(token_input))
+
+                        if intel['status'] == 'real_data':
+                            st.success("✅ Real Market Intelligence")
+
+                            # Display intelligence data
+                            st.metric("🎯 Confidence Score", f"{intel['confidence_score']:.2f}")
+                            st.metric("📡 Data Sources", len(intel['data_sources']))
+
+                            with st.expander("📋 Detailed Data"):
+                                st.json({
+                                    'price_data': intel['price_data'],
+                                    'volume_data': intel['volume_data'],
+                                    'data_sources': intel['data_sources']
+                                })
+                        else:
+                            st.warning(f"Intelligence failed: {intel.get('error', 'Unknown error')}")
+
+                    except Exception as e:
+                        st.error(f"Error getting market intelligence: {e}")
+    else:
+        st.info("🔄 Intelligence Layer not available - using mock data")
 
 if __name__ == "__main__":
     main()

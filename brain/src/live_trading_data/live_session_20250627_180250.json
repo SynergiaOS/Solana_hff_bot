@@ -1,0 +1,14 @@
+{
+  "session": {
+    "session_id": "live_session_20250627_180250",
+    "start_date": "2025-06-27 18:02:50.451235",
+    "end_date": "2025-06-27 18:04:50.451839",
+    "initial_balance": 1000.0,
+    "current_balance": 1000.0,
+    "total_days": 1,
+    "completed_days": 0,
+    "daily_reports": [],
+    "status": "running"
+  },
+  "daily_reports": []
+}

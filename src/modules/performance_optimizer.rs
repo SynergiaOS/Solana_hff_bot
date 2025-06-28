@@ -1,18 +1,20 @@
 //! Performance Optimizer Module
-//! 
+//!
 //! Advanced performance optimizations for THE OVERMIND PROTOCOL including
 //! connection pooling, caching, batch processing, and latency optimization.
 
+#![allow(private_interfaces)]
+
 use anyhow::Result;
+use redis::{aio::ConnectionManager, Client as RedisClient};
 use serde::{Deserialize, Serialize};
+use solana_client::rpc_client::RpcClient;
+use solana_sdk::commitment_config::CommitmentConfig;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::{Mutex, RwLock};
-use tracing::{debug, info, warn, error};
-use redis::{Client as RedisClient, aio::ConnectionManager};
-use solana_client::rpc_client::RpcClient;
-use solana_sdk::commitment_config::CommitmentConfig;
+use tracing::{debug, error, info, warn};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PerformanceConfig {
@@ -154,34 +156,34 @@ impl ConnectionPool {
     pub async fn get_rpc_client(&self) -> Result<Arc<RpcClient>> {
         let clients = self.rpc_clients.read().await;
         let mut index = self.current_rpc_index.lock().await;
-        
+
         if clients.is_empty() {
             return Err(anyhow::anyhow!("No RPC clients available"));
         }
 
         let client = clients[*index % clients.len()].clone();
         *index = (*index + 1) % clients.len();
-        
+
         Ok(client)
     }
 
     pub async fn get_redis_connection(&self) -> Result<ConnectionManager> {
         let connections = self.redis_connections.read().await;
         let mut index = self.current_redis_index.lock().await;
-        
+
         if connections.is_empty() {
             return Err(anyhow::anyhow!("No Redis connections available"));
         }
 
         let connection = connections[*index % connections.len()].clone();
         *index = (*index + 1) % connections.len();
-        
+
         Ok(connection)
     }
 
     pub async fn health_check(&self) -> Result<()> {
         let mut health_status = self.health_status.write().await;
-        
+
         // Check RPC clients
         let rpc_clients = self.rpc_clients.read().await;
         for (i, _client) in rpc_clients.iter().enumerate() {
@@ -198,8 +200,10 @@ impl ConnectionPool {
             let mut conn_clone = conn.clone();
             match tokio::time::timeout(
                 Duration::from_secs(5),
-                redis::cmd("PING").query_async::<_, String>(&mut conn_clone)
-            ).await {
+                redis::cmd("PING").query_async::<_, String>(&mut conn_clone),
+            )
+            .await
+            {
                 Ok(Ok(_)) => {
                     health_status.insert(key, true);
                 }
@@ -245,13 +249,18 @@ impl CacheManager {
         let redis_pool = self.redis_pool.read().await;
         if let Some(conn) = redis_pool.first() {
             let mut conn_clone = conn.clone();
-            match redis::cmd("GET").arg(key).query_async::<_, Option<String>>(&mut conn_clone).await {
+            match redis::cmd("GET")
+                .arg(key)
+                .query_async::<_, Option<String>>(&mut conn_clone)
+                .await
+            {
                 Ok(Some(value)) => {
                     stats.hits += 1;
-                    
+
                     // Update local cache
-                    self.update_local_cache(key.to_string(), value.clone()).await;
-                    
+                    self.update_local_cache(key.to_string(), value.clone())
+                        .await;
+
                     debug!("Cache hit (Redis): {} in {:?}", key, start_time.elapsed());
                     return Ok(Some(value));
                 }
@@ -292,14 +301,15 @@ impl CacheManager {
 
     async fn update_local_cache(&self, key: String, value: String) {
         let mut local_cache = self.local_cache.write().await;
-        
+
         // Implement LRU eviction if cache is full
-        if local_cache.len() >= 1000 { // Max 1000 entries in local cache
+        if local_cache.len() >= 1000 {
+            // Max 1000 entries in local cache
             let oldest_key = local_cache
                 .iter()
                 .min_by_key(|(_, entry)| entry.created_at)
                 .map(|(k, _)| k.clone());
-            
+
             if let Some(key_to_remove) = oldest_key {
                 local_cache.remove(&key_to_remove);
                 let mut stats = self.cache_stats.lock().await;
@@ -307,12 +317,15 @@ impl CacheManager {
             }
         }
 
-        local_cache.insert(key, CacheEntry {
-            data: value,
-            created_at: Instant::now(),
-            access_count: 1,
-            ttl: Duration::from_secs(self.config.cache_ttl_seconds),
-        });
+        local_cache.insert(
+            key,
+            CacheEntry {
+                data: value,
+                created_at: Instant::now(),
+                access_count: 1,
+                ttl: Duration::from_secs(self.config.cache_ttl_seconds),
+            },
+        );
     }
 
     pub async fn get_cache_stats(&self) -> CacheStats {
@@ -320,11 +333,11 @@ impl CacheManager {
     }
 }
 
-impl<T> BatchProcessor<T> 
-where 
+impl<T> BatchProcessor<T>
+where
     T: Send + 'static,
 {
-    pub fn new<F>(batch_size: usize, batch_timeout: Duration, processor: F) -> Self 
+    pub fn new<F>(batch_size: usize, batch_timeout: Duration, processor: F) -> Self
     where
         F: Fn(Vec<T>) -> Result<()> + Send + Sync + 'static,
     {
@@ -343,7 +356,7 @@ where
         if queue.len() >= self.batch_size {
             let batch = queue.drain(..).collect();
             drop(queue); // Release lock before processing
-            
+
             let processor = self.processor_fn.clone();
             tokio::spawn(async move {
                 if let Err(e) = processor(batch) {
@@ -362,15 +375,15 @@ where
 
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(timeout);
-            
+
             loop {
                 interval.tick().await;
-                
+
                 let mut queue = batch_queue.lock().await;
                 if !queue.is_empty() {
                     let batch = queue.drain(..).collect();
                     drop(queue);
-                    
+
                     let processor = processor_fn.clone();
                     tokio::spawn(async move {
                         if let Err(e) = processor(batch) {
@@ -417,9 +430,12 @@ impl LatencyOptimizer {
     async fn trigger_optimization(&self) {
         let mut strategy_index = self.current_strategy.lock().await;
         let current_strategy = &self.optimization_strategies[*strategy_index];
-        
-        info!("🚀 Triggering optimization strategy: {:?}", current_strategy);
-        
+
+        info!(
+            "🚀 Triggering optimization strategy: {:?}",
+            current_strategy
+        );
+
         match current_strategy {
             OptimizationStrategy::ConnectionPooling => {
                 // Increase connection pool size
@@ -449,7 +465,7 @@ impl LatencyOptimizer {
 
     pub async fn get_performance_metrics(&self) -> PerformanceMetrics {
         let history = self.latency_history.read().await;
-        
+
         if history.is_empty() {
             return PerformanceMetrics::default();
         }
@@ -465,11 +481,14 @@ impl LatencyOptimizer {
             average_latency_ms: average,
             p95_latency_ms: sorted_latencies.get(p95_index).copied().unwrap_or(0.0),
             p99_latency_ms: sorted_latencies.get(p99_index).copied().unwrap_or(0.0),
-            cache_hit_rate: 0.0, // Will be updated by cache manager
+            cache_hit_rate: 0.0,              // Will be updated by cache manager
             connection_pool_utilization: 0.0, // Will be updated by connection pool
-            batch_efficiency: 0.0, // Will be updated by batch processor
-            memory_usage_mb: 0.0, // Will be updated by memory monitor
-            optimization_score: Self::calculate_optimization_score(average, self.target_latency.as_millis() as f64),
+            batch_efficiency: 0.0,            // Will be updated by batch processor
+            memory_usage_mb: 0.0,             // Will be updated by memory monitor
+            optimization_score: Self::calculate_optimization_score(
+                average,
+                self.target_latency.as_millis() as f64,
+            ),
         }
     }
 
@@ -491,9 +510,7 @@ impl PerformanceOptimizer {
             "https://api.mainnet-beta.solana.com".to_string(),
             "https://solana-api.projectserum.com".to_string(),
         ];
-        let redis_urls = vec![
-            "redis://localhost:6379".to_string(),
-        ];
+        let redis_urls = vec!["redis://localhost:6379".to_string()];
 
         let connection_pool = ConnectionPool::new(rpc_urls, redis_urls).await?;
 
@@ -502,7 +519,8 @@ impl PerformanceOptimizer {
         let cache_manager = CacheManager::new(redis_connections, config.clone()).await;
 
         // Initialize latency optimizer
-        let latency_optimizer = LatencyOptimizer::new(Duration::from_millis(config.target_latency_ms));
+        let latency_optimizer =
+            LatencyOptimizer::new(Duration::from_millis(config.target_latency_ms));
 
         Ok(Self {
             config,
@@ -521,10 +539,10 @@ impl PerformanceOptimizer {
 
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(30));
-            
+
             loop {
                 interval.tick().await;
-                
+
                 // Health check connections
                 if let Err(e) = connection_pool.health_check().await {
                     error!("Connection health check failed: {}", e);
@@ -547,12 +565,12 @@ impl PerformanceOptimizer {
         F: std::future::Future<Output = Result<T>>,
     {
         let start_time = Instant::now();
-        
+
         let result = operation.await;
-        
+
         let latency = start_time.elapsed();
         self.latency_optimizer.record_latency(latency).await;
-        
+
         result
     }
 }

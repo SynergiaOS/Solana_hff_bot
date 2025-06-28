@@ -17,6 +17,7 @@ class StrategyType(Enum):
     METEORA_DAMM_V2 = "meteora_damm_v2"
     DEVELOPER_TRACKING = "developer_tracking"
     MEMECOIN_HUNTER = "memecoin_hunter"
+    SOL_MOMENTUM = "sol_momentum"
 
 @dataclass
 class StrategyParameters:
@@ -68,6 +69,21 @@ class MemecoinHunterParams(StrategyParameters):
     
     def __post_init__(self):
         self.strategy_type = StrategyType.MEMECOIN_HUNTER
+
+@dataclass
+class SOLMomentumParams(StrategyParameters):
+    """SOL Momentum strategy parameters"""
+    short_ma_period: int = 5
+    long_ma_period: int = 20
+    rsi_period: int = 14
+    volume_threshold: float = 1.5
+    max_position_size: float = 0.1
+    stop_loss_pct: float = 0.05
+    take_profit_pct: float = 0.10
+    confidence_threshold: float = 0.7
+
+    def __post_init__(self):
+        self.strategy_type = StrategyType.SOL_MOMENTUM
 
 class StrategyConfigManager:
     """Manages loading and validation of strategy configurations"""
@@ -161,7 +177,23 @@ class StrategyConfigManager:
             )
             self.strategy_params[StrategyType.MEMECOIN_HUNTER] = memecoin_params
             logger.info(f"🐕 Memecoin Hunter params: mcap≤{memecoin_params.max_market_cap}, social≥{memecoin_params.min_social_score}")
-    
+
+        # SOL Momentum parameters
+        if StrategyType.SOL_MOMENTUM in self.enabled_strategies:
+            sol_momentum_params = SOLMomentumParams(
+                strategy_type=StrategyType.SOL_MOMENTUM,
+                short_ma_period=int(os.getenv("SOL_MOMENTUM_SHORT_MA", "5")),
+                long_ma_period=int(os.getenv("SOL_MOMENTUM_LONG_MA", "20")),
+                rsi_period=int(os.getenv("SOL_MOMENTUM_RSI_PERIOD", "14")),
+                volume_threshold=float(os.getenv("SOL_MOMENTUM_VOLUME_THRESHOLD", "1.5")),
+                max_position_size=float(os.getenv("SOL_MOMENTUM_MAX_POSITION", "0.1")),
+                stop_loss_pct=float(os.getenv("SOL_MOMENTUM_STOP_LOSS", "0.05")),
+                take_profit_pct=float(os.getenv("SOL_MOMENTUM_TAKE_PROFIT", "0.10")),
+                confidence_threshold=float(os.getenv("SOL_MOMENTUM_CONFIDENCE", "0.7"))
+            )
+            self.strategy_params[StrategyType.SOL_MOMENTUM] = sol_momentum_params
+            logger.info(f"📈 SOL Momentum params: MA({sol_momentum_params.short_ma_period},{sol_momentum_params.long_ma_period}), RSI({sol_momentum_params.rsi_period})")
+
     def get_enabled_strategies(self) -> List[StrategyType]:
         """Get list of enabled strategies"""
         return self.enabled_strategies.copy()

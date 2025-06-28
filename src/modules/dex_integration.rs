@@ -1,19 +1,16 @@
 //! DEX Integration Module
-//! 
+//!
 //! Provides real transaction building for various Solana DEXes
 //! including Raydium, Jupiter, Orca, and others.
 
 use anyhow::{Context, Result};
-use tracing::{debug, info};
 use serde::{Deserialize, Serialize};
 use solana_sdk::{
-    instruction::Instruction,
-    pubkey::Pubkey,
+    instruction::Instruction, pubkey::Pubkey, signature::Keypair, signer::Signer,
     transaction::Transaction,
-    signature::Keypair,
-    signer::Signer,
 };
 use std::str::FromStr;
+use tracing::{debug, info};
 
 /// Supported DEX types
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -76,8 +73,10 @@ impl DexIntegration {
         dex_type: DexType,
         wallet: &Keypair,
     ) -> Result<Transaction> {
-        info!("🔄 Building swap transaction for {:?}: {} -> {}", 
-              dex_type, params.input_mint, params.output_mint);
+        info!(
+            "🔄 Building swap transaction for {:?}: {} -> {}",
+            dex_type, params.input_mint, params.output_mint
+        );
 
         match dex_type {
             DexType::Raydium => self.build_raydium_swap(params, wallet).await,
@@ -90,8 +89,10 @@ impl DexIntegration {
 
     /// Find the best route for a swap
     pub async fn find_best_route(&self, params: &SwapParams) -> Result<DexRoute> {
-        info!("🔍 Finding best route for swap: {} -> {}", 
-              params.input_mint, params.output_mint);
+        info!(
+            "🔍 Finding best route for swap: {} -> {}",
+            params.input_mint, params.output_mint
+        );
 
         // In production, this would query multiple DEXes and compare rates
         // For now, we'll return a mock route with Raydium
@@ -99,18 +100,24 @@ impl DexIntegration {
             dex_type: DexType::Raydium,
             pool_address: self.find_pool_address(&params.input_mint, &params.output_mint)?,
             estimated_output: self.estimate_output(params).await?,
-            price_impact: 0.01, // 1% price impact
+            price_impact: 0.01,     // 1% price impact
             fee_percentage: 0.0025, // 0.25% fee
         };
 
-        info!("✅ Best route found: {:?} with {} estimated output", 
-              route.dex_type, route.estimated_output);
+        info!(
+            "✅ Best route found: {:?} with {} estimated output",
+            route.dex_type, route.estimated_output
+        );
 
         Ok(route)
     }
 
     /// Build Raydium swap transaction
-    async fn build_raydium_swap(&self, _params: SwapParams, wallet: &Keypair) -> Result<Transaction> {
+    async fn build_raydium_swap(
+        &self,
+        _params: SwapParams,
+        wallet: &Keypair,
+    ) -> Result<Transaction> {
         debug!("Building Raydium swap transaction");
 
         // Raydium program ID
@@ -127,15 +134,20 @@ impl DexIntegration {
         // For now, create a mock instruction
         let instruction = Instruction::new_with_bytes(
             raydium_program_id,
-            &[0], // Mock instruction data
+            &[0],   // Mock instruction data
             vec![], // Mock accounts
         );
 
-        self.build_transaction_with_instruction(instruction, wallet).await
+        self.build_transaction_with_instruction(instruction, wallet)
+            .await
     }
 
     /// Build Jupiter swap transaction
-    async fn build_jupiter_swap(&self, _params: SwapParams, wallet: &Keypair) -> Result<Transaction> {
+    async fn build_jupiter_swap(
+        &self,
+        _params: SwapParams,
+        wallet: &Keypair,
+    ) -> Result<Transaction> {
         debug!("Building Jupiter swap transaction");
 
         // Jupiter program ID
@@ -151,11 +163,12 @@ impl DexIntegration {
         // For now, create a mock instruction
         let instruction = Instruction::new_with_bytes(
             jupiter_program_id,
-            &[1], // Mock instruction data
+            &[1],   // Mock instruction data
             vec![], // Mock accounts
         );
 
-        self.build_transaction_with_instruction(instruction, wallet).await
+        self.build_transaction_with_instruction(instruction, wallet)
+            .await
     }
 
     /// Build Orca swap transaction
@@ -168,11 +181,12 @@ impl DexIntegration {
 
         let instruction = Instruction::new_with_bytes(
             orca_program_id,
-            &[2], // Mock instruction data
+            &[2],   // Mock instruction data
             vec![], // Mock accounts
         );
 
-        self.build_transaction_with_instruction(instruction, wallet).await
+        self.build_transaction_with_instruction(instruction, wallet)
+            .await
     }
 
     /// Build Serum swap transaction
@@ -185,11 +199,12 @@ impl DexIntegration {
 
         let instruction = Instruction::new_with_bytes(
             serum_program_id,
-            &[3], // Mock instruction data
+            &[3],   // Mock instruction data
             vec![], // Mock accounts
         );
 
-        self.build_transaction_with_instruction(instruction, wallet).await
+        self.build_transaction_with_instruction(instruction, wallet)
+            .await
     }
 
     /// Build Saber swap transaction
@@ -202,11 +217,12 @@ impl DexIntegration {
 
         let instruction = Instruction::new_with_bytes(
             saber_program_id,
-            &[4], // Mock instruction data
+            &[4],   // Mock instruction data
             vec![], // Mock accounts
         );
 
-        self.build_transaction_with_instruction(instruction, wallet).await
+        self.build_transaction_with_instruction(instruction, wallet)
+            .await
     }
 
     /// Build transaction with the given instruction
@@ -219,10 +235,7 @@ impl DexIntegration {
         // For now, use a mock blockhash
         let recent_blockhash = solana_sdk::hash::Hash::default();
 
-        let mut transaction = Transaction::new_with_payer(
-            &[instruction],
-            Some(&wallet.pubkey()),
-        );
+        let mut transaction = Transaction::new_with_payer(&[instruction], Some(&wallet.pubkey()));
 
         transaction.sign(&[wallet], recent_blockhash);
 
@@ -254,7 +267,8 @@ impl DexIntegration {
             // SOL/USDC on Raydium
             TradingPair {
                 base_mint: Pubkey::from_str("So11111111111111111111111111111111111111112").unwrap(), // SOL
-                quote_mint: Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v").unwrap(), // USDC
+                quote_mint: Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+                    .unwrap(), // USDC
                 pool_address: Pubkey::new_unique(),
                 dex_type: DexType::Raydium,
             },
@@ -270,8 +284,8 @@ impl DexIntegration {
     /// Check if a trading pair is supported
     pub fn is_pair_supported(&self, input_mint: &Pubkey, output_mint: &Pubkey) -> bool {
         self.trading_pairs.iter().any(|pair| {
-            (pair.base_mint == *input_mint && pair.quote_mint == *output_mint) ||
-            (pair.base_mint == *output_mint && pair.quote_mint == *input_mint)
+            (pair.base_mint == *input_mint && pair.quote_mint == *output_mint)
+                || (pair.base_mint == *output_mint && pair.quote_mint == *input_mint)
         })
     }
 }
@@ -313,7 +327,7 @@ mod tests {
         let dex = DexIntegration::new();
         let sol_mint = Pubkey::from_str("So11111111111111111111111111111111111111112").unwrap();
         let usdc_mint = Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v").unwrap();
-        
+
         assert!(dex.is_pair_supported(&sol_mint, &usdc_mint));
     }
 }

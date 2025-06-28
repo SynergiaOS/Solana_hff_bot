@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 
 from .strategy_config import (
     StrategyConfigManager, StrategyType, StrategyParameters,
-    SoulMeteorParams, MeteoraDammV2Params, DeveloperTrackingParams, MemecoinHunterParams
+    SoulMeteorParams, MeteoraDammV2Params, DeveloperTrackingParams, MemecoinHunterParams, SOLMomentumParams
 )
 
 logger = logging.getLogger(__name__)
@@ -137,7 +137,9 @@ class StrategyManager:
             return self._validate_developer_tracking(strategy_params, signal)
         elif strategy_type == StrategyType.MEMECOIN_HUNTER:
             return self._validate_memecoin_hunter(strategy_params, signal)
-        
+        elif strategy_type == StrategyType.SOL_MOMENTUM:
+            return self._validate_sol_momentum(strategy_params, signal)
+
         return None
     
     def _validate_soul_meteor(self, params: SoulMeteorParams, signal: MarketSignal) -> Optional[StrategyMatch]:
@@ -347,7 +349,59 @@ class StrategyManager:
             )
         
         return None
-    
+
+    def _validate_sol_momentum(self, params: SOLMomentumParams, signal: MarketSignal) -> Optional[StrategyMatch]:
+        """Validate SOL Momentum strategy against signal"""
+        validation_results = {}
+        reasoning_parts = []
+        match_score = 0.0
+
+        # SOL Momentum is specifically for SOL token
+        if signal.symbol and "SOL" in signal.symbol.upper():
+            validation_results["symbol_check"] = True
+            match_score += 0.4
+            reasoning_parts.append(f"SOL token detected ✅")
+        else:
+            validation_results["symbol_check"] = False
+            reasoning_parts.append(f"Not SOL token ❌")
+            return None  # SOL Momentum only works for SOL
+
+        # Volume validation (momentum needs volume)
+        if signal.volume_24h is not None and signal.volume_24h > 1000000:  # $1M+ volume
+            validation_results["volume_check"] = True
+            match_score += 0.3
+            reasoning_parts.append(f"Volume ${signal.volume_24h:,.0f} sufficient for momentum ✅")
+        else:
+            validation_results["volume_check"] = False
+            reasoning_parts.append(f"Volume too low for momentum strategy ❌")
+
+        # Price trend validation (if available)
+        if hasattr(signal, 'price_change_24h') and signal.price_change_24h is not None:
+            if abs(signal.price_change_24h) > 0.02:  # 2% movement
+                validation_results["volatility_check"] = True
+                match_score += 0.2
+                reasoning_parts.append(f"Price movement {signal.price_change_24h*100:.1f}% shows momentum ✅")
+            else:
+                reasoning_parts.append(f"Low volatility {signal.price_change_24h*100:.1f}% ⚠️")
+
+        # Signal type compatibility
+        compatible_types = ["price_movement", "volume_spike", "momentum", "breakout"]
+        if signal.signal_type in compatible_types:
+            validation_results["signal_type_check"] = True
+            match_score += 0.1
+            reasoning_parts.append(f"Signal type '{signal.signal_type}' compatible with momentum ✅")
+
+        if match_score >= 0.5:
+            return StrategyMatch(
+                strategy_type=StrategyType.SOL_MOMENTUM,
+                strategy_params=params,
+                match_score=match_score,
+                validation_results=validation_results,
+                reasoning=" | ".join(reasoning_parts)
+            )
+
+        return None
+
     def generate_strategy_context_for_ai(self, strategy_matches: List[StrategyMatch], signal: MarketSignal) -> str:
         """Generate context prompt for AI decision making based on qualified strategies"""
         

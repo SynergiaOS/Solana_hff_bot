@@ -25,22 +25,22 @@ pub enum MarketEventType {
 pub struct MarketEvent {
     /// Unique event ID
     pub event_id: String,
-    
+
     /// Trading symbol (e.g., "SOL/USDC")
     pub symbol: String,
-    
+
     /// Current price
     pub price: f64,
-    
+
     /// Trading volume
     pub volume: f64,
-    
+
     /// Event timestamp (ISO 8601)
     pub timestamp: String,
-    
+
     /// Event type
     pub event_type: MarketEventType,
-    
+
     /// Additional metadata
     pub metadata: HashMap<String, serde_json::Value>,
 }

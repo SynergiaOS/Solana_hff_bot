@@ -80,11 +80,7 @@ impl RealPriceFetcher {
             self.coingecko_url
         );
 
-        let response = self
-            .client
-            .get(&url)
-            .send()
-            .await?;
+        let response = self.client.get(&url).send().await?;
 
         if !response.status().is_success() {
             error!("❌ CoinGecko API request failed: {}", response.status());
@@ -100,67 +96,85 @@ impl RealPriceFetcher {
         // Extract SOL price
         if let Some(sol_data) = coingecko_data.solana {
             prices.insert("SOL".to_string(), sol_data.usd);
-            cache.insert("SOL".to_string(), RealPriceData {
-                symbol: "SOL".to_string(),
-                price_usd: sol_data.usd,
-                last_updated: current_time,
-                data_source: "coingecko_api".to_string(),
-            });
+            cache.insert(
+                "SOL".to_string(),
+                RealPriceData {
+                    symbol: "SOL".to_string(),
+                    price_usd: sol_data.usd,
+                    last_updated: current_time,
+                    data_source: "coingecko_api".to_string(),
+                },
+            );
         }
 
         // Extract BTC price
         if let Some(btc_data) = coingecko_data.bitcoin {
             prices.insert("BTC".to_string(), btc_data.usd);
-            cache.insert("BTC".to_string(), RealPriceData {
-                symbol: "BTC".to_string(),
-                price_usd: btc_data.usd,
-                last_updated: current_time,
-                data_source: "coingecko_api".to_string(),
-            });
+            cache.insert(
+                "BTC".to_string(),
+                RealPriceData {
+                    symbol: "BTC".to_string(),
+                    price_usd: btc_data.usd,
+                    last_updated: current_time,
+                    data_source: "coingecko_api".to_string(),
+                },
+            );
         }
 
         // Extract ETH price
         if let Some(eth_data) = coingecko_data.ethereum {
             prices.insert("ETH".to_string(), eth_data.usd);
-            cache.insert("ETH".to_string(), RealPriceData {
-                symbol: "ETH".to_string(),
-                price_usd: eth_data.usd,
-                last_updated: current_time,
-                data_source: "coingecko_api".to_string(),
-            });
+            cache.insert(
+                "ETH".to_string(),
+                RealPriceData {
+                    symbol: "ETH".to_string(),
+                    price_usd: eth_data.usd,
+                    last_updated: current_time,
+                    data_source: "coingecko_api".to_string(),
+                },
+            );
         }
 
         // Extract USDC price
         if let Some(usdc_data) = coingecko_data.usd_coin {
             prices.insert("USDC".to_string(), usdc_data.usd);
-            cache.insert("USDC".to_string(), RealPriceData {
-                symbol: "USDC".to_string(),
-                price_usd: usdc_data.usd,
-                last_updated: current_time,
-                data_source: "coingecko_api".to_string(),
-            });
+            cache.insert(
+                "USDC".to_string(),
+                RealPriceData {
+                    symbol: "USDC".to_string(),
+                    price_usd: usdc_data.usd,
+                    last_updated: current_time,
+                    data_source: "coingecko_api".to_string(),
+                },
+            );
         }
 
         // Extract RAY price
         if let Some(ray_data) = coingecko_data.raydium {
             prices.insert("RAY".to_string(), ray_data.usd);
-            cache.insert("RAY".to_string(), RealPriceData {
-                symbol: "RAY".to_string(),
-                price_usd: ray_data.usd,
-                last_updated: current_time,
-                data_source: "coingecko_api".to_string(),
-            });
+            cache.insert(
+                "RAY".to_string(),
+                RealPriceData {
+                    symbol: "RAY".to_string(),
+                    price_usd: ray_data.usd,
+                    last_updated: current_time,
+                    data_source: "coingecko_api".to_string(),
+                },
+            );
         }
 
         // Extract ORCA price
         if let Some(orca_data) = coingecko_data.orca {
             prices.insert("ORCA".to_string(), orca_data.usd);
-            cache.insert("ORCA".to_string(), RealPriceData {
-                symbol: "ORCA".to_string(),
-                price_usd: orca_data.usd,
-                last_updated: current_time,
-                data_source: "coingecko_api".to_string(),
-            });
+            cache.insert(
+                "ORCA".to_string(),
+                RealPriceData {
+                    symbol: "ORCA".to_string(),
+                    price_usd: orca_data.usd,
+                    last_updated: current_time,
+                    data_source: "coingecko_api".to_string(),
+                },
+            );
         }
 
         info!("✅ Real market prices fetched successfully:");
@@ -178,7 +192,10 @@ impl RealPriceFetcher {
             let cache = self.cache.read().await;
             if let Some(cached_price) = cache.get(symbol) {
                 if self.is_cache_valid(cached_price) {
-                    info!("📊 Using cached price for {}: ${:.4}", symbol, cached_price.price_usd);
+                    info!(
+                        "📊 Using cached price for {}: ${:.4}",
+                        symbol, cached_price.price_usd
+                    );
                     return Ok(cached_price.price_usd);
                 }
             }
@@ -240,7 +257,7 @@ mod tests {
     #[tokio::test]
     async fn test_fetch_real_prices() {
         let fetcher = RealPriceFetcher::new();
-        
+
         match fetcher.fetch_real_prices().await {
             Ok(prices) => {
                 assert!(prices.contains_key("SOL"));
@@ -257,7 +274,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_real_price() {
         let fetcher = RealPriceFetcher::new();
-        
+
         match fetcher.get_real_price("SOL").await {
             Ok(price) => {
                 assert!(price > 0.0);
@@ -272,11 +289,11 @@ mod tests {
     #[test]
     fn test_fallback_prices() {
         let fetcher = RealPriceFetcher::new();
-        
+
         assert_eq!(fetcher.get_fallback_price("SOL"), 138.0);
         assert_eq!(fetcher.get_fallback_price("USDC"), 1.0);
         assert_eq!(fetcher.get_fallback_price("UNKNOWN"), 1.0);
-        
+
         println!("✅ Fallback prices test passed");
     }
 }

@@ -2,13 +2,12 @@
 // Handles AI-enhanced trade execution on Solana blockchain with TensorZero optimization
 
 use crate::config::TradingMode;
-use crate::modules::risk::ApprovedSignal;
 use crate::modules::hft_engine::{HftEngine, HftEngineConfig};
+use crate::modules::risk::ApprovedSignal;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
-
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecutionResult {
@@ -90,7 +89,10 @@ impl Executor {
 
     pub async fn start(&mut self) -> Result<()> {
         if self.hft_mode_enabled {
-            info!("🧠 THE OVERMIND PROTOCOL Executor starting in {:?} mode with AI enhancement...", self.trading_mode);
+            info!(
+                "🧠 THE OVERMIND PROTOCOL Executor starting in {:?} mode with AI enhancement...",
+                self.trading_mode
+            );
         } else {
             info!("⚡ Executor starting in {:?} mode...", self.trading_mode);
         }
@@ -230,15 +232,14 @@ impl Executor {
         let _market_data = self.signal_to_market_data(&signal);
 
         if let Some(ref mut hft_engine) = self.hft_engine {
-
             // Get AI decision and execute with TensorZero optimization
             // Convert market_data to TradingSignal for HFT engine
             let trading_signal = crate::modules::hft_engine::TradingSignal {
                 symbol: "SOL/USDC".to_string(), // TODO: Extract from market_data
-                action: "BUY".to_string(), // TODO: Determine from market_data
-                quantity: 1.0, // TODO: Calculate from market_data
-                price: Some(100.0), // TODO: Extract from market_data
-                confidence: 0.8, // TODO: Calculate confidence
+                action: "BUY".to_string(),      // TODO: Determine from market_data
+                quantity: 1.0,                  // TODO: Calculate from market_data
+                price: Some(100.0),             // TODO: Extract from market_data
+                confidence: 0.8,                // TODO: Calculate confidence
                 reasoning: "Market data analysis".to_string(),
             };
 
@@ -253,11 +254,13 @@ impl Executor {
                         status: ExecutionStatus::Confirmed,
                         executed_quantity: signal.approved_quantity,
                         executed_price: signal.original_signal.target_price,
-                        fees: signal.approved_quantity * signal.original_signal.target_price * 0.0005, // Lower fees with AI
+                        fees: signal.approved_quantity
+                            * signal.original_signal.target_price
+                            * 0.0005, // Lower fees with AI
                         timestamp: chrono::Utc::now(),
                         error_message: None,
                     })
-                },
+                }
                 Err(e) => {
                     error!("🧠 HFT Engine error: {}", e);
                     self.execute_paper_trade(signal).await // Fallback to standard paper trade
@@ -280,14 +283,13 @@ impl Executor {
         let _market_data = self.signal_to_market_data(&signal);
 
         if let Some(ref mut hft_engine) = self.hft_engine {
-
             // Convert market_data to TradingSignal for HFT engine
             let trading_signal = crate::modules::hft_engine::TradingSignal {
                 symbol: "SOL/USDC".to_string(), // TODO: Extract from market_data
-                action: "BUY".to_string(), // TODO: Determine from market_data
-                quantity: 1.0, // TODO: Calculate from market_data
-                price: Some(100.0), // TODO: Extract from market_data
-                confidence: 0.8, // TODO: Calculate confidence
+                action: "BUY".to_string(),      // TODO: Determine from market_data
+                quantity: 1.0,                  // TODO: Calculate from market_data
+                price: Some(100.0),             // TODO: Extract from market_data
+                confidence: 0.8,                // TODO: Calculate confidence
                 reasoning: "Market data analysis".to_string(),
             };
 
@@ -302,11 +304,13 @@ impl Executor {
                         status: ExecutionStatus::Confirmed,
                         executed_quantity: signal.approved_quantity,
                         executed_price: signal.original_signal.target_price * 1.002, // Minimal slippage with AI
-                        fees: signal.approved_quantity * signal.original_signal.target_price * 0.0015, // Lower fees with Jito
+                        fees: signal.approved_quantity
+                            * signal.original_signal.target_price
+                            * 0.0015, // Lower fees with Jito
                         timestamp: chrono::Utc::now(),
                         error_message: None,
                     })
-                },
+                }
                 Err(e) => {
                     error!("🧠 HFT Engine error in live trade: {}", e);
                     self.execute_live_trade(signal).await // Fallback to standard live trade
@@ -331,7 +335,8 @@ impl Executor {
             "confidence": signal.original_signal.confidence,
             "timestamp": signal.original_signal.timestamp.to_rfc3339(),
             "risk_score": signal.risk_score,
-        }).to_string()
+        })
+        .to_string()
     }
 
     fn log_execution_result(&self, result: &ExecutionResult) {

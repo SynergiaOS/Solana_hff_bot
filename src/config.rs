@@ -75,6 +75,32 @@ pub struct OvermindConfig {
 
 #[allow(dead_code)]
 impl Config {
+    /// Get dynamic RPC URL based on APP_ENV
+    fn get_dynamic_rpc_url() -> Result<String> {
+        let app_env = env::var("APP_ENV").unwrap_or_else(|_| "development".to_string());
+
+        match app_env.as_str() {
+            "development" => {
+                // Devnet configuration
+                env::var("QUICKNODE_DEVNET_RPC_URL")
+                    .or_else(|_| env::var("SOLANA_DEVNET_RPC_URL"))
+                    .or_else(|_| env::var("SOLANA_RPC_URL"))
+                    .context("No Devnet RPC URL configured")
+            }
+            "production" | "live" => {
+                // Mainnet configuration
+                env::var("QUICKNODE_MAINNET_RPC_URL")
+                    .or_else(|_| env::var("SOLANA_MAINNET_RPC_URL"))
+                    .or_else(|_| env::var("SOLANA_RPC_URL"))
+                    .context("No Mainnet RPC URL configured")
+            }
+            _ => {
+                // Fallback to any available RPC URL
+                env::var("SOLANA_RPC_URL").context("SOLANA_RPC_URL is required")
+            }
+        }
+    }
+
     /// Load configuration from environment variables
     pub fn from_env() -> Result<Self> {
         dotenvy::dotenv().ok(); // Load .env file if present
@@ -101,8 +127,7 @@ impl Config {
                     .context("Invalid SNIPER_MAX_DAILY_LOSS")?,
             },
             solana: SolanaConfig {
-                rpc_url: env::var("SNIPER_SOLANA_RPC_URL")
-                    .context("SNIPER_SOLANA_RPC_URL is required")?,
+                rpc_url: Self::get_dynamic_rpc_url()?,
                 wallet_private_key: env::var("SNIPER_WALLET_PRIVATE_KEY")
                     .context("SNIPER_WALLET_PRIVATE_KEY is required")?,
                 multi_wallet_enabled: env::var("OVERMIND_MULTI_WALLET_ENABLED")

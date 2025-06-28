@@ -1,0 +1,296 @@
+# THE OVERMIND PROTOCOL - Local Development Environment
+# Optimized for local development with hot-reload and debugging
+# Usage: docker-compose -f docker-compose.local.yml up --build
+
+version: '3.8'
+
+services:
+  # ============================================================================
+  # THE OVERMIND PROTOCOL - Core Services (Local Development)
+  # ============================================================================
+  
+  # DragonflyDB - High-Performance Redis Replacement (Local)
+  overmind-dragonfly-local:
+    image: docker.dragonflydb.io/dragonflydb/dragonfly:latest
+    container_name: overmind-dragonfly-local
+    command: dragonfly --logtostderr --port=6379
+    ports:
+      - "6379:6379"
+    volumes:
+      - dragonfly-local-data:/data
+    restart: unless-stopped
+    networks:
+      - overmind-local
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "6379", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Chroma Vector Database - AI Memory Storage (Local)
+  chroma-local:
+    image: chromadb/chroma:latest
+    container_name: overmind-chroma-local
+    ports:
+      - "8000:8000"
+    volumes:
+      - chroma-local-data:/chroma/chroma
+    environment:
+      - CHROMA_SERVER_HOST=0.0.0.0
+      - CHROMA_SERVER_HTTP_PORT=8000
+      - CHROMA_LOG_LEVEL=DEBUG
+    restart: unless-stopped
+    networks:
+      - overmind-local
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # PostgreSQL Database (Local)
+  postgres-local:
+    image: postgres:15-alpine
+    container_name: overmind-postgres-local
+    environment:
+      - POSTGRES_DB=overmind_local
+      - POSTGRES_USER=overmind
+      - POSTGRES_PASSWORD=local_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-local-data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: unless-stopped
+    networks:
+      - overmind-local
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U overmind -d overmind_local"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ============================================================================
+  # AI Brain (Python) - Local Development with Hot Reload
+  # ============================================================================
+
+  overmind-brain-local:
+    build:
+      context: ./brain
+      dockerfile: Dockerfile
+    container_name: overmind-brain-local
+    environment:
+      # AI Configuration
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY:-}
+      
+      # Local Development Configuration
+      - ENVIRONMENT=local
+      - DEBUG=true
+      - LOG_LEVEL=DEBUG
+      - PYTHONPATH=/app/src
+      - PYTHONUNBUFFERED=1
+      
+      # Communication (Local)
+      - DRAGONFLY_URL=redis://overmind-dragonfly-local:6379
+      - VECTOR_DB_URL=http://chroma-local:8000
+      - DATABASE_URL=postgresql://overmind:local_dev_password@postgres-local:5432/overmind_local
+      
+      # OVERMIND Configuration
+      - OVERMIND_MODE=enabled
+      - OVERMIND_AI_MODE=enabled
+    ports:
+      - "8001:8000"  # Expose for debugging
+    volumes:
+      - ./brain:/app  # Hot reload for development
+      - ./library:/app/library
+      - ./logs:/app/logs
+    depends_on:
+      overmind-dragonfly-local:
+        condition: service_healthy
+      chroma-local:
+        condition: service_healthy
+      postgres-local:
+        condition: service_healthy
+    command: ["python", "src/main.py"]
+    restart: unless-stopped
+    networks:
+      - overmind-local
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ============================================================================
+  # Mission Control Dashboard - Local Development
+  # ============================================================================
+
+  mission-control-local:
+    build:
+      context: ./mission_control
+      dockerfile: Dockerfile
+    container_name: overmind-mission-control-local
+    environment:
+      - ENVIRONMENT=local
+      - DEBUG=true
+      - PYTHONUNBUFFERED=1
+      - STREAMLIT_SERVER_PORT=8501
+      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
+      - STREAMLIT_LOGGER_LEVEL=debug
+      
+      # Backend connections
+      - AI_BRAIN_URL=http://overmind-brain-local:8000
+      - DRAGONFLY_URL=redis://overmind-dragonfly-local:6379
+      - DATABASE_URL=postgresql://overmind:local_dev_password@postgres-local:5432/overmind_local
+    ports:
+      - "8501:8501"  # Streamlit default port
+    volumes:
+      - ./mission_control:/app  # Hot reload for development
+      - ./logs:/app/logs
+    depends_on:
+      overmind-brain-local:
+        condition: service_healthy
+      overmind-dragonfly-local:
+        condition: service_healthy
+      postgres-local:
+        condition: service_healthy
+    command: ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+    restart: unless-stopped
+    networks:
+      - overmind-local
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ============================================================================
+  # Rust HFT Executor - Local Development
+  # ============================================================================
+
+  overmind-executor-local:
+    build:
+      context: .
+      dockerfile: Dockerfile.devnet
+    container_name: overmind-executor-local
+    environment:
+      # Trading Configuration (DEVNET/PAPER)
+      - SNIPER_TRADING_MODE=paper
+      - SNIPER_ENVIRONMENT=local
+      - SNIPER_MAX_POSITION_SIZE=0.1
+      - SNIPER_MAX_DAILY_LOSS=1.0
+      
+      # Development Configuration
+      - RUST_LOG=debug
+      - RUST_BACKTRACE=1
+      
+      # THE OVERMIND PROTOCOL Configuration
+      - OVERMIND_ENABLED=true
+      - OVERMIND_AI_MODE=enabled
+      - OVERMIND_MAX_LATENCY_MS=100  # Relaxed for local dev
+      - OVERMIND_AI_CONFIDENCE_THRESHOLD=0.5
+      
+      # Local Connections
+      - DRAGONFLY_URL=redis://overmind-dragonfly-local:6379
+      - AI_BRAIN_URL=http://overmind-brain-local:8000
+      - DATABASE_URL=postgresql://overmind:local_dev_password@postgres-local:5432/overmind_local
+      
+      # Solana Configuration (DEVNET)
+      - SNIPER_SOLANA_RPC_URL=${QUICKNODE_DEVNET_RPC_URL:-https://api.devnet.solana.com}
+      - SNIPER_WALLET_PRIVATE_KEY=${SNIPER_WALLET_PRIVATE_KEY:-}
+      
+      # API Keys
+      - SNIPER_HELIUS_API_KEY=${HELIUS_API_KEY:-}
+      - SNIPER_QUICKNODE_API_KEY=${QUICKNODE_API_KEY:-}
+      
+      # Server
+      - SNIPER_SERVER_PORT=8080
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./src:/app/src  # Hot reload for Rust development
+      - ./Cargo.toml:/app/Cargo.toml
+      - ./Cargo.lock:/app/Cargo.lock
+      - ./logs:/app/logs
+      - ./config:/app/config
+      - ./.env:/app/.env
+    depends_on:
+      overmind-brain-local:
+        condition: service_healthy
+      overmind-dragonfly-local:
+        condition: service_healthy
+      postgres-local:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - overmind-local
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ============================================================================
+  # Development Tools and Monitoring
+  # ============================================================================
+
+  # Redis Commander - DragonflyDB GUI
+  redis-commander-local:
+    image: rediscommander/redis-commander:latest
+    container_name: overmind-redis-commander-local
+    environment:
+      - REDIS_HOSTS=local:overmind-dragonfly-local:6379
+    ports:
+      - "8081:8081"
+    depends_on:
+      overmind-dragonfly-local:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - overmind-local
+
+  # pgAdmin - PostgreSQL GUI
+  pgadmin-local:
+    image: dpage/pgadmin4:latest
+    container_name: overmind-pgadmin-local
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=dev@overmind.local
+      - PGADMIN_DEFAULT_PASSWORD=local_dev_password
+      - PGADMIN_CONFIG_SERVER_MODE=False
+    ports:
+      - "8082:80"
+    volumes:
+      - pgadmin-local-data:/var/lib/pgadmin
+    depends_on:
+      postgres-local:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - overmind-local
+
+# ============================================================================
+# Networks and Volumes
+# ============================================================================
+
+networks:
+  overmind-local:
+    driver: bridge
+    name: overmind-local-network
+    ipam:
+      config:
+        - subnet: 172.30.0.0/16
+
+volumes:
+  # Database volumes
+  postgres-local-data:
+    driver: local
+  dragonfly-local-data:
+    driver: local
+  chroma-local-data:
+    driver: local
+  
+  # Development tools
+  pgadmin-local-data:
+    driver: local

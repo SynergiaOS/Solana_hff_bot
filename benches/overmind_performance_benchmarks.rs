@@ -1,5 +1,5 @@
 //! THE OVERMIND PROTOCOL Performance Benchmarks
-//! 
+//!
 //! Comprehensive performance testing suite including:
 //! - Latency measurements (sub-millisecond targets)
 //! - Throughput testing (transactions per second)
@@ -8,74 +8,60 @@
 //! - Risk management performance
 //! - Multi-wallet load balancing performance
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId, Throughput};
-use std::time::{Duration, Instant};
-use tokio::runtime::Runtime;
+use chrono::Utc;
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use snipercor::modules::{
+    ai_connector::{AIAction, AIConnectorConfig, AIDecision},
+    geographic_distribution::GeographicConfig,
     hft_engine::{HftEngineConfig, TradingSignal},
-    ai_connector::{AIConnectorConfig, AIDecision, AIAction},
-    tensorzero_client::TensorZeroConfig,
     jito_client::JitoConfig,
     multi_wallet_load_balancer::LoadBalancerConfig,
-    geographic_distribution::GeographicConfig,
     submillisecond_optimizer::OptimizationConfig,
+    tensorzero_client::TensorZeroConfig,
 };
 use std::collections::HashMap;
-use chrono::Utc;
+use std::time::{Duration, Instant};
+use tokio::runtime::Runtime;
 
 /// Benchmark configuration creation performance
 fn benchmark_config_creation(c: &mut Criterion) {
     let mut group = c.benchmark_group("config_creation");
-    
+
     group.bench_function("hft_engine_config", |b| {
-        b.iter(|| {
-            black_box(HftEngineConfig::default())
-        })
+        b.iter(|| black_box(HftEngineConfig::default()))
     });
-    
+
     group.bench_function("ai_connector_config", |b| {
-        b.iter(|| {
-            black_box(AIConnectorConfig::default())
-        })
+        b.iter(|| black_box(AIConnectorConfig::default()))
     });
-    
+
     group.bench_function("tensorzero_config", |b| {
-        b.iter(|| {
-            black_box(TensorZeroConfig::default())
-        })
+        b.iter(|| black_box(TensorZeroConfig::default()))
     });
-    
+
     group.bench_function("jito_config", |b| {
-        b.iter(|| {
-            black_box(JitoConfig::default())
-        })
+        b.iter(|| black_box(JitoConfig::default()))
     });
-    
+
     group.bench_function("load_balancer_config", |b| {
-        b.iter(|| {
-            black_box(LoadBalancerConfig::default())
-        })
+        b.iter(|| black_box(LoadBalancerConfig::default()))
     });
-    
+
     group.bench_function("geographic_config", |b| {
-        b.iter(|| {
-            black_box(GeographicConfig::default())
-        })
+        b.iter(|| black_box(GeographicConfig::default()))
     });
-    
+
     group.bench_function("optimization_config", |b| {
-        b.iter(|| {
-            black_box(OptimizationConfig::default())
-        })
+        b.iter(|| black_box(OptimizationConfig::default()))
     });
-    
+
     group.finish();
 }
 
 /// Benchmark trading signal processing performance
 fn benchmark_trading_signal_processing(c: &mut Criterion) {
     let mut group = c.benchmark_group("trading_signal_processing");
-    
+
     // Test different batch sizes
     for batch_size in [1, 10, 100, 1000].iter() {
         group.throughput(Throughput::Elements(*batch_size as u64));
@@ -87,7 +73,11 @@ fn benchmark_trading_signal_processing(c: &mut Criterion) {
                     let signals: Vec<TradingSignal> = (0..size)
                         .map(|i| TradingSignal {
                             symbol: format!("TOKEN{}/USDC", i),
-                            action: if i % 2 == 0 { "BUY".to_string() } else { "SELL".to_string() },
+                            action: if i % 2 == 0 {
+                                "BUY".to_string()
+                            } else {
+                                "SELL".to_string()
+                            },
                             quantity: 100.0 + (i as f64),
                             price: Some(150.0 + (i as f64) * 0.1),
                             confidence: 0.8 + (i as f64) * 0.001,
@@ -99,14 +89,14 @@ fn benchmark_trading_signal_processing(c: &mut Criterion) {
             },
         );
     }
-    
+
     group.finish();
 }
 
 /// Benchmark AI decision making performance
 fn benchmark_ai_decision_performance(c: &mut Criterion) {
     let mut group = c.benchmark_group("ai_decision_performance");
-    
+
     // Test AI decision creation and processing
     group.bench_function("ai_decision_creation", |b| {
         b.iter(|| {
@@ -125,7 +115,7 @@ fn benchmark_ai_decision_performance(c: &mut Criterion) {
             black_box(decision)
         })
     });
-    
+
     // Test batch AI decision processing
     for batch_size in [10, 50, 100, 500].iter() {
         group.throughput(Throughput::Elements(*batch_size as u64));
@@ -138,7 +128,11 @@ fn benchmark_ai_decision_performance(c: &mut Criterion) {
                         .map(|i| AIDecision {
                             decision_id: format!("decision_{}", i),
                             symbol: format!("TOKEN{}/USDC", i),
-                            action: if i % 2 == 0 { AIAction::Buy } else { AIAction::Sell },
+                            action: if i % 2 == 0 {
+                                AIAction::Buy
+                            } else {
+                                AIAction::Sell
+                            },
                             confidence: 0.7 + (i as f64) * 0.001,
                             reasoning: format!("AI decision {} reasoning", i),
                             quantity: 100.0 + (i as f64),
@@ -153,14 +147,14 @@ fn benchmark_ai_decision_performance(c: &mut Criterion) {
             },
         );
     }
-    
+
     group.finish();
 }
 
 /// Benchmark memory allocation and deallocation performance
 fn benchmark_memory_performance(c: &mut Criterion) {
     let mut group = c.benchmark_group("memory_performance");
-    
+
     // Test vector allocation performance
     for size in [1000, 10000, 100000].iter() {
         group.throughput(Throughput::Elements(*size as u64));
@@ -178,7 +172,7 @@ fn benchmark_memory_performance(c: &mut Criterion) {
             },
         );
     }
-    
+
     // Test HashMap allocation performance
     for size in [1000, 10000, 100000].iter() {
         group.throughput(Throughput::Elements(*size as u64));
@@ -196,14 +190,14 @@ fn benchmark_memory_performance(c: &mut Criterion) {
             },
         );
     }
-    
+
     group.finish();
 }
 
 /// Benchmark serialization/deserialization performance
 fn benchmark_serialization_performance(c: &mut Criterion) {
     let mut group = c.benchmark_group("serialization_performance");
-    
+
     let signal = TradingSignal {
         symbol: "SOL/USDC".to_string(),
         action: "BUY".to_string(),
@@ -212,20 +206,16 @@ fn benchmark_serialization_performance(c: &mut Criterion) {
         confidence: 0.85,
         reasoning: "Strong bullish momentum detected with high volume".to_string(),
     };
-    
+
     group.bench_function("json_serialize", |b| {
-        b.iter(|| {
-            black_box(serde_json::to_string(&signal).unwrap())
-        })
+        b.iter(|| black_box(serde_json::to_string(&signal).unwrap()))
     });
-    
+
     let json_str = serde_json::to_string(&signal).unwrap();
     group.bench_function("json_deserialize", |b| {
-        b.iter(|| {
-            black_box(serde_json::from_str::<TradingSignal>(&json_str).unwrap())
-        })
+        b.iter(|| black_box(serde_json::from_str::<TradingSignal>(&json_str).unwrap()))
     });
-    
+
     group.finish();
 }
 
@@ -270,7 +260,7 @@ fn benchmark_async_performance(c: &mut Criterion) {
 /// Benchmark latency measurement overhead
 fn benchmark_latency_measurement(c: &mut Criterion) {
     let mut group = c.benchmark_group("latency_measurement");
-    
+
     group.bench_function("instant_now_overhead", |b| {
         b.iter(|| {
             let start = Instant::now();
@@ -280,7 +270,7 @@ fn benchmark_latency_measurement(c: &mut Criterion) {
             black_box(end.duration_since(start))
         })
     });
-    
+
     group.bench_function("duration_measurement", |b| {
         b.iter(|| {
             let start = Instant::now();
@@ -290,7 +280,7 @@ fn benchmark_latency_measurement(c: &mut Criterion) {
             black_box(duration)
         })
     });
-    
+
     group.finish();
 }
 

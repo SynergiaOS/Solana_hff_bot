@@ -1,50 +1,63 @@
 //! Error Handling Module
-//! 
+//!
 //! Provides comprehensive error handling, recovery mechanisms,
 //! and detailed error reporting for THE OVERMIND PROTOCOL.
 
 use anyhow::Result;
-use thiserror::Error;
-use tracing::{error, warn, info, debug};
 use std::time::{Duration, Instant};
+use thiserror::Error;
 use tokio::time::sleep;
+use tracing::{debug, error, info, warn};
 
 /// Custom error types for THE OVERMIND PROTOCOL
 #[derive(Error, Debug)]
 pub enum OvermindError {
     #[error("Network error: {message}")]
     Network { message: String, retryable: bool },
-    
+
     #[error("RPC error: {message}")]
     Rpc { message: String, endpoint: String },
-    
+
     #[error("Transaction error: {message}")]
-    Transaction { message: String, signature: Option<String> },
-    
+    Transaction {
+        message: String,
+        signature: Option<String>,
+    },
+
     #[error("TensorZero optimization error: {message}")]
     TensorZero { message: String },
-    
+
     #[error("Jito bundle error: {message}")]
-    Jito { message: String, bundle_id: Option<String> },
-    
+    Jito {
+        message: String,
+        bundle_id: Option<String>,
+    },
+
     #[error("DEX integration error: {message}")]
     Dex { message: String, dex_type: String },
-    
+
     #[error("Configuration error: {message}")]
     Configuration { message: String },
-    
+
     #[error("Wallet error: {message}")]
     Wallet { message: String },
-    
+
     #[error("Rate limit exceeded: {message}")]
-    RateLimit { message: String, retry_after: Option<Duration> },
-    
+    RateLimit {
+        message: String,
+        retry_after: Option<Duration>,
+    },
+
     #[error("Insufficient funds: {message}")]
-    InsufficientFunds { message: String, required: u64, available: u64 },
-    
+    InsufficientFunds {
+        message: String,
+        required: u64,
+        available: u64,
+    },
+
     #[error("Market data error: {message}")]
     MarketData { message: String },
-    
+
     #[error("Critical system error: {message}")]
     Critical { message: String },
 }
@@ -53,7 +66,10 @@ pub enum OvermindError {
 #[derive(Debug, Clone)]
 pub enum RecoveryStrategy {
     /// Retry with exponential backoff
-    Retry { max_attempts: u32, base_delay: Duration },
+    Retry {
+        max_attempts: u32,
+        base_delay: Duration,
+    },
     /// Switch to fallback service
     Fallback { fallback_service: String },
     /// Circuit breaker - stop operations temporarily
@@ -110,19 +126,23 @@ impl ErrorHandler {
     }
 
     /// Handle an error with appropriate recovery strategy
-    pub async fn handle_error(&mut self, error: &OvermindError, context: ErrorContext) -> RecoveryStrategy {
+    pub async fn handle_error(
+        &mut self,
+        error: &OvermindError,
+        context: ErrorContext,
+    ) -> RecoveryStrategy {
         // Update error statistics
         self.update_error_stats(error);
-        
+
         // Log the error with context
         self.log_error(error, &context);
-        
+
         // Determine recovery strategy
         let strategy = self.determine_recovery_strategy(error, &context);
-        
+
         // Execute recovery strategy
         self.execute_recovery_strategy(&strategy, &context).await;
-        
+
         strategy
     }
 
@@ -139,7 +159,7 @@ impl ErrorHandler {
         E: std::fmt::Display,
     {
         let mut attempt = 1;
-        
+
         loop {
             match operation() {
                 Ok(result) => {
@@ -150,14 +170,19 @@ impl ErrorHandler {
                 }
                 Err(e) => {
                     if attempt >= max_attempts {
-                        error!("❌ {} failed after {} attempts: {}", operation_name, attempt, e);
+                        error!(
+                            "❌ {} failed after {} attempts: {}",
+                            operation_name, attempt, e
+                        );
                         return Err(e);
                     }
-                    
+
                     let delay = base_delay * 2_u32.pow(attempt - 1);
-                    warn!("⚠️ {} attempt {}/{} failed: {}. Retrying in {:?}", 
-                          operation_name, attempt, max_attempts, e, delay);
-                    
+                    warn!(
+                        "⚠️ {} attempt {}/{} failed: {}. Retrying in {:?}",
+                        operation_name, attempt, max_attempts, e, delay
+                    );
+
                     sleep(delay).await;
                     attempt += 1;
                 }
@@ -185,16 +210,20 @@ impl ErrorHandler {
     pub fn trip_circuit_breaker(&mut self, service: &str, cooldown: Duration) {
         let state = CircuitBreakerState {
             is_open: true,
-            failure_count: self.circuit_breakers
+            failure_count: self
+                .circuit_breakers
                 .get(service)
                 .map(|s| s.failure_count + 1)
                 .unwrap_or(1),
             last_failure: Some(Instant::now()),
             cooldown_duration: cooldown,
         };
-        
+
         self.circuit_breakers.insert(service.to_string(), state);
-        warn!("🔴 Circuit breaker tripped for {}: cooldown {:?}", service, cooldown);
+        warn!(
+            "🔴 Circuit breaker tripped for {}: cooldown {:?}",
+            service, cooldown
+        );
     }
 
     /// Reset circuit breaker for a service
@@ -216,7 +245,7 @@ impl ErrorHandler {
     /// Update error statistics
     fn update_error_stats(&mut self, error: &OvermindError) {
         self.error_stats.total_errors += 1;
-        
+
         match error {
             OvermindError::Network { .. } => self.error_stats.network_errors += 1,
             OvermindError::Rpc { .. } => self.error_stats.rpc_errors += 1,
@@ -228,23 +257,27 @@ impl ErrorHandler {
 
     /// Log error with appropriate level and context
     fn log_error(&self, error: &OvermindError, context: &ErrorContext) {
-        let error_msg = format!("Error in {}.{}: {}", 
-                               context.component, context.operation, error);
-        
+        let error_msg = format!(
+            "Error in {}.{}: {}",
+            context.component, context.operation, error
+        );
+
         match error {
             OvermindError::Critical { .. } => {
                 error!("🚨 CRITICAL: {}", error_msg);
             }
-            OvermindError::Network { retryable: true, .. } |
-            OvermindError::Rpc { .. } |
-            OvermindError::RateLimit { .. } => {
+            OvermindError::Network {
+                retryable: true, ..
+            }
+            | OvermindError::Rpc { .. }
+            | OvermindError::RateLimit { .. } => {
                 warn!("⚠️ RETRYABLE: {}", error_msg);
             }
             _ => {
                 error!("❌ ERROR: {}", error_msg);
             }
         }
-        
+
         // Log additional context
         if !context.additional_data.is_empty() {
             debug!("Error context: {:?}", context.additional_data);
@@ -252,59 +285,55 @@ impl ErrorHandler {
     }
 
     /// Determine appropriate recovery strategy
-    fn determine_recovery_strategy(&self, error: &OvermindError, _context: &ErrorContext) -> RecoveryStrategy {
+    fn determine_recovery_strategy(
+        &self,
+        error: &OvermindError,
+        _context: &ErrorContext,
+    ) -> RecoveryStrategy {
         match error {
-            OvermindError::Network { retryable: true, .. } => {
-                RecoveryStrategy::Retry {
-                    max_attempts: 3,
-                    base_delay: Duration::from_millis(500),
-                }
-            }
-            OvermindError::Rpc { .. } => {
-                RecoveryStrategy::Fallback {
-                    fallback_service: "backup_rpc".to_string(),
-                }
-            }
-            OvermindError::RateLimit { retry_after, .. } => {
-                RecoveryStrategy::Retry {
-                    max_attempts: 2,
-                    base_delay: retry_after.unwrap_or(Duration::from_secs(1)),
-                }
-            }
-            OvermindError::TensorZero { .. } => {
-                RecoveryStrategy::Fallback {
-                    fallback_service: "default_optimization".to_string(),
-                }
-            }
-            OvermindError::Jito { .. } => {
-                RecoveryStrategy::Fallback {
-                    fallback_service: "standard_rpc".to_string(),
-                }
-            }
-            OvermindError::Critical { .. } => {
-                RecoveryStrategy::EmergencyStop
-            }
-            OvermindError::InsufficientFunds { .. } => {
-                RecoveryStrategy::FailFast
-            }
-            _ => {
-                RecoveryStrategy::Retry {
-                    max_attempts: 2,
-                    base_delay: Duration::from_millis(1000),
-                }
-            }
+            OvermindError::Network {
+                retryable: true, ..
+            } => RecoveryStrategy::Retry {
+                max_attempts: 3,
+                base_delay: Duration::from_millis(500),
+            },
+            OvermindError::Rpc { .. } => RecoveryStrategy::Fallback {
+                fallback_service: "backup_rpc".to_string(),
+            },
+            OvermindError::RateLimit { retry_after, .. } => RecoveryStrategy::Retry {
+                max_attempts: 2,
+                base_delay: retry_after.unwrap_or(Duration::from_secs(1)),
+            },
+            OvermindError::TensorZero { .. } => RecoveryStrategy::Fallback {
+                fallback_service: "default_optimization".to_string(),
+            },
+            OvermindError::Jito { .. } => RecoveryStrategy::Fallback {
+                fallback_service: "standard_rpc".to_string(),
+            },
+            OvermindError::Critical { .. } => RecoveryStrategy::EmergencyStop,
+            OvermindError::InsufficientFunds { .. } => RecoveryStrategy::FailFast,
+            _ => RecoveryStrategy::Retry {
+                max_attempts: 2,
+                base_delay: Duration::from_millis(1000),
+            },
         }
     }
 
     /// Execute recovery strategy
-    async fn execute_recovery_strategy(&mut self, strategy: &RecoveryStrategy, context: &ErrorContext) {
+    async fn execute_recovery_strategy(
+        &mut self,
+        strategy: &RecoveryStrategy,
+        context: &ErrorContext,
+    ) {
         match strategy {
             RecoveryStrategy::CircuitBreaker { cooldown } => {
                 self.trip_circuit_breaker(&context.component, *cooldown);
             }
             RecoveryStrategy::EmergencyStop => {
-                error!("🚨 EMERGENCY STOP triggered in {}.{}", 
-                       context.component, context.operation);
+                error!(
+                    "🚨 EMERGENCY STOP triggered in {}.{}",
+                    context.component, context.operation
+                );
                 // In production, this would trigger system-wide shutdown
             }
             RecoveryStrategy::Fallback { fallback_service } => {
@@ -364,12 +393,12 @@ mod tests {
     async fn test_circuit_breaker() {
         let mut handler = ErrorHandler::new();
         let service = "test_service";
-        
+
         assert!(!handler.is_circuit_breaker_open(service));
-        
+
         handler.trip_circuit_breaker(service, Duration::from_millis(100));
         assert!(handler.is_circuit_breaker_open(service));
-        
+
         // Wait for cooldown
         tokio::time::sleep(Duration::from_millis(150)).await;
         assert!(!handler.is_circuit_breaker_open(service));
@@ -380,9 +409,9 @@ mod tests {
         let context = error_context!("test_component", "test_operation");
         assert_eq!(context.component, "test_component");
         assert_eq!(context.operation, "test_operation");
-        
+
         let context_with_data = error_context!(
-            "test_component", 
+            "test_component",
             "test_operation",
             "key1" => "value1",
             "key2" => "value2"

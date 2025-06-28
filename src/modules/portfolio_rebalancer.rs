@@ -1,5 +1,5 @@
 //! Portfolio Rebalancing System for THE OVERMIND PROTOCOL
-//! 
+//!
 //! Advanced portfolio rebalancing with multiple strategies, transaction cost optimization,
 //! and intelligent timing algorithms.
 
@@ -14,40 +14,40 @@ use tracing::{info, warn};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RebalancingConfig {
     pub strategy: RebalancingStrategy,
-    pub threshold_percentage: f64,        // Deviation threshold for rebalancing
+    pub threshold_percentage: f64, // Deviation threshold for rebalancing
     pub min_rebalance_interval: Duration, // Minimum time between rebalances
     pub max_rebalance_interval: Duration, // Maximum time between rebalances
-    pub transaction_cost_threshold: f64,  // Minimum cost-benefit ratio
-    pub volatility_adjustment: bool,      // Adjust timing based on volatility
-    pub momentum_consideration: bool,     // Consider momentum in timing
-    pub liquidity_requirement: f64,       // Minimum liquidity for rebalancing
-    pub max_trade_size: f64,              // Maximum single trade size
-    pub slippage_tolerance: f64,          // Maximum acceptable slippage
+    pub transaction_cost_threshold: f64, // Minimum cost-benefit ratio
+    pub volatility_adjustment: bool, // Adjust timing based on volatility
+    pub momentum_consideration: bool, // Consider momentum in timing
+    pub liquidity_requirement: f64, // Minimum liquidity for rebalancing
+    pub max_trade_size: f64,       // Maximum single trade size
+    pub slippage_tolerance: f64,   // Maximum acceptable slippage
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum RebalancingStrategy {
-    Threshold,                            // Rebalance when deviation exceeds threshold
-    Calendar,                             // Rebalance at fixed intervals
-    Volatility,                           // Rebalance based on volatility
-    Momentum,                             // Rebalance based on momentum
-    CostOptimized,                        // Rebalance when cost-effective
-    Hybrid,                               // Combination of strategies
+    Threshold,     // Rebalance when deviation exceeds threshold
+    Calendar,      // Rebalance at fixed intervals
+    Volatility,    // Rebalance based on volatility
+    Momentum,      // Rebalance based on momentum
+    CostOptimized, // Rebalance when cost-effective
+    Hybrid,        // Combination of strategies
 }
 
 impl Default for RebalancingConfig {
     fn default() -> Self {
         Self {
             strategy: RebalancingStrategy::Hybrid,
-            threshold_percentage: 0.05,      // 5% deviation threshold
+            threshold_percentage: 0.05, // 5% deviation threshold
             min_rebalance_interval: Duration::from_secs(3600), // 1 hour minimum
             max_rebalance_interval: Duration::from_secs(86400), // 24 hours maximum
             transaction_cost_threshold: 0.001, // 0.1% minimum cost-benefit
             volatility_adjustment: true,
             momentum_consideration: true,
-            liquidity_requirement: 0.8,      // 80% liquidity requirement
-            max_trade_size: 0.1,              // 10% max trade size
-            slippage_tolerance: 0.005,        // 0.5% slippage tolerance
+            liquidity_requirement: 0.8, // 80% liquidity requirement
+            max_trade_size: 0.1,        // 10% max trade size
+            slippage_tolerance: 0.005,  // 0.5% slippage tolerance
         }
     }
 }
@@ -157,7 +157,7 @@ impl PortfolioRebalancer {
 
         // Start rebalancing monitoring
         self.start_rebalance_monitoring().await;
-        
+
         // Start market conditions monitoring
         self.start_market_conditions_monitoring().await;
 
@@ -177,17 +177,18 @@ impl PortfolioRebalancer {
 
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(60)); // Check every minute
-            
+
             loop {
                 interval.tick().await;
-                
+
                 let should_rebalance = Self::should_rebalance(
                     &target_allocations,
                     &current_positions,
                     &market_conditions,
                     &last_rebalance,
                     &config,
-                ).await;
+                )
+                .await;
 
                 if should_rebalance {
                     match Self::execute_rebalance(
@@ -197,22 +198,27 @@ impl PortfolioRebalancer {
                         &transaction_costs,
                         &liquidity_scores,
                         &config,
-                    ).await {
+                    )
+                    .await
+                    {
                         Ok(execution) => {
-                            info!("🔄 Portfolio rebalanced successfully: {} orders, cost: {:.4}%", 
-                                  execution.orders.len(), execution.total_cost * 100.0);
-                            
+                            info!(
+                                "🔄 Portfolio rebalanced successfully: {} orders, cost: {:.4}%",
+                                execution.orders.len(),
+                                execution.total_cost * 100.0
+                            );
+
                             // Update last rebalance time
                             {
                                 let mut last_rebalance_guard = last_rebalance.lock().await;
                                 *last_rebalance_guard = Instant::now();
                             }
-                            
+
                             // Store execution history
                             {
                                 let mut history_guard = rebalance_history.lock().await;
                                 history_guard.push(execution);
-                                
+
                                 // Keep only last 100 rebalances
                                 if history_guard.len() > 100 {
                                     let len = history_guard.len();
@@ -234,13 +240,13 @@ impl PortfolioRebalancer {
 
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(300)); // Update every 5 minutes
-            
+
             loop {
                 interval.tick().await;
-                
+
                 // Update market conditions (simplified)
                 let new_conditions = Self::assess_market_conditions().await;
-                
+
                 {
                     let mut conditions_guard = market_conditions.write().await;
                     *conditions_guard = new_conditions;
@@ -286,7 +292,8 @@ impl PortfolioRebalancer {
                 Self::check_momentum_rebalance(market_conditions, config).await
             }
             RebalancingStrategy::CostOptimized => {
-                Self::check_cost_optimized_rebalance(target_allocations, current_positions, config).await
+                Self::check_cost_optimized_rebalance(target_allocations, current_positions, config)
+                    .await
             }
             RebalancingStrategy::Hybrid => {
                 Self::check_hybrid_rebalance(
@@ -295,7 +302,8 @@ impl PortfolioRebalancer {
                     market_conditions,
                     last_rebalance,
                     config,
-                ).await
+                )
+                .await
             }
         }
     }
@@ -311,7 +319,7 @@ impl PortfolioRebalancer {
         for (symbol, &target_weight) in target_guard.iter() {
             let current_weight = current_guard.get(symbol).copied().unwrap_or(0.0);
             let deviation = (current_weight - target_weight).abs();
-            
+
             if deviation > config.threshold_percentage {
                 return true;
             }
@@ -333,7 +341,10 @@ impl PortfolioRebalancer {
         _config: &RebalancingConfig,
     ) -> bool {
         let conditions_guard = market_conditions.read().await;
-        matches!(conditions_guard.volatility_regime, VolatilityRegime::High | VolatilityRegime::Extreme)
+        matches!(
+            conditions_guard.volatility_regime,
+            VolatilityRegime::High | VolatilityRegime::Extreme
+        )
     }
 
     async fn check_momentum_rebalance(
@@ -349,7 +360,8 @@ impl PortfolioRebalancer {
         current_positions: &Arc<RwLock<HashMap<String, f64>>>,
         config: &RebalancingConfig,
     ) -> bool {
-        let expected_benefit = Self::calculate_rebalance_benefit(target_allocations, current_positions).await;
+        let expected_benefit =
+            Self::calculate_rebalance_benefit(target_allocations, current_positions).await;
         expected_benefit > config.transaction_cost_threshold
     }
 
@@ -360,16 +372,19 @@ impl PortfolioRebalancer {
         last_rebalance: &Arc<Mutex<Instant>>,
         config: &RebalancingConfig,
     ) -> bool {
-        let threshold_trigger = Self::check_threshold_rebalance(target_allocations, current_positions, config).await;
+        let threshold_trigger =
+            Self::check_threshold_rebalance(target_allocations, current_positions, config).await;
         let volatility_trigger = Self::check_volatility_rebalance(market_conditions, config).await;
-        let cost_trigger = Self::check_cost_optimized_rebalance(target_allocations, current_positions, config).await;
+        let cost_trigger =
+            Self::check_cost_optimized_rebalance(target_allocations, current_positions, config)
+                .await;
         let calendar_trigger = Self::check_calendar_rebalance(last_rebalance, config).await;
 
         // Weighted decision
-        let score = (threshold_trigger as u8 as f64 * 0.4) +
-                   (volatility_trigger as u8 as f64 * 0.2) +
-                   (cost_trigger as u8 as f64 * 0.3) +
-                   (calendar_trigger as u8 as f64 * 0.1);
+        let score = (threshold_trigger as u8 as f64 * 0.4)
+            + (volatility_trigger as u8 as f64 * 0.2)
+            + (cost_trigger as u8 as f64 * 0.3)
+            + (calendar_trigger as u8 as f64 * 0.1);
 
         score > 0.5
     }
@@ -398,20 +413,29 @@ impl PortfolioRebalancer {
 
             if deviation.abs() > config.threshold_percentage {
                 let liquidity_score = liquidity_guard.get(symbol).copied().unwrap_or(0.5);
-                
+
                 if liquidity_score >= config.liquidity_requirement {
                     let transaction_cost = costs_guard.get(symbol).copied().unwrap_or(0.001);
                     let trade_size = deviation.abs().min(config.max_trade_size);
-                    
+
                     let order = RebalanceOrder {
                         symbol: symbol.clone(),
-                        action: if deviation > 0.0 { OrderAction::Buy } else { OrderAction::Sell },
+                        action: if deviation > 0.0 {
+                            OrderAction::Buy
+                        } else {
+                            OrderAction::Sell
+                        },
                         quantity: trade_size,
                         estimated_cost: trade_size * transaction_cost,
                         expected_slippage: Self::estimate_slippage(trade_size, liquidity_score),
                         urgency: deviation.abs() / config.threshold_percentage,
-                        reasoning: format!("Rebalance {} from {:.2}% to {:.2}% (deviation: {:.2}%)",
-                                         symbol, current_weight * 100.0, target_weight * 100.0, deviation.abs() * 100.0),
+                        reasoning: format!(
+                            "Rebalance {} from {:.2}% to {:.2}% (deviation: {:.2}%)",
+                            symbol,
+                            current_weight * 100.0,
+                            target_weight * 100.0,
+                            deviation.abs() * 100.0
+                        ),
                     };
 
                     total_cost += order.estimated_cost;
@@ -424,10 +448,12 @@ impl PortfolioRebalancer {
         orders.sort_by(|a, b| b.urgency.partial_cmp(&a.urgency).unwrap());
 
         // Calculate risk metrics
-        let risk_metrics = Self::calculate_rebalance_risk_metrics(&target_guard, &current_guard).await;
+        let risk_metrics =
+            Self::calculate_rebalance_risk_metrics(&target_guard, &current_guard).await;
 
         // Calculate expected improvement
-        let expected_improvement = Self::calculate_rebalance_benefit(target_allocations, current_positions).await;
+        let expected_improvement =
+            Self::calculate_rebalance_benefit(target_allocations, current_positions).await;
 
         Ok(RebalanceExecution {
             orders,
@@ -442,11 +468,11 @@ impl PortfolioRebalancer {
     async fn assess_market_conditions() -> MarketConditions {
         // Simplified market conditions assessment
         // In a real implementation, this would analyze market data
-        
+
         MarketConditions {
             volatility_regime: VolatilityRegime::Medium,
-            momentum_score: 0.3, // Slight positive momentum
-            liquidity_score: 0.8, // Good liquidity
+            momentum_score: 0.3,          // Slight positive momentum
+            liquidity_score: 0.8,         // Good liquidity
             market_stress_indicator: 0.2, // Low stress
             correlation_environment: 0.6, // Moderate correlation
         }
@@ -488,10 +514,10 @@ impl PortfolioRebalancer {
 
         for (symbol, &target_weight) in target_allocations {
             let current_weight = current_positions.get(symbol).copied().unwrap_or(0.0);
-            
+
             // Concentration risk (Herfindahl index)
             concentration_risk += target_weight * target_weight;
-            
+
             // Tracking error
             tracking_error += (target_weight - current_weight).powi(2);
         }
@@ -558,7 +584,8 @@ impl PortfolioRebalancer {
             &self.transaction_costs,
             &self.liquidity_scores,
             &self.config,
-        ).await
+        )
+        .await
     }
 
     pub async fn shutdown(&mut self) -> Result<()> {

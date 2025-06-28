@@ -1,15 +1,15 @@
 //! Liquidity Sniping Strategy Module
-//! 
+//!
 //! Advanced strategy for detecting and capitalizing on liquidity events
 //! such as new pool creation, large liquidity additions, and LP removals.
 
-use crate::modules::strategy::{TradingSignal, TradeAction, StrategyType};
+use crate::modules::strategy::{StrategyType, TradeAction, TradingSignal};
 use anyhow::{Context, Result};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use tokio::sync::mpsc;
 use tracing::{debug, info};
-use std::collections::HashMap;
-use chrono::{DateTime, Utc};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LiquidityEvent {
@@ -85,10 +85,10 @@ pub enum SnipeType {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ExecutionPriority {
-    Critical,  // Execute immediately
-    High,      // Execute within 5 seconds
-    Medium,    // Execute within 30 seconds
-    Low,       // Execute within 2 minutes
+    Critical, // Execute immediately
+    High,     // Execute within 5 seconds
+    Medium,   // Execute within 30 seconds
+    Low,      // Execute within 2 minutes
 }
 
 pub struct LiquiditySnipingStrategy {
@@ -156,12 +156,12 @@ pub struct LiquiditySnapshot {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum RiskFlag {
-    HighConcentration,    // Few holders control most tokens
-    SuspiciousActivity,   // Unusual trading patterns
-    NewToken,            // Token created recently
-    LowLiquidity,        // Insufficient liquidity
-    HighVolatility,      // Extreme price swings
-    RugPullRisk,         // Indicators of potential rug pull
+    HighConcentration,  // Few holders control most tokens
+    SuspiciousActivity, // Unusual trading patterns
+    NewToken,           // Token created recently
+    LowLiquidity,       // Insufficient liquidity
+    HighVolatility,     // Extreme price swings
+    RugPullRisk,        // Indicators of potential rug pull
 }
 
 impl Default for LiquiditySnipeConfig {
@@ -199,7 +199,10 @@ impl LiquiditySnipingStrategy {
 
     /// Process new liquidity event
     pub async fn process_liquidity_event(&mut self, event: LiquidityEvent) -> Result<()> {
-        info!("🌊 Processing liquidity event: {:?} for {}", event.event_type, event.token_mint);
+        info!(
+            "🌊 Processing liquidity event: {:?} for {}",
+            event.event_type, event.token_mint
+        );
 
         // Store event for analysis
         self.liquidity_events.push(event.clone());
@@ -223,7 +226,8 @@ impl LiquiditySnipingStrategy {
         // Calculate current liquidity first
         let current_liquidity = self.calculate_current_liquidity(&event.pool_address).await;
 
-        let analytics = self.pool_analytics
+        let analytics = self
+            .pool_analytics
             .entry(event.pool_address.clone())
             .or_insert_with(|| PoolAnalytics {
                 pool_address: event.pool_address.clone(),
@@ -237,7 +241,10 @@ impl LiquiditySnipingStrategy {
             });
 
         // Update volume
-        if let LiquidityEventType::LargeSwap { swap_amount_sol, .. } = &event.event_type {
+        if let LiquidityEventType::LargeSwap {
+            swap_amount_sol, ..
+        } = &event.event_type
+        {
             analytics.total_volume_sol += swap_amount_sol;
         }
 
@@ -251,7 +258,8 @@ impl LiquiditySnipingStrategy {
 
         // Update risk flags - clone event to avoid borrow issues
         let event_clone = event.clone();
-        self.update_risk_flags_for_pool(&event.pool_address, &event_clone).await;
+        self.update_risk_flags_for_pool(&event.pool_address, &event_clone)
+            .await;
 
         Ok(())
     }
@@ -275,7 +283,9 @@ impl LiquiditySnipingStrategy {
             }
 
             // Check for low liquidity
-            let current_liquidity = analytics.liquidity_history.last()
+            let current_liquidity = analytics
+                .liquidity_history
+                .last()
                 .map(|s| s.liquidity_sol)
                 .unwrap_or(0.0);
 
@@ -286,7 +296,11 @@ impl LiquiditySnipingStrategy {
             }
 
             // Check for suspicious activity
-            if let LiquidityEventType::LiquidityRemoval { percentage_decrease, .. } = &event.event_type {
+            if let LiquidityEventType::LiquidityRemoval {
+                percentage_decrease,
+                ..
+            } = &event.event_type
+            {
                 if *percentage_decrease > 50.0 {
                     if !analytics.risk_flags.contains(&RiskFlag::SuspiciousActivity) {
                         analytics.risk_flags.push(RiskFlag::SuspiciousActivity);
@@ -299,21 +313,31 @@ impl LiquiditySnipingStrategy {
     /// Analyze event for sniping opportunities
     async fn analyze_snipe_opportunity(&mut self, event: &LiquidityEvent) -> Result<()> {
         let opportunity = match &event.event_type {
-            LiquidityEventType::PoolCreation { initial_liquidity_sol, .. } => {
-                if self.config.new_pool_snipe_enabled && *initial_liquidity_sol >= self.config.min_liquidity_sol {
+            LiquidityEventType::PoolCreation {
+                initial_liquidity_sol,
+                ..
+            } => {
+                if self.config.new_pool_snipe_enabled
+                    && *initial_liquidity_sol >= self.config.min_liquidity_sol
+                {
                     self.create_new_pool_snipe_opportunity(event).await?
                 } else {
                     return Ok(());
                 }
             }
-            LiquidityEventType::LiquidityRemoval { percentage_decrease, .. } => {
+            LiquidityEventType::LiquidityRemoval {
+                percentage_decrease,
+                ..
+            } => {
                 if self.config.liquidity_drain_snipe_enabled && *percentage_decrease > 20.0 {
                     self.create_liquidity_drain_opportunity(event).await?
                 } else {
                     return Ok(());
                 }
             }
-            LiquidityEventType::LargeSwap { swap_amount_sol, .. } => {
+            LiquidityEventType::LargeSwap {
+                swap_amount_sol, ..
+            } => {
                 if *swap_amount_sol >= self.config.whale_threshold_sol {
                     self.create_whale_follow_opportunity(event).await?
                 } else {
@@ -324,17 +348,23 @@ impl LiquiditySnipingStrategy {
         };
 
         // Check if opportunity meets criteria
-        if opportunity.confidence_score >= 0.6 && opportunity.risk_score <= self.config.max_risk_score {
-            info!("🎯 Liquidity Snipe Opportunity: {:?} on {} ({}% profit expected)", 
-                  opportunity.snipe_type, event.token_mint, opportunity.expected_profit_percentage);
+        if opportunity.confidence_score >= 0.6
+            && opportunity.risk_score <= self.config.max_risk_score
+        {
+            info!(
+                "🎯 Liquidity Snipe Opportunity: {:?} on {} ({}% profit expected)",
+                opportunity.snipe_type, event.token_mint, opportunity.expected_profit_percentage
+            );
 
             // Send opportunity
-            self.opportunity_sender.send(opportunity.clone())
+            self.opportunity_sender
+                .send(opportunity.clone())
                 .context("Failed to send liquidity snipe opportunity")?;
 
             // Generate trading signal
             let signal = self.create_trading_signal(&opportunity).await?;
-            self.signal_sender.send(signal)
+            self.signal_sender
+                .send(signal)
                 .context("Failed to send trading signal")?;
 
             self.active_opportunities.push(opportunity);
@@ -344,10 +374,13 @@ impl LiquiditySnipingStrategy {
     }
 
     /// Create new pool snipe opportunity
-    async fn create_new_pool_snipe_opportunity(&self, event: &LiquidityEvent) -> Result<LiquiditySnipeOpportunity> {
+    async fn create_new_pool_snipe_opportunity(
+        &self,
+        event: &LiquidityEvent,
+    ) -> Result<LiquiditySnipeOpportunity> {
         let risk_score = self.calculate_new_pool_risk_score(event);
         let confidence_score = self.calculate_new_pool_confidence(event);
-        
+
         Ok(LiquiditySnipeOpportunity {
             opportunity_id: uuid::Uuid::new_v4().to_string(),
             trigger_event: event.clone(),
@@ -366,10 +399,13 @@ impl LiquiditySnipingStrategy {
     }
 
     /// Create liquidity drain opportunity
-    async fn create_liquidity_drain_opportunity(&self, event: &LiquidityEvent) -> Result<LiquiditySnipeOpportunity> {
+    async fn create_liquidity_drain_opportunity(
+        &self,
+        event: &LiquidityEvent,
+    ) -> Result<LiquiditySnipeOpportunity> {
         let risk_score = self.calculate_drain_risk_score(event);
         let confidence_score = self.calculate_drain_confidence(event);
-        
+
         Ok(LiquiditySnipeOpportunity {
             opportunity_id: uuid::Uuid::new_v4().to_string(),
             trigger_event: event.clone(),
@@ -388,10 +424,13 @@ impl LiquiditySnipingStrategy {
     }
 
     /// Create whale follow opportunity
-    async fn create_whale_follow_opportunity(&self, event: &LiquidityEvent) -> Result<LiquiditySnipeOpportunity> {
+    async fn create_whale_follow_opportunity(
+        &self,
+        event: &LiquidityEvent,
+    ) -> Result<LiquiditySnipeOpportunity> {
         let risk_score = self.calculate_whale_follow_risk_score(event);
         let confidence_score = self.calculate_whale_follow_confidence(event);
-        
+
         let recommended_action = match &event.event_type {
             LiquidityEventType::LargeSwap { direction, .. } => {
                 match direction {
@@ -401,7 +440,7 @@ impl LiquiditySnipingStrategy {
             }
             _ => TradeAction::Hold,
         };
-        
+
         Ok(LiquiditySnipeOpportunity {
             opportunity_id: uuid::Uuid::new_v4().to_string(),
             trigger_event: event.clone(),
@@ -423,7 +462,11 @@ impl LiquiditySnipingStrategy {
     fn calculate_new_pool_risk_score(&self, event: &LiquidityEvent) -> f64 {
         let mut risk = 0.3; // Base risk for new pools
 
-        if let LiquidityEventType::PoolCreation { initial_liquidity_sol, .. } = &event.event_type {
+        if let LiquidityEventType::PoolCreation {
+            initial_liquidity_sol,
+            ..
+        } = &event.event_type
+        {
             // Lower liquidity = higher risk
             if *initial_liquidity_sol < 50.0 {
                 risk += 0.3;
@@ -444,7 +487,11 @@ impl LiquiditySnipingStrategy {
     fn calculate_new_pool_confidence(&self, event: &LiquidityEvent) -> f64 {
         let mut confidence = 0.5; // Base confidence
 
-        if let LiquidityEventType::PoolCreation { initial_liquidity_sol, .. } = &event.event_type {
+        if let LiquidityEventType::PoolCreation {
+            initial_liquidity_sol,
+            ..
+        } = &event.event_type
+        {
             // Higher liquidity = higher confidence
             confidence += (*initial_liquidity_sol / 1000.0).min(0.3);
         }
@@ -465,7 +512,11 @@ impl LiquiditySnipingStrategy {
 
     /// Calculate confidence for liquidity drain
     fn calculate_drain_confidence(&self, event: &LiquidityEvent) -> f64 {
-        if let LiquidityEventType::LiquidityRemoval { percentage_decrease, .. } = &event.event_type {
+        if let LiquidityEventType::LiquidityRemoval {
+            percentage_decrease,
+            ..
+        } = &event.event_type
+        {
             // Higher percentage decrease = higher confidence in drain
             (*percentage_decrease / 100.0).min(0.9)
         } else {
@@ -480,7 +531,10 @@ impl LiquiditySnipingStrategy {
 
     /// Calculate confidence for whale follow
     fn calculate_whale_follow_confidence(&self, event: &LiquidityEvent) -> f64 {
-        if let LiquidityEventType::LargeSwap { swap_amount_sol, .. } = &event.event_type {
+        if let LiquidityEventType::LargeSwap {
+            swap_amount_sol, ..
+        } = &event.event_type
+        {
             // Larger swaps = higher confidence
             (*swap_amount_sol / 1000.0).min(0.8)
         } else {
@@ -489,7 +543,10 @@ impl LiquiditySnipingStrategy {
     }
 
     /// Create trading signal from opportunity
-    async fn create_trading_signal(&self, opportunity: &LiquiditySnipeOpportunity) -> Result<TradingSignal> {
+    async fn create_trading_signal(
+        &self,
+        opportunity: &LiquiditySnipeOpportunity,
+    ) -> Result<TradingSignal> {
         Ok(TradingSignal {
             signal_id: uuid::Uuid::new_v4().to_string(),
             symbol: opportunity.trigger_event.token_mint.clone(),
@@ -506,12 +563,16 @@ impl LiquiditySnipingStrategy {
     pub async fn cleanup_expired_opportunities(&mut self) {
         let now = Utc::now();
         let initial_count = self.active_opportunities.len();
-        
-        self.active_opportunities.retain(|opp| opp.expiry_time > now);
-        
+
+        self.active_opportunities
+            .retain(|opp| opp.expiry_time > now);
+
         let removed_count = initial_count - self.active_opportunities.len();
         if removed_count > 0 {
-            debug!("Cleaned up {} expired liquidity snipe opportunities", removed_count);
+            debug!(
+                "Cleaned up {} expired liquidity snipe opportunities",
+                removed_count
+            );
         }
     }
 }

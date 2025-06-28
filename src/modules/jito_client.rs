@@ -1,16 +1,16 @@
 //! Jito Client Module
-//! 
+//!
 //! Provides real Jito bundle execution for MEV protection
 //! in THE OVERMIND PROTOCOL.
 
 use anyhow::{Context, Result};
-use tracing::{debug, error, info};
+use base64::prelude::*;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use solana_sdk::transaction::Transaction;
 use std::time::{Duration, Instant};
 use tokio::time::timeout;
-use base64::prelude::*;
+use tracing::{debug, error, info};
 
 /// Configuration for Jito client
 #[derive(Debug, Clone)]
@@ -117,12 +117,12 @@ impl JitoClient {
     /// Execute transaction using Jito bundle
     pub async fn execute_bundle(&self, transaction: Transaction) -> Result<BundleResult> {
         let start_time = Instant::now();
-        
+
         info!("🚀 Executing transaction via Jito bundle for MEV protection");
-        
+
         // Serialize transaction to base64
         let serialized_tx = self.serialize_transaction(&transaction)?;
-        
+
         // Create bundle request
         let bundle_request = BundleRequest {
             jsonrpc: "2.0".to_string(),
@@ -136,18 +136,21 @@ impl JitoClient {
         // Submit bundle with timeout
         let response = timeout(
             Duration::from_secs(self.config.request_timeout_secs),
-            self.submit_bundle(bundle_request)
-        ).await
+            self.submit_bundle(bundle_request),
+        )
+        .await
         .context("Jito bundle submission timed out")?
         .context("Jito bundle submission failed")?;
 
         let elapsed = start_time.elapsed();
-        
+
         // Process response
         let bundle_result = self.process_bundle_response(response, elapsed)?;
-        
-        info!("✅ Jito bundle submitted: {} in {}ms", 
-              bundle_result.bundle_id, bundle_result.latency_ms);
+
+        info!(
+            "✅ Jito bundle submitted: {} in {}ms",
+            bundle_result.bundle_id, bundle_result.latency_ms
+        );
 
         Ok(bundle_result)
     }
@@ -155,10 +158,11 @@ impl JitoClient {
     /// Submit bundle to Jito
     async fn submit_bundle(&self, request: BundleRequest) -> Result<BundleResponse> {
         let url = format!("{}/api/v1/bundles", self.config.bundle_url);
-        
+
         debug!("Submitting bundle to Jito: {}", url);
-        
-        let response = self.http_client
+
+        let response = self
+            .http_client
             .post(&url)
             .header("Content-Type", "application/json")
             .json(&request)
@@ -169,9 +173,7 @@ impl JitoClient {
         if !response.status().is_success() {
             let status = response.status();
             let error_text = response.text().await.unwrap_or_default();
-            return Err(anyhow::anyhow!(
-                "Jito API error {}: {}", status, error_text
-            ));
+            return Err(anyhow::anyhow!("Jito API error {}: {}", status, error_text));
         }
 
         let bundle_response: BundleResponse = response
@@ -184,21 +186,28 @@ impl JitoClient {
 
     /// Serialize transaction to base64
     fn serialize_transaction(&self, transaction: &Transaction) -> Result<String> {
-        let serialized = bincode::serialize(transaction)
-            .context("Failed to serialize transaction")?;
-        
+        let serialized =
+            bincode::serialize(transaction).context("Failed to serialize transaction")?;
+
         Ok(base64::prelude::BASE64_STANDARD.encode(serialized))
     }
 
     /// Process bundle response
-    fn process_bundle_response(&self, response: BundleResponse, elapsed: Duration) -> Result<BundleResult> {
+    fn process_bundle_response(
+        &self,
+        response: BundleResponse,
+        elapsed: Duration,
+    ) -> Result<BundleResult> {
         if let Some(error) = response.error {
             return Err(anyhow::anyhow!(
-                "Jito bundle error {}: {}", error.code, error.message
+                "Jito bundle error {}: {}",
+                error.code,
+                error.message
             ));
         }
 
-        let bundle_id = response.result
+        let bundle_id = response
+            .result
             .ok_or_else(|| anyhow::anyhow!("No bundle ID in Jito response"))?;
 
         Ok(BundleResult {
@@ -215,23 +224,20 @@ impl JitoClient {
         // For now, use a reasonable default
         std::cmp::min(
             (5000.0 * self.config.priority_fee_multiplier) as u64,
-            self.config.max_tip_lamports
+            self.config.max_tip_lamports,
         )
     }
 
     /// Health check for Jito service
     pub async fn health_check(&self) -> Result<bool> {
         let url = format!("{}/api/v1/bundles", self.config.bundle_url);
-        
-        match timeout(
-            Duration::from_secs(5),
-            self.http_client.head(&url).send()
-        ).await {
+
+        match timeout(Duration::from_secs(5), self.http_client.head(&url).send()).await {
             Ok(Ok(response)) => Ok(response.status().is_success()),
             Ok(Err(e)) => {
                 error!("Jito health check failed: {}", e);
                 Ok(false)
-            },
+            }
             Err(_) => {
                 error!("Jito health check timed out");
                 Ok(false)
@@ -242,11 +248,8 @@ impl JitoClient {
     /// Get bundle status
     pub async fn get_bundle_status(&self, bundle_id: &str) -> Result<BundleStatus> {
         let url = format!("{}/api/v1/bundles/{}", self.config.bundle_url, bundle_id);
-        
-        match timeout(
-            Duration::from_secs(5),
-            self.http_client.get(&url).send()
-        ).await {
+
+        match timeout(Duration::from_secs(5), self.http_client.get(&url).send()).await {
             Ok(Ok(response)) => {
                 if response.status().is_success() {
                     // In production, parse the actual status from response
@@ -254,7 +257,7 @@ impl JitoClient {
                 } else {
                     Ok(BundleStatus::Rejected)
                 }
-            },
+            }
             Ok(Err(_)) => Ok(BundleStatus::Failed),
             Err(_) => Ok(BundleStatus::Failed),
         }
@@ -277,13 +280,10 @@ mod tests {
     fn test_transaction_serialization() {
         let config = JitoConfig::default();
         let client = JitoClient::new(config).unwrap();
-        
+
         // Create a simple transaction
         let keypair = Keypair::new();
-        let transaction = Transaction::new_with_payer(
-            &[],
-            Some(&keypair.pubkey()),
-        );
+        let transaction = Transaction::new_with_payer(&[], Some(&keypair.pubkey()));
 
         let result = client.serialize_transaction(&transaction);
         assert!(result.is_ok());
@@ -297,7 +297,7 @@ mod tests {
             ..JitoConfig::default()
         };
         let client = JitoClient::new(config).unwrap();
-        
+
         let tip = client.calculate_tip();
         assert!(tip <= 10000);
         assert!(tip > 0);

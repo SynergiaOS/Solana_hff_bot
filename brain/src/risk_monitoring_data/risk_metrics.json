@@ -1,0 +1,79 @@
+{
+  "current_metrics": {
+    "timestamp": "2025-06-27 20:20:00.045703",
+    "portfolio_value": 10500.0,
+    "cash_percentage": 19.047619047619047,
+    "positions_count": 3,
+    "largest_position_pct": 57.14285714285714,
+    "daily_var_95": 0.025,
+    "daily_var_99": 0.025,
+    "expected_shortfall": 0.025,
+    "max_drawdown": 0.0,
+    "current_drawdown": 0.0,
+    "portfolio_volatility": 0.2672077843177478,
+    "rolling_volatility_30d": 0.2672077843177478,
+    "volatility_trend": "stable",
+    "concentration_ratio": 80.95238095238095,
+    "correlation_risk": 0.5570934256055364,
+    "sharpe_ratio": -0.07484811885651209,
+    "sortino_ratio": -0.16495721976846475,
+    "calmar_ratio": 0.0,
+    "risk_adjusted_return": -1.1685671002178429e-16,
+    "information_ratio": -0.29939247542604774,
+    "active_alerts": 0,
+    "risk_score": 50.68831137270992
+  },
+  "historical_metrics": [
+    {
+      "timestamp": "2025-06-27 20:20:00.045703",
+      "portfolio_value": 10500.0,
+      "cash_percentage": 19.047619047619047,
+      "positions_count": 3,
+      "largest_position_pct": 57.14285714285714,
+      "daily_var_95": 0.025,
+      "daily_var_99": 0.025,
+      "expected_shortfall": 0.025,
+      "max_drawdown": 0.0,
+      "current_drawdown": 0.0,
+      "portfolio_volatility": 0.2672077843177478,
+      "rolling_volatility_30d": 0.2672077843177478,
+      "volatility_trend": "stable",
+      "concentration_ratio": 80.95238095238095,
+      "correlation_risk": 0.5570934256055364,
+      "sharpe_ratio": -0.07484811885651209,
+      "sortino_ratio": -0.16495721976846475,
+      "calmar_ratio": 0.0,
+      "risk_adjusted_return": -1.1685671002178429e-16,
+      "information_ratio": -0.29939247542604774,
+      "active_alerts": 0,
+      "risk_score": 50.68831137270992
+    }
+  ],
+  "active_alerts": [
+    {
+      "alert_id": "position_size_20250627_202000",
+      "alert_type": "AlertType.POSITION_SIZE",
+      "risk_level": "RiskLevel.HIGH",
+      "message": "Position size 57.1% exceeds limit 20.0%",
+      "current_value": 57.14285714285714,
+      "threshold": 20.0,
+      "timestamp": "2025-06-27 20:20:00.046275",
+      "action_required": true,
+      "strategy_affected": null,
+      "position_affected": null
+    },
+    {
+      "alert_id": "concentration_20250627_202000",
+      "alert_type": "AlertType.CONCENTRATION",
+      "risk_level": "RiskLevel.MEDIUM",
+      "message": "Portfolio concentration 81.0% exceeds limit 50.0%",
+      "current_value": 80.95238095238095,
+      "threshold": 50.0,
+      "timestamp": "2025-06-27 20:20:00.046287",
+      "action_required": false,
+      "strategy_affected": null,
+      "position_affected": null
+    }
+  ],
+  "last_updated": "2025-06-27T20:20:00.046384"
+}

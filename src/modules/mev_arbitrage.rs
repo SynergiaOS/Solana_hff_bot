@@ -1,16 +1,16 @@
 //! MEV Arbitrage Strategy Module
-//! 
+//!
 //! Advanced MEV (Maximal Extractable Value) arbitrage strategy that identifies
 //! and exploits price differences across multiple DEXes on Solana.
 //! This strategy focuses on atomic arbitrage opportunities with minimal risk.
 
-use crate::modules::strategy::{TradingSignal, TradeAction, StrategyType};
+use crate::modules::strategy::{StrategyType, TradeAction, TradingSignal};
 use anyhow::{Context, Result};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use tokio::sync::mpsc;
 use tracing::{debug, info};
-use std::collections::HashMap;
-use chrono::{DateTime, Utc};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MEVOpportunity {
@@ -81,10 +81,10 @@ pub struct MEVConfig {
 impl Default for MEVConfig {
     fn default() -> Self {
         Self {
-            min_profit_percentage: 0.5, // 0.5% minimum profit
-            max_trade_size_sol: 100.0,  // 100 SOL max per trade
-            max_gas_cost_sol: 0.1,     // 0.1 SOL max gas cost
-            min_liquidity_depth: 1000.0, // 1000 SOL minimum liquidity
+            min_profit_percentage: 0.5,      // 0.5% minimum profit
+            max_trade_size_sol: 100.0,       // 100 SOL max per trade
+            max_gas_cost_sol: 0.1,           // 0.1 SOL max gas cost
+            min_liquidity_depth: 1000.0,     // 1000 SOL minimum liquidity
             opportunity_timeout_seconds: 30, // 30 seconds max opportunity lifetime
             supported_dexes: vec![
                 DexType::Raydium,
@@ -114,19 +114,26 @@ impl MEVArbitrageStrategy {
     }
 
     /// Update price data from a specific DEX
-    pub async fn update_price_data(&mut self, token_mint: String, price_data: PriceData) -> Result<()> {
-        let prices = self.price_feeds.entry(token_mint.clone()).or_insert_with(Vec::new);
-        
+    pub async fn update_price_data(
+        &mut self,
+        token_mint: String,
+        price_data: PriceData,
+    ) -> Result<()> {
+        let prices = self
+            .price_feeds
+            .entry(token_mint.clone())
+            .or_insert_with(Vec::new);
+
         // Remove old price data (older than 1 minute)
         let cutoff_time = Utc::now() - chrono::Duration::minutes(1);
         prices.retain(|p| p.timestamp > cutoff_time);
-        
+
         // Add new price data
         prices.push(price_data);
-        
+
         // Check for arbitrage opportunities
         self.scan_for_opportunities(&token_mint).await?;
-        
+
         Ok(())
     }
 
@@ -160,28 +167,29 @@ impl MEVArbitrageStrategy {
         if let (Some(buy), Some(sell)) = (best_buy, best_sell) {
             // Calculate potential profit
             let profit_percentage = ((sell.bid - buy.ask) / buy.ask) * 100.0;
-            
+
             if profit_percentage >= self.config.min_profit_percentage {
-                let opportunity = self.create_mev_opportunity(
-                    token_mint.to_string(),
-                    buy,
-                    sell,
-                    profit_percentage,
-                ).await?;
+                let opportunity = self
+                    .create_mev_opportunity(token_mint.to_string(), buy, sell, profit_percentage)
+                    .await?;
 
                 if opportunity.confidence_score >= self.config.min_confidence_score {
-                    info!("🎯 MEV Opportunity found: {:.2}% profit on {}", 
-                          profit_percentage, token_mint);
-                    
+                    info!(
+                        "🎯 MEV Opportunity found: {:.2}% profit on {}",
+                        profit_percentage, token_mint
+                    );
+
                     // Send opportunity for execution
-                    self.opportunity_sender.send(opportunity.clone())
+                    self.opportunity_sender
+                        .send(opportunity.clone())
                         .context("Failed to send MEV opportunity")?;
-                    
+
                     // Generate trading signal
                     let signal = self.create_trading_signal(&opportunity).await?;
-                    self.signal_sender.send(signal)
+                    self.signal_sender
+                        .send(signal)
                         .context("Failed to send trading signal")?;
-                    
+
                     self.active_opportunities.push(opportunity);
                 }
             }
@@ -206,17 +214,15 @@ impl MEVArbitrageStrategy {
         let estimated_gas_cost = 0.01 + (max_trade_size * 0.0001); // Base + proportional
 
         // Calculate confidence score
-        let confidence_score = self.calculate_confidence_score(
-            buy_price_data,
-            sell_price_data,
-            profit_percentage,
-        );
+        let confidence_score =
+            self.calculate_confidence_score(buy_price_data, sell_price_data, profit_percentage);
 
         // Create liquidity depth analysis
         let liquidity_depth = LiquidityDepth {
             buy_side_depth: buy_price_data.liquidity,
             sell_side_depth: sell_price_data.liquidity,
-            spread_percentage: ((sell_price_data.ask - buy_price_data.bid) / buy_price_data.bid) * 100.0,
+            spread_percentage: ((sell_price_data.ask - buy_price_data.bid) / buy_price_data.bid)
+                * 100.0,
             volume_24h: (buy_price_data.volume_24h + sell_price_data.volume_24h) / 2.0,
         };
 
@@ -231,7 +237,8 @@ impl MEVArbitrageStrategy {
             max_trade_size,
             estimated_gas_cost,
             confidence_score,
-            expiry_time: Utc::now() + chrono::Duration::seconds(self.config.opportunity_timeout_seconds as i64),
+            expiry_time: Utc::now()
+                + chrono::Duration::seconds(self.config.opportunity_timeout_seconds as i64),
             liquidity_depth,
         })
     }
@@ -284,9 +291,10 @@ impl MEVArbitrageStrategy {
     pub async fn cleanup_expired_opportunities(&mut self) {
         let now = Utc::now();
         let initial_count = self.active_opportunities.len();
-        
-        self.active_opportunities.retain(|opp| opp.expiry_time > now);
-        
+
+        self.active_opportunities
+            .retain(|opp| opp.expiry_time > now);
+
         let removed_count = initial_count - self.active_opportunities.len();
         if removed_count > 0 {
             debug!("Cleaned up {} expired MEV opportunities", removed_count);
@@ -302,9 +310,11 @@ impl MEVArbitrageStrategy {
     pub fn get_strategy_stats(&self) -> MEVStrategyStats {
         let total_opportunities = self.active_opportunities.len();
         let avg_profit = if total_opportunities > 0 {
-            self.active_opportunities.iter()
+            self.active_opportunities
+                .iter()
                 .map(|opp| opp.profit_percentage)
-                .sum::<f64>() / total_opportunities as f64
+                .sum::<f64>()
+                / total_opportunities as f64
         } else {
             0.0
         };

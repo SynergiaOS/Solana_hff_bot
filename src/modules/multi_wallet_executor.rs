@@ -8,7 +8,7 @@ use tracing::{debug, error, info, warn};
 
 use crate::config::TradingMode;
 use crate::modules::executor::{ExecutionResult, ExecutionStatus};
-use crate::modules::hft_engine::{HftEngineConfig, HftEngine};
+use crate::modules::hft_engine::{HftEngine, HftEngineConfig};
 use crate::modules::risk::ApprovedSignal;
 use crate::modules::strategy::StrategyType;
 use crate::modules::wallet_manager::{WalletManager, WalletSelectionCriteria, WalletType};
@@ -46,7 +46,8 @@ pub struct ExecutionStats {
     pub successful_executions: u64,
     pub failed_executions: u64,
     pub wallet_usage: std::collections::HashMap<String, u64>,
-    pub strategy_routing: std::collections::HashMap<StrategyType, std::collections::HashMap<String, u64>>,
+    pub strategy_routing:
+        std::collections::HashMap<StrategyType, std::collections::HashMap<String, u64>>,
 }
 
 impl MultiWalletExecutor {
@@ -107,15 +108,20 @@ impl MultiWalletExecutor {
 
     /// Start the multi-wallet executor
     pub async fn start(&mut self) -> Result<()> {
-        info!("🏦 THE OVERMIND PROTOCOL Multi-Wallet Executor starting in {:?} mode", self.trading_mode);
-        
+        info!(
+            "🏦 THE OVERMIND PROTOCOL Multi-Wallet Executor starting in {:?} mode",
+            self.trading_mode
+        );
+
         if self.hft_mode_enabled {
             info!("🧠 AI-enhanced multi-wallet execution enabled");
         }
 
         // Safety warning for live trading
         if matches!(self.trading_mode, TradingMode::Live) {
-            warn!("🔴 LIVE MULTI-WALLET TRADING MODE ENABLED - Real transactions will be executed!");
+            warn!(
+                "🔴 LIVE MULTI-WALLET TRADING MODE ENABLED - Real transactions will be executed!"
+            );
         }
 
         self.is_running = true;
@@ -140,18 +146,24 @@ impl MultiWalletExecutor {
     /// Process incoming signal with wallet selection and routing
     async fn process_signal(&mut self, signal: ApprovedSignal) -> Result<()> {
         let signal_id = signal.original_signal.signal_id.clone();
-        
-        info!("🏦 Processing signal {} with multi-wallet routing", signal_id);
+
+        info!(
+            "🏦 Processing signal {} with multi-wallet routing",
+            signal_id
+        );
 
         // Step 1: Select optimal wallet for this signal
         let routed_signal = match self.select_wallet_for_signal(&signal).await {
             Ok(routed) => routed,
             Err(e) => {
                 error!("Failed to select wallet for signal {}: {}", signal_id, e);
-                
+
                 // Try fallback wallet if available
                 if let Some(fallback_id) = &self.fallback_wallet_id {
-                    warn!("Using fallback wallet {} for signal {}", fallback_id, signal_id);
+                    warn!(
+                        "Using fallback wallet {} for signal {}",
+                        fallback_id, signal_id
+                    );
                     RoutedSignal {
                         original_signal: signal,
                         selected_wallet_id: fallback_id.clone(),
@@ -159,7 +171,9 @@ impl MultiWalletExecutor {
                         routing_timestamp: chrono::Utc::now(),
                     }
                 } else {
-                    return Err(anyhow!("No suitable wallet found and no fallback configured"));
+                    return Err(anyhow!(
+                        "No suitable wallet found and no fallback configured"
+                    ));
                 }
             }
         };
@@ -183,13 +197,14 @@ impl MultiWalletExecutor {
     /// Select optimal wallet for the given signal
     async fn select_wallet_for_signal(&self, signal: &ApprovedSignal) -> Result<RoutedSignal> {
         let wallet_manager = self.wallet_manager.read().await;
-        
+
         // Create selection criteria based on signal
         let criteria = WalletSelectionCriteria {
             strategy_type: signal.original_signal.strategy_type.clone(),
             required_balance: signal.approved_quantity * signal.original_signal.target_price * 1.1, // 10% buffer
             risk_tolerance: signal.risk_score,
-            preferred_wallet_type: self.determine_preferred_wallet_type(&signal.original_signal.strategy_type),
+            preferred_wallet_type: self
+                .determine_preferred_wallet_type(&signal.original_signal.strategy_type),
             exclude_wallets: Vec::new(),
         };
 
@@ -198,7 +213,8 @@ impl MultiWalletExecutor {
         let selection_result = tokio::time::timeout(
             std::time::Duration::from_millis(self.wallet_selection_timeout_ms),
             selection_future,
-        ).await;
+        )
+        .await;
 
         match selection_result {
             Ok(Ok(selection)) => {
@@ -217,7 +233,10 @@ impl MultiWalletExecutor {
                 })
             }
             Ok(Err(e)) => Err(anyhow!("Wallet selection failed: {}", e)),
-            Err(_) => Err(anyhow!("Wallet selection timed out after {}ms", self.wallet_selection_timeout_ms)),
+            Err(_) => Err(anyhow!(
+                "Wallet selection timed out after {}ms",
+                self.wallet_selection_timeout_ms
+            )),
         }
     }
 
@@ -245,8 +264,15 @@ impl MultiWalletExecutor {
     }
 
     /// Execute signal with selected wallet
-    async fn execute_routed_signal(&mut self, routed_signal: RoutedSignal) -> Result<ExecutionResult> {
-        let signal_id = routed_signal.original_signal.original_signal.signal_id.clone();
+    async fn execute_routed_signal(
+        &mut self,
+        routed_signal: RoutedSignal,
+    ) -> Result<ExecutionResult> {
+        let signal_id = routed_signal
+            .original_signal
+            .original_signal
+            .signal_id
+            .clone();
         let wallet_id = routed_signal.selected_wallet_id.clone();
 
         info!(
@@ -261,10 +287,22 @@ impl MultiWalletExecutor {
 
         // Execute based on trading mode and HFT settings
         let mut result = match (&self.trading_mode, self.hft_mode_enabled) {
-            (&TradingMode::Paper, false) => self.execute_paper_trade_with_wallet(&routed_signal, &wallet_id).await?,
-            (&TradingMode::Paper, true) => self.execute_ai_paper_trade_with_wallet(&routed_signal, &wallet_id).await?,
-            (&TradingMode::Live, false) => self.execute_live_trade_with_wallet(&routed_signal, &wallet_id, &wallet_keypair).await?,
-            (&TradingMode::Live, true) => self.execute_ai_live_trade_with_wallet(&routed_signal, &wallet_id, &wallet_keypair).await?,
+            (&TradingMode::Paper, false) => {
+                self.execute_paper_trade_with_wallet(&routed_signal, &wallet_id)
+                    .await?
+            }
+            (&TradingMode::Paper, true) => {
+                self.execute_ai_paper_trade_with_wallet(&routed_signal, &wallet_id)
+                    .await?
+            }
+            (&TradingMode::Live, false) => {
+                self.execute_live_trade_with_wallet(&routed_signal, &wallet_id, &wallet_keypair)
+                    .await?
+            }
+            (&TradingMode::Live, true) => {
+                self.execute_ai_live_trade_with_wallet(&routed_signal, &wallet_id, &wallet_keypair)
+                    .await?
+            }
         };
 
         // Add wallet information to result
@@ -285,12 +323,18 @@ impl MultiWalletExecutor {
         tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
 
         Ok(ExecutionResult {
-            signal_id: routed_signal.original_signal.original_signal.signal_id.clone(),
+            signal_id: routed_signal
+                .original_signal
+                .original_signal
+                .signal_id
+                .clone(),
             transaction_id: format!("paper_{}", uuid::Uuid::new_v4()),
             status: ExecutionStatus::Confirmed,
             executed_quantity: routed_signal.original_signal.approved_quantity,
             executed_price: routed_signal.original_signal.original_signal.target_price,
-            fees: routed_signal.original_signal.approved_quantity * routed_signal.original_signal.original_signal.target_price * 0.001,
+            fees: routed_signal.original_signal.approved_quantity
+                * routed_signal.original_signal.original_signal.target_price
+                * 0.001,
             timestamp: chrono::Utc::now(),
             error_message: None,
         })
@@ -302,41 +346,56 @@ impl MultiWalletExecutor {
         routed_signal: &RoutedSignal,
         wallet_id: &str,
     ) -> Result<ExecutionResult> {
-        debug!("🧠 Executing AI-enhanced paper trade with wallet {}", wallet_id);
+        debug!(
+            "🧠 Executing AI-enhanced paper trade with wallet {}",
+            wallet_id
+        );
 
         let _market_data = self.routed_signal_to_market_data(routed_signal);
 
         if let Some(ref mut hft_engine) = self.hft_engine {
-            
             // Convert market_data to TradingSignal for HFT engine
             let trading_signal = crate::modules::hft_engine::TradingSignal {
                 symbol: "SOL/USDC".to_string(), // TODO: Extract from market_data
-                action: "BUY".to_string(), // TODO: Determine from market_data
-                quantity: 1.0, // TODO: Calculate from market_data
-                price: Some(100.0), // TODO: Extract from market_data
-                confidence: 0.8, // TODO: Calculate confidence
+                action: "BUY".to_string(),      // TODO: Determine from market_data
+                quantity: 1.0,                  // TODO: Calculate from market_data
+                price: Some(100.0),             // TODO: Extract from market_data
+                confidence: 0.8,                // TODO: Calculate confidence
                 reasoning: "Market data analysis".to_string(),
             };
 
             match hft_engine.execute_signal(trading_signal).await {
                 Ok(signature) => {
-                    info!("🧠 AI paper trade executed with wallet {} - Signature: {}", wallet_id, signature);
+                    info!(
+                        "🧠 AI paper trade executed with wallet {} - Signature: {}",
+                        wallet_id, signature
+                    );
 
                     Ok(ExecutionResult {
-                        signal_id: routed_signal.original_signal.original_signal.signal_id.clone(),
+                        signal_id: routed_signal
+                            .original_signal
+                            .original_signal
+                            .signal_id
+                            .clone(),
                         transaction_id: signature.to_string(),
                         status: ExecutionStatus::Confirmed,
                         executed_quantity: routed_signal.original_signal.approved_quantity,
                         executed_price: routed_signal.original_signal.original_signal.target_price,
-                        fees: routed_signal.original_signal.approved_quantity * routed_signal.original_signal.original_signal.target_price * 0.0005,
+                        fees: routed_signal.original_signal.approved_quantity
+                            * routed_signal.original_signal.original_signal.target_price
+                            * 0.0005,
                         timestamp: chrono::Utc::now(),
                         error_message: None,
                     })
-                },
-                Err(_) => self.execute_paper_trade_with_wallet(routed_signal, wallet_id).await,
+                }
+                Err(_) => {
+                    self.execute_paper_trade_with_wallet(routed_signal, wallet_id)
+                        .await
+                }
             }
         } else {
-            self.execute_paper_trade_with_wallet(routed_signal, wallet_id).await
+            self.execute_paper_trade_with_wallet(routed_signal, wallet_id)
+                .await
         }
     }
 
@@ -359,12 +418,18 @@ impl MultiWalletExecutor {
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 
         Ok(ExecutionResult {
-            signal_id: routed_signal.original_signal.original_signal.signal_id.clone(),
+            signal_id: routed_signal
+                .original_signal
+                .original_signal
+                .signal_id
+                .clone(),
             transaction_id: uuid::Uuid::new_v4().to_string(),
             status: ExecutionStatus::Confirmed,
             executed_quantity: routed_signal.original_signal.approved_quantity,
             executed_price: routed_signal.original_signal.original_signal.target_price * 1.005,
-            fees: routed_signal.original_signal.approved_quantity * routed_signal.original_signal.original_signal.target_price * 0.0025,
+            fees: routed_signal.original_signal.approved_quantity
+                * routed_signal.original_signal.original_signal.target_price
+                * 0.0025,
             timestamp: chrono::Utc::now(),
             error_message: None,
         })
@@ -377,41 +442,57 @@ impl MultiWalletExecutor {
         wallet_id: &str,
         wallet_keypair: &solana_sdk::signature::Keypair,
     ) -> Result<ExecutionResult> {
-        warn!("🧠 EXECUTING AI-ENHANCED LIVE TRADE with wallet {}", wallet_id);
+        warn!(
+            "🧠 EXECUTING AI-ENHANCED LIVE TRADE with wallet {}",
+            wallet_id
+        );
 
         let _market_data = self.routed_signal_to_market_data(routed_signal);
 
         if let Some(ref mut hft_engine) = self.hft_engine {
-            
             // Convert market_data to TradingSignal for HFT engine
             let trading_signal = crate::modules::hft_engine::TradingSignal {
                 symbol: "SOL/USDC".to_string(), // TODO: Extract from market_data
-                action: "BUY".to_string(), // TODO: Determine from market_data
-                quantity: 1.0, // TODO: Calculate from market_data
-                price: Some(100.0), // TODO: Extract from market_data
-                confidence: 0.8, // TODO: Calculate confidence
+                action: "BUY".to_string(),      // TODO: Determine from market_data
+                quantity: 1.0,                  // TODO: Calculate from market_data
+                price: Some(100.0),             // TODO: Extract from market_data
+                confidence: 0.8,                // TODO: Calculate confidence
                 reasoning: "Market data analysis".to_string(),
             };
 
             match hft_engine.execute_signal(trading_signal).await {
                 Ok(signature) => {
-                    info!("🧠 AI live trade executed with wallet {} - Signature: {}", wallet_id, signature);
+                    info!(
+                        "🧠 AI live trade executed with wallet {} - Signature: {}",
+                        wallet_id, signature
+                    );
 
                     Ok(ExecutionResult {
-                        signal_id: routed_signal.original_signal.original_signal.signal_id.clone(),
+                        signal_id: routed_signal
+                            .original_signal
+                            .original_signal
+                            .signal_id
+                            .clone(),
                         transaction_id: signature.to_string(),
                         status: ExecutionStatus::Confirmed,
                         executed_quantity: routed_signal.original_signal.approved_quantity,
-                        executed_price: routed_signal.original_signal.original_signal.target_price * 1.002,
-                        fees: routed_signal.original_signal.approved_quantity * routed_signal.original_signal.original_signal.target_price * 0.0015,
+                        executed_price: routed_signal.original_signal.original_signal.target_price
+                            * 1.002,
+                        fees: routed_signal.original_signal.approved_quantity
+                            * routed_signal.original_signal.original_signal.target_price
+                            * 0.0015,
                         timestamp: chrono::Utc::now(),
                         error_message: None,
                     })
-                },
-                Err(_) => self.execute_live_trade_with_wallet(routed_signal, wallet_id, wallet_keypair).await,
+                }
+                Err(_) => {
+                    self.execute_live_trade_with_wallet(routed_signal, wallet_id, wallet_keypair)
+                        .await
+                }
             }
         } else {
-            self.execute_live_trade_with_wallet(routed_signal, wallet_id, wallet_keypair).await
+            self.execute_live_trade_with_wallet(routed_signal, wallet_id, wallet_keypair)
+                .await
         }
     }
 
@@ -436,9 +517,9 @@ impl MultiWalletExecutor {
     /// Update execution statistics
     async fn update_execution_stats(&self, result: &ExecutionResult) {
         let mut stats = self.execution_stats.write().await;
-        
+
         stats.total_executions += 1;
-        
+
         match result.status {
             ExecutionStatus::Confirmed => stats.successful_executions += 1,
             ExecutionStatus::Failed => stats.failed_executions += 1,
@@ -454,7 +535,7 @@ impl MultiWalletExecutor {
     /// Log execution result with wallet information
     fn log_execution_result(&self, result: &ExecutionResult) {
         let wallet_id = result.transaction_id.split('_').next().unwrap_or("unknown");
-        
+
         match result.status {
             ExecutionStatus::Confirmed => {
                 info!(
@@ -465,14 +546,22 @@ impl MultiWalletExecutor {
             ExecutionStatus::Failed => {
                 error!(
                     "❌ Multi-wallet transaction failed: {} (wallet: {}) - Error: {}",
-                    result.transaction_id, wallet_id, result.error_message.as_deref().unwrap_or("Unknown error")
+                    result.transaction_id,
+                    wallet_id,
+                    result.error_message.as_deref().unwrap_or("Unknown error")
                 );
             }
             ExecutionStatus::Pending => {
-                debug!("⏳ Multi-wallet transaction pending: {} (wallet: {})", result.transaction_id, wallet_id);
+                debug!(
+                    "⏳ Multi-wallet transaction pending: {} (wallet: {})",
+                    result.transaction_id, wallet_id
+                );
             }
             ExecutionStatus::Cancelled => {
-                warn!("🚫 Multi-wallet transaction cancelled: {} (wallet: {})", result.transaction_id, wallet_id);
+                warn!(
+                    "🚫 Multi-wallet transaction cancelled: {} (wallet: {})",
+                    result.transaction_id, wallet_id
+                );
             }
         }
     }

@@ -8,7 +8,7 @@ import asyncio
 import aiohttp
 import logging
 from typing import Dict, List, Optional, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import json
 
 logger = logging.getLogger(__name__)
@@ -20,16 +20,45 @@ class HeliusAPIClient:
     """
     
     def __init__(self):
-        self.api_key = os.getenv('HELIUS_API_KEY')
-        self.rpc_url = os.getenv('HELIUS_RPC_URL', 'https://mainnet.helius-rpc.com')
-        self.devnet_rpc_url = os.getenv('HELIUS_DEVNET_RPC_URL', 'https://devnet.helius-rpc.com')
-        self.ws_url = os.getenv('HELIUS_WS_URL', 'wss://mainnet.helius-rpc.com')
-        self.devnet_ws_url = os.getenv('HELIUS_DEVNET_WS_URL', 'wss://devnet.helius-rpc.com')
-        
-        # Use devnet by default for safety
-        self.environment = os.getenv('SNIPER_ENVIRONMENT', 'devnet')
-        self.current_rpc_url = self.devnet_rpc_url if self.environment == 'devnet' else self.rpc_url
-        
+        # Import environment loader for dynamic configuration
+        try:
+            import sys
+            import os
+            sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'config'))
+            from environment_loader import get_environment_loader
+
+            # Get dynamic configuration
+            env_loader = get_environment_loader()
+            config = env_loader.get_config()
+
+            # Set configuration from environment loader
+            self.api_key = os.getenv('HELIUS_API_KEY') or os.getenv('SNIPER_HELIUS_API_KEY')
+            self.rpc_url = config.helius_rpc_url
+            self.ws_url = config.helius_ws_url
+            self.environment = env_loader.get_environment().value
+            self.is_mainnet = config.is_mainnet
+            self.network_name = config.network_name
+
+            # Current URLs (already set by environment loader)
+            self.current_rpc_url = self.rpc_url
+
+            logger.info(f"Helius Integration initialized for {self.network_name} ({self.environment})")
+
+        except ImportError as e:
+            logger.warning(f"Environment loader not available, using fallback configuration: {e}")
+            # Fallback to old behavior
+            self.api_key = os.getenv('HELIUS_API_KEY')
+            self.rpc_url = os.getenv('HELIUS_RPC_URL', 'https://mainnet.helius-rpc.com')
+            self.devnet_rpc_url = os.getenv('HELIUS_DEVNET_RPC_URL', 'https://devnet.helius-rpc.com')
+            self.ws_url = os.getenv('HELIUS_WS_URL', 'wss://mainnet.helius-rpc.com')
+            self.devnet_ws_url = os.getenv('HELIUS_DEVNET_WS_URL', 'wss://devnet.helius-rpc.com')
+
+            # Use devnet by default for safety
+            self.environment = os.getenv('SNIPER_ENVIRONMENT', 'devnet')
+            self.current_rpc_url = self.devnet_rpc_url if self.environment == 'devnet' else self.rpc_url
+            self.is_mainnet = self.environment != 'devnet'
+            self.network_name = 'mainnet' if self.is_mainnet else 'devnet'
+
         if not self.api_key:
             logger.warning("Helius API key not found. Some features may be limited.")
         
@@ -290,7 +319,11 @@ class HeliusAPIClient:
                 'asset_search',
                 'priority_fees',
                 'compressed_nfts',
-                'token_accounts'
+                'token_accounts',
+                'historical_data',
+                'defi_analytics',
+                'transaction_parsing',
+                'wallet_analytics'
             ] if self.api_key else ['basic_rpc_only']
         }
 
@@ -316,7 +349,7 @@ async def get_enhanced_token_data(mint_address: str) -> Dict[str, Any]:
             'metadata': metadata,
             'recent_transactions': transactions,
             'priority_fees': priority_fees,
-            'timestamp': datetime.utcnow().isoformat(),
+            'timestamp': datetime.now(timezone.utc).isoformat(),
             'data_source': 'helius_premium'
         }
     except Exception as e:
@@ -324,7 +357,7 @@ async def get_enhanced_token_data(mint_address: str) -> Dict[str, Any]:
         return {
             'mint_address': mint_address,
             'error': str(e),
-            'timestamp': datetime.utcnow().isoformat(),
+            'timestamp': datetime.now(timezone.utc).isoformat(),
             'data_source': 'helius_premium'
         }
 
@@ -345,7 +378,7 @@ async def monitor_wallet_activity(wallet_address: str, callback=None) -> Dict[st
             'token_accounts_count': len(token_accounts),
             'recent_activity': transactions[:10] if transactions else [],
             'token_holdings': token_accounts,
-            'timestamp': datetime.utcnow().isoformat(),
+            'timestamp': datetime.now(timezone.utc).isoformat(),
             'data_source': 'helius_premium'
         }
         
@@ -358,6 +391,114 @@ async def monitor_wallet_activity(wallet_address: str, callback=None) -> Dict[st
         return {
             'wallet_address': wallet_address,
             'error': str(e),
-            'timestamp': datetime.utcnow().isoformat(),
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+            'data_source': 'helius_premium'
+        }
+
+async def get_defi_analytics(protocol_address: str) -> Dict[str, Any]:
+    """
+    Get DeFi protocol analytics using Helius premium features
+    """
+    try:
+        # Get enhanced transactions for the protocol
+        transactions = await helius_client.get_enhanced_transactions(protocol_address, limit=200)
+
+        # Get token accounts
+        token_accounts = await helius_client.get_token_accounts_by_owner(protocol_address)
+
+        # Analyze DeFi activity
+        defi_metrics = {
+            'protocol_address': protocol_address,
+            'total_transactions_24h': len(transactions),
+            'unique_users_24h': len(set(tx.get('feePayer', '') for tx in transactions)),
+            'token_accounts_count': len(token_accounts),
+            'avg_transaction_size': sum(tx.get('fee', 0) for tx in transactions) / len(transactions) if transactions else 0,
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+            'data_source': 'helius_premium'
+        }
+
+        return defi_metrics
+
+    except Exception as e:
+        logger.error(f"Error getting DeFi analytics: {e}")
+        return {
+            'protocol_address': protocol_address,
+            'error': str(e),
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+            'data_source': 'helius_premium'
+        }
+
+async def get_historical_token_data(mint_address: str, days: int = 7) -> Dict[str, Any]:
+    """
+    Get historical token data using Helius premium features
+    """
+    try:
+        # Get enhanced transactions for the past N days
+        transactions = await helius_client.get_enhanced_transactions(mint_address, limit=1000)
+
+        # Get token metadata
+        metadata = await helius_client.get_token_metadata(mint_address)
+
+        # Process historical data
+        historical_data = {
+            'mint_address': mint_address,
+            'metadata': metadata,
+            'transaction_history': transactions,
+            'days_analyzed': days,
+            'total_transactions': len(transactions),
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+            'data_source': 'helius_premium'
+        }
+
+        return historical_data
+
+    except Exception as e:
+        logger.error(f"Error getting historical token data: {e}")
+        return {
+            'mint_address': mint_address,
+            'error': str(e),
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+            'data_source': 'helius_premium'
+        }
+
+async def parse_transaction_details(signature: str) -> Dict[str, Any]:
+    """
+    Parse transaction details using Helius enhanced parsing
+    """
+    try:
+        # This would use Helius's transaction parsing API
+        # For now, we'll use the basic transaction data
+        url = f"{helius_client.current_rpc_url.split('?')[0]}/v0/transactions/{signature}"
+        params = {
+            'api-key': helius_client.api_key,
+            'commitment': 'confirmed'
+        }
+
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, params=params) as response:
+                if response.status == 200:
+                    data = await response.json()
+
+                    # Enhanced parsing would happen here
+                    parsed_data = {
+                        'signature': signature,
+                        'parsed_instructions': data.get('instructions', []),
+                        'token_transfers': data.get('tokenTransfers', []),
+                        'account_changes': data.get('accountData', []),
+                        'timestamp': datetime.now(timezone.utc).isoformat(),
+                        'data_source': 'helius_premium'
+                    }
+
+                    return parsed_data
+                else:
+                    logger.error(f"Failed to parse transaction: {response.status}")
+                    return {}
+
+    except Exception as e:
+        logger.error(f"Error parsing transaction: {e}")
+        return {
+            'signature': signature,
+            'error': str(e),
+            'timestamp': datetime.now(timezone.utc).isoformat(),
             'data_source': 'helius_premium'
         }

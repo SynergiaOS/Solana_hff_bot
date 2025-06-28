@@ -3,6 +3,7 @@
 // Handles communication via DragonflyDB and vector memory integration
 
 use anyhow::Result;
+use chrono;
 use redis::aio::ConnectionManager;
 use redis::{AsyncCommands, Client};
 use serde::{Deserialize, Serialize};
@@ -10,13 +11,11 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
 use tokio::time::{Duration, Instant};
-use tracing::{error, info, warn, instrument};
+use tracing::{error, info, instrument, warn};
 use uuid::Uuid;
-use chrono;
 
-
-use crate::modules::strategy::TradingSignal;
 use crate::modules::real_price_fetcher::RealPriceFetcher;
+use crate::modules::strategy::TradingSignal;
 
 // ============================================================================
 // AI DECISION TYPES AND STRUCTURES
@@ -103,8 +102,8 @@ pub async fn listen_for_commands() -> Result<()> {
     info!("🧠 THE OVERMIND PROTOCOL - Starting enhanced command listener with execution");
 
     // Connect to DragonflyDB
-    let dragonfly_url = std::env::var("DRAGONFLY_URL")
-        .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
+    let dragonfly_url =
+        std::env::var("DRAGONFLY_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
 
     info!("🔗 Connecting to DragonflyDB at: {}", dragonfly_url);
 
@@ -119,7 +118,10 @@ pub async fn listen_for_commands() -> Result<()> {
 
     // Main listening loop with enhanced processing
     loop {
-        match conn.blpop::<&str, (String, String)>("overmind:commands", 0.0).await {
+        match conn
+            .blpop::<&str, (String, String)>("overmind:commands", 0.0)
+            .await
+        {
             Ok((list_name, message)) => {
                 info!("📨 Received command from {}: {}", list_name, message);
 
@@ -146,7 +148,8 @@ async fn process_brain_command(command_json: &str) -> Result<String> {
     // Parse the JSON command
     let command: serde_json::Value = serde_json::from_str(command_json)?;
 
-    let action = command.get("action")
+    let action = command
+        .get("action")
         .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("Missing 'action' field"))?;
 
@@ -159,7 +162,8 @@ async fn process_brain_command(command_json: &str) -> Result<String> {
             Ok("Wallet balance retrieved".to_string())
         }
         "EMERGENCY_STOP" => {
-            let reason = command.get("reason")
+            let reason = command
+                .get("reason")
                 .and_then(|v| v.as_str())
                 .unwrap_or("Emergency stop requested");
             info!("🚨 EMERGENCY STOP: {}", reason);
@@ -171,29 +175,41 @@ async fn process_brain_command(command_json: &str) -> Result<String> {
         }
         _ => {
             // Handle trading commands
-            let symbol = command.get("symbol")
+            let symbol = command
+                .get("symbol")
                 .and_then(|v| v.as_str())
                 .ok_or_else(|| anyhow::anyhow!("Missing 'symbol' field"))?;
 
-            let quantity = command.get("quantity")
+            let quantity = command
+                .get("quantity")
                 .and_then(|v| v.as_f64())
                 .ok_or_else(|| anyhow::anyhow!("Missing 'quantity' field"))?;
 
-            let confidence = command.get("confidence")
+            let confidence = command
+                .get("confidence")
                 .and_then(|v| v.as_f64())
                 .unwrap_or(0.5);
 
-            info!("🎯 Executing {} {} (qty: {}, conf: {:.2})", action, symbol, quantity, confidence);
+            info!(
+                "🎯 Executing {} {} (qty: {}, conf: {:.2})",
+                action, symbol, quantity, confidence
+            );
 
             // Simulate TensorZero-enhanced execution
-            let execution_result = execute_with_tensorzero(action, symbol, quantity, confidence).await?;
+            let execution_result =
+                execute_with_tensorzero(action, symbol, quantity, confidence).await?;
             Ok(execution_result)
         }
     }
 }
 
 /// TensorZero-enhanced execution with REAL MARKET PRICES for paper trading
-async fn execute_with_tensorzero(action: &str, symbol: &str, quantity: f64, confidence: f64) -> Result<String> {
+async fn execute_with_tensorzero(
+    action: &str,
+    symbol: &str,
+    quantity: f64,
+    confidence: f64,
+) -> Result<String> {
     // Simulate TensorZero optimization delay
     tokio::time::sleep(Duration::from_millis(25)).await;
 
@@ -214,7 +230,10 @@ async fn execute_with_tensorzero(action: &str, symbol: &str, quantity: f64, conf
             price
         }
         Err(e) => {
-            warn!("⚠️ Failed to fetch real price for {}: {}, using fallback", symbol, e);
+            warn!(
+                "⚠️ Failed to fetch real price for {}: {}, using fallback",
+                symbol, e
+            );
             // Fallback to previous logic if API fails
             match symbol {
                 "SOL" => 138.0,
@@ -233,7 +252,11 @@ async fn execute_with_tensorzero(action: &str, symbol: &str, quantity: f64, conf
     let final_price = real_price * (1.0 + confidence_adjustment);
 
     // Simulate paper trading execution
-    let transaction_id = format!("tensorzero_{}_{}", action.to_lowercase(), uuid::Uuid::new_v4());
+    let transaction_id = format!(
+        "tensorzero_{}_{}",
+        action.to_lowercase(),
+        uuid::Uuid::new_v4()
+    );
     let fees = quantity * final_price * 0.0005; // 0.05% fees with TensorZero optimization
     let estimated_profit = quantity * final_price * (confidence - 0.5) * 0.02; // Profit based on confidence
 
@@ -241,7 +264,10 @@ async fn execute_with_tensorzero(action: &str, symbol: &str, quantity: f64, conf
     info!("💰 Paper Trade Executed: {} {} @ ${:.2} (REAL PRICE: ${:.4}, fees: ${:.4}, profit: ${:.2})",
           action, symbol, final_price, real_price, fees, estimated_profit);
 
-    Ok(format!("Paper trade executed: {} {} @ ${:.2} (ID: {}) [REAL PRICE]", action, symbol, final_price, transaction_id))
+    Ok(format!(
+        "Paper trade executed: {} {} @ ${:.2} (ID: {}) [REAL PRICE]",
+        action, symbol, final_price, transaction_id
+    ))
 }
 
 /// Get wallet balance for monitoring
@@ -271,15 +297,17 @@ async fn get_wallet_balance() -> Result<serde_json::Value> {
 
 /// Send wallet balance response back to Python Brain
 async fn send_wallet_balance_response(balance: serde_json::Value) -> Result<()> {
-    let dragonfly_url = std::env::var("DRAGONFLY_URL")
-        .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
+    let dragonfly_url =
+        std::env::var("DRAGONFLY_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
 
     let client = Client::open(dragonfly_url.as_str())?;
     let mut conn = ConnectionManager::new(client).await?;
 
     // Send response to the wallet balance response queue
     let response_json = serde_json::to_string(&balance)?;
-    let _: () = conn.lpush("overmind:wallet_balance_response", response_json).await?;
+    let _: () = conn
+        .lpush("overmind:wallet_balance_response", response_json)
+        .await?;
 
     info!("📤 Wallet balance response sent to Python Brain");
     Ok(())
@@ -290,8 +318,8 @@ async fn send_wallet_balance_response(balance: serde_json::Value) -> Result<()> 
 async fn query_vector_memory(query: &str) -> Result<Vec<VectorMemoryResult>> {
     info!("🧠 Querying vector memory: {}", query);
 
-    let dragonfly_url = std::env::var("DRAGONFLY_URL")
-        .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
+    let dragonfly_url =
+        std::env::var("DRAGONFLY_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
 
     let client = Client::open(dragonfly_url.as_str())?;
     let mut conn = ConnectionManager::new(client).await?;
@@ -304,24 +332,37 @@ async fn query_vector_memory(query: &str) -> Result<Vec<VectorMemoryResult>> {
         "timestamp": chrono::Utc::now().to_rfc3339()
     });
 
-    let _: () = conn.lpush("overmind:memory_queries", serde_json::to_string(&memory_request)?).await?;
+    let _: () = conn
+        .lpush(
+            "overmind:memory_queries",
+            serde_json::to_string(&memory_request)?,
+        )
+        .await?;
 
     // Wait for response with timeout
     let timeout_duration = Duration::from_secs(5);
     let start_time = Instant::now();
 
     while start_time.elapsed() < timeout_duration {
-        if let Ok(Some((_, response_json))) = conn.blpop::<&str, Option<(String, String)>>("overmind:memory_responses", 1.0).await {
+        if let Ok(Some((_, response_json))) = conn
+            .blpop::<&str, Option<(String, String)>>("overmind:memory_responses", 1.0)
+            .await
+        {
             let response: serde_json::Value = serde_json::from_str(&response_json)?;
 
             if let Some(memories) = response.get("memories").and_then(|m| m.as_array()) {
                 let mut results = Vec::new();
                 for memory in memories {
-                    if let Ok(memory_result) = serde_json::from_value::<VectorMemoryResult>(memory.clone()) {
+                    if let Ok(memory_result) =
+                        serde_json::from_value::<VectorMemoryResult>(memory.clone())
+                    {
                         results.push(memory_result);
                     }
                 }
-                info!("✅ Retrieved {} memories from vector database", results.len());
+                info!(
+                    "✅ Retrieved {} memories from vector database",
+                    results.len()
+                );
                 return Ok(results);
             }
         }
@@ -378,13 +419,13 @@ pub struct AIConnector {
 pub struct AIConnectorConfig {
     /// DragonflyDB URL
     pub dragonfly_url: String,
-    
+
     /// AI Brain request timeout in seconds
     pub brain_request_timeout: std::time::Duration,
-    
+
     /// TensorZero API URL
     pub tensorzero_url: String,
-    
+
     /// Whether to use TensorZero for execution optimization
     pub use_tensorzero: bool,
 
@@ -495,8 +536,16 @@ impl AIConnector {
 
         // Run all tasks concurrently
         tokio::try_join!(
-            async { brain_listener.await.map_err(|e| anyhow::anyhow!("Brain listener failed: {}", e))? },
-            async { health_monitor.await.map_err(|e| anyhow::anyhow!("Health monitor failed: {}", e))? },
+            async {
+                brain_listener
+                    .await
+                    .map_err(|e| anyhow::anyhow!("Brain listener failed: {}", e))?
+            },
+            async {
+                health_monitor
+                    .await
+                    .map_err(|e| anyhow::anyhow!("Health monitor failed: {}", e))?
+            },
             market_event_processor
         )?;
 
@@ -505,7 +554,7 @@ impl AIConnector {
 
     async fn start_brain_listener(&self) -> Result<()> {
         info!("👂 Starting AI Brain decision listener");
-        
+
         let mut conn = self.dragonfly_client.clone();
         let decision_sender = self.decision_sender.clone();
         let _config = self.config.clone();
@@ -513,7 +562,10 @@ impl AIConnector {
         loop {
             match self.listen_for_ai_decisions(&mut conn).await {
                 Ok(Some(ai_decision)) => {
-                    if let Err(e) = self.process_ai_decision(ai_decision, &decision_sender).await {
+                    if let Err(e) = self
+                        .process_ai_decision(ai_decision, &decision_sender)
+                        .await
+                    {
                         error!("Failed to process AI decision: {}", e);
                     }
                 }
@@ -531,11 +583,14 @@ impl AIConnector {
 
     async fn start_market_event_processor(&mut self) -> Result<()> {
         info!("📊 Starting market event processor");
-        
+
         let mut conn = self.dragonfly_client.clone();
 
         while let Some(market_event) = self.market_event_receiver.recv().await {
-            if let Err(e) = self.send_market_event_to_brain(&mut conn, market_event).await {
+            if let Err(e) = self
+                .send_market_event_to_brain(&mut conn, market_event)
+                .await
+            {
                 error!("Failed to send market event to brain: {}", e);
             }
         }
@@ -545,18 +600,18 @@ impl AIConnector {
 
     async fn start_health_monitor(&self) -> Result<()> {
         info!("💓 Starting AI Connector health monitor");
-        
+
         let mut interval = tokio::time::interval(Duration::from_secs(30));
         let mut conn = self.dragonfly_client.clone();
 
         loop {
             interval.tick().await;
-            
+
             match self.check_brain_health(&mut conn).await {
                 Ok(is_healthy) => {
                     let mut connected = self.is_connected.write().await;
                     *connected = is_healthy;
-                    
+
                     if !is_healthy {
                         warn!("🔴 AI Brain connection unhealthy");
                     }
@@ -576,22 +631,30 @@ impl AIConnector {
     ) -> Result<Option<AIDecision>> {
         // Listen for AI decisions from Python Brain
         let result: Option<(String, String)> = conn
-            .blpop("overmind:commands", self.config.brain_request_timeout.as_secs() as f64)
+            .blpop(
+                "overmind:commands",
+                self.config.brain_request_timeout.as_secs() as f64,
+            )
             .await?;
 
         if let Some((_, decision_json)) = result {
             let ai_decision: AIDecision = serde_json::from_str(&decision_json)?;
-            
+
             // Check decision age
             let decision_age = chrono::Utc::now() - ai_decision.timestamp;
             if decision_age > chrono::Duration::from_std(self.config.max_decision_age)? {
-                warn!("Rejecting stale AI decision: {} seconds old", decision_age.num_seconds());
+                warn!(
+                    "Rejecting stale AI decision: {} seconds old",
+                    decision_age.num_seconds()
+                );
                 return Ok(None);
             }
 
-            info!("🧠 Received AI decision: {} {} (confidence: {:.2})",
-                  ai_decision.action, ai_decision.symbol, ai_decision.confidence);
-            
+            info!(
+                "🧠 Received AI decision: {} {} (confidence: {:.2})",
+                ai_decision.action, ai_decision.symbol, ai_decision.confidence
+            );
+
             Ok(Some(ai_decision))
         } else {
             Ok(None)
@@ -608,8 +671,10 @@ impl AIConnector {
 
         // Validate AI decision
         if ai_decision.confidence < self.config.confidence_threshold {
-            warn!("Rejecting low-confidence AI decision: {:.2} < {:.2}",
-                  ai_decision.confidence, self.config.confidence_threshold);
+            warn!(
+                "Rejecting low-confidence AI decision: {:.2} < {:.2}",
+                ai_decision.confidence, self.config.confidence_threshold
+            );
             return Ok(());
         }
 
@@ -629,8 +694,11 @@ impl AIConnector {
         Ok(())
     }
 
-    async fn convert_ai_decision_to_signal(&self, ai_decision: AIDecision) -> Result<TradingSignal> {
-        use crate::modules::strategy::{TradeAction, StrategyType};
+    async fn convert_ai_decision_to_signal(
+        &self,
+        ai_decision: AIDecision,
+    ) -> Result<TradingSignal> {
+        use crate::modules::strategy::{StrategyType, TradeAction};
 
         let action = match ai_decision.action {
             AIAction::Buy => TradeAction::Buy,
@@ -659,12 +727,14 @@ impl AIConnector {
         market_event: MarketEvent,
     ) -> Result<()> {
         let event_json = serde_json::to_string(&market_event)?;
-        
+
         // Send to Python Brain via DragonflyDB
         let _: () = conn.lpush("overmind:market_events", event_json).await?;
-        
-        info!("📤 Sent market event to AI Brain: {} {}", 
-              market_event.symbol, market_event.event_type);
+
+        info!(
+            "📤 Sent market event to AI Brain: {} {}",
+            market_event.symbol, market_event.event_type
+        );
 
         Ok(())
     }
@@ -677,7 +747,9 @@ impl AIConnector {
             "source": "rust_executor"
         });
 
-        let _: () = conn.lpush("overmind:health_check", health_check.to_string()).await?;
+        let _: () = conn
+            .lpush("overmind:health_check", health_check.to_string())
+            .await?;
 
         // Wait for response (with timeout)
         let response: Option<(String, String)> = conn
@@ -708,7 +780,10 @@ impl AIConnector {
         loop {
             match Self::listen_for_ai_decisions_static(&config, &mut conn).await {
                 Ok(Some(ai_decision)) => {
-                    if let Err(e) = Self::process_ai_decision_static(ai_decision, &decision_sender, &config).await {
+                    if let Err(e) =
+                        Self::process_ai_decision_static(ai_decision, &decision_sender, &config)
+                            .await
+                    {
                         error!("Failed to process AI decision: {}", e);
                     }
                 }
@@ -761,7 +836,10 @@ impl AIConnector {
     ) -> Result<Option<AIDecision>> {
         // Listen for AI decisions from Python Brain
         let result: Option<(String, String)> = conn
-            .blpop("overmind:commands", config.brain_request_timeout.as_secs() as f64)
+            .blpop(
+                "overmind:commands",
+                config.brain_request_timeout.as_secs() as f64,
+            )
             .await?;
 
         if let Some((_, decision_json)) = result {
@@ -770,12 +848,17 @@ impl AIConnector {
             // Check decision age
             let decision_age = chrono::Utc::now() - ai_decision.timestamp;
             if decision_age > chrono::Duration::from_std(config.max_decision_age)? {
-                warn!("Rejecting stale AI decision: {} seconds old", decision_age.num_seconds());
+                warn!(
+                    "Rejecting stale AI decision: {} seconds old",
+                    decision_age.num_seconds()
+                );
                 return Ok(None);
             }
 
-            info!("🧠 Received AI decision: {} {} (confidence: {:.2})",
-                  ai_decision.action, ai_decision.symbol, ai_decision.confidence);
+            info!(
+                "🧠 Received AI decision: {} {} (confidence: {:.2})",
+                ai_decision.action, ai_decision.symbol, ai_decision.confidence
+            );
 
             Ok(Some(ai_decision))
         } else {
@@ -792,8 +875,10 @@ impl AIConnector {
 
         // Validate AI decision
         if ai_decision.confidence < config.confidence_threshold {
-            warn!("Rejecting low-confidence AI decision: {:.2} < {:.2}",
-                  ai_decision.confidence, config.confidence_threshold);
+            warn!(
+                "Rejecting low-confidence AI decision: {:.2} < {:.2}",
+                ai_decision.confidence, config.confidence_threshold
+            );
             return Ok(());
         }
 
@@ -813,8 +898,10 @@ impl AIConnector {
         Ok(())
     }
 
-    async fn convert_ai_decision_to_signal_static(ai_decision: AIDecision) -> Result<TradingSignal> {
-        use crate::modules::strategy::{TradeAction, StrategyType};
+    async fn convert_ai_decision_to_signal_static(
+        ai_decision: AIDecision,
+    ) -> Result<TradingSignal> {
+        use crate::modules::strategy::{StrategyType, TradeAction};
 
         let action = match ai_decision.action {
             AIAction::Buy => TradeAction::Buy,
@@ -844,7 +931,9 @@ impl AIConnector {
             "source": "rust_executor"
         });
 
-        let _: () = conn.lpush("overmind:health_check", health_check.to_string()).await?;
+        let _: () = conn
+            .lpush("overmind:health_check", health_check.to_string())
+            .await?;
 
         // Wait for response (with timeout)
         let response: Option<(String, String)> = conn
@@ -854,8 +943,6 @@ impl AIConnector {
         Ok(response.is_some())
     }
 }
-
-
 
 // ============================================================================
 // HELPER FUNCTIONS
@@ -900,10 +987,10 @@ mod tests {
 
         let (_tx, _rx) = mpsc::unbounded_channel::<AIDecision>();
         let _config = AIConnectorConfig::default();
-        
+
         // Note: This test would need a mock DragonflyDB connection
         // For now, we just test the conversion logic
-        
+
         assert_eq!(ai_decision.confidence, 0.85);
         assert_eq!(ai_decision.symbol, "SOL/USDC");
     }

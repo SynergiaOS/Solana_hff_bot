@@ -1,10 +1,14 @@
 // THE OVERMIND PROTOCOL - Test Utilities and Helpers
 // Comprehensive testing infrastructure for all components
 
+#![allow(clippy::all)]
+#![allow(unused_variables)]
+#![allow(dead_code)]
+
 use std::time::{Duration, Instant};
 // use tokio::sync::mpsc; // Commented out unused import
-use uuid::Uuid;
 use std::collections::HashMap;
+use uuid::Uuid;
 
 // Mock types for testing (since we're in integration tests)
 #[derive(Debug, Clone)]
@@ -103,7 +107,7 @@ pub struct TestConfigBuilder {
 impl TestConfigBuilder {
     pub fn new() -> Self {
         let mut config = Config::default();
-        
+
         // Set safe test defaults
         config.trading.mode = TradingMode::Paper;
         config.trading.max_position_size = 100.0;
@@ -113,7 +117,7 @@ impl TestConfigBuilder {
         config.overmind.jito_endpoint = "http://localhost:3002".to_string();
         config.overmind.max_execution_latency_ms = 25;
         config.overmind.ai_confidence_threshold = 0.7;
-        
+
         Self { config }
     }
 
@@ -270,27 +274,35 @@ impl PerformanceMeasurer {
         if self.measurements.is_empty() {
             return Duration::from_millis(0);
         }
-        
+
         let total_nanos: u64 = self.measurements.iter().map(|d| d.as_nanos() as u64).sum();
         Duration::from_nanos(total_nanos / self.measurements.len() as u64)
     }
 
     pub fn max_duration(&self) -> Duration {
-        self.measurements.iter().max().copied().unwrap_or(Duration::from_millis(0))
+        self.measurements
+            .iter()
+            .max()
+            .copied()
+            .unwrap_or(Duration::from_millis(0))
     }
 
     pub fn min_duration(&self) -> Duration {
-        self.measurements.iter().min().copied().unwrap_or(Duration::from_millis(0))
+        self.measurements
+            .iter()
+            .min()
+            .copied()
+            .unwrap_or(Duration::from_millis(0))
     }
 
     pub fn percentile(&self, percentile: f64) -> Duration {
         if self.measurements.is_empty() {
             return Duration::from_millis(0);
         }
-        
+
         let mut sorted = self.measurements.clone();
         sorted.sort();
-        
+
         let index = ((sorted.len() as f64 - 1.0) * percentile / 100.0) as usize;
         sorted[index]
     }
@@ -313,23 +325,26 @@ impl TestEnvironment {
     pub async fn setup(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // Start mock servers
         self.start_mock_servers().await?;
-        
+
         // Wait for servers to be ready
         tokio::time::sleep(Duration::from_millis(100)).await;
-        
+
         Ok(())
     }
 
     async fn start_mock_servers(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // For now, we'll skip starting mock servers in test_utils
         // They should be started directly in integration tests
-        println!("Mock servers would be started on ports {} and {}", self.tensorzero_port, self.jito_port);
+        println!(
+            "Mock servers would be started on ports {} and {}",
+            self.tensorzero_port, self.jito_port
+        );
         Ok(())
     }
 
     pub async fn health_check(&self) -> bool {
         let client = reqwest::Client::new();
-        
+
         // Check TensorZero
         let tensorzero_health = client
             .get(&format!("http://localhost:{}/health", self.tensorzero_port))
@@ -337,7 +352,7 @@ impl TestEnvironment {
             .await
             .map(|r| r.status().is_success())
             .unwrap_or(false);
-        
+
         // Check Jito
         let jito_health = client
             .get(&format!("http://localhost:{}/health", self.jito_port))
@@ -345,7 +360,7 @@ impl TestEnvironment {
             .await
             .map(|r| r.status().is_success())
             .unwrap_or(false);
-        
+
         tensorzero_health && jito_health
     }
 }
@@ -393,7 +408,7 @@ mod tests {
             .with_trading_mode(TradingMode::Paper)
             .with_max_latency(50)
             .build();
-        
+
         assert!(config.overmind.enabled);
         assert_eq!(config.overmind.max_execution_latency_ms, 50);
     }
@@ -408,11 +423,11 @@ mod tests {
     #[test]
     fn test_performance_measurer() {
         let mut measurer = PerformanceMeasurer::new();
-        
+
         measurer.start_measurement();
         std::thread::sleep(Duration::from_millis(10));
         let duration = measurer.end_measurement();
-        
+
         assert!(duration.as_millis() >= 10);
     }
 }

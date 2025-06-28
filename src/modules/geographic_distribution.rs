@@ -4,13 +4,13 @@
 //! and intelligent routing based on network conditions.
 
 use anyhow::Result;
+use rand;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::{Mutex, RwLock};
-use tracing::{info, debug};
-use rand;
+use tracing::{debug, info};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GeographicConfig {
@@ -75,9 +75,9 @@ pub struct NetworkMetrics {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TradingHours {
-    pub market_open_utc: String,   // "09:30"
-    pub market_close_utc: String,  // "16:00"
-    pub timezone_offset: i32,      // UTC offset in minutes
+    pub market_open_utc: String,  // "09:30"
+    pub market_close_utc: String, // "16:00"
+    pub timezone_offset: i32,     // UTC offset in minutes
     pub is_market_hours: bool,
 }
 
@@ -187,95 +187,100 @@ impl GeographicDistribution {
         let mut regions_guard = self.regions.write().await;
 
         // US East (Virginia)
-        regions_guard.insert("us-east-1".to_string(), GeographicRegion {
-            region_id: "us-east-1".to_string(),
-            region_name: "US East (Virginia)".to_string(),
-            country_code: "US".to_string(),
-            timezone: "America/New_York".to_string(),
-            coordinates: (39.0458, -77.5081),
-            network_endpoints: vec![
-                "https://api.mainnet-beta.solana.com".to_string(),
-                "https://solana-api.projectserum.com".to_string(),
-            ],
-            wallet_nodes: Vec::new(),
-            is_primary: true,
-            is_active: true,
-            network_metrics: NetworkMetrics {
-                average_latency_ms: 50.0,
-                packet_loss_rate: 0.001,
-                bandwidth_mbps: 1000.0,
-                jitter_ms: 2.0,
-                uptime_percentage: 99.9,
-                last_measurement: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
-                quality_score: 0.95,
+        regions_guard.insert(
+            "us-east-1".to_string(),
+            GeographicRegion {
+                region_id: "us-east-1".to_string(),
+                region_name: "US East (Virginia)".to_string(),
+                country_code: "US".to_string(),
+                timezone: "America/New_York".to_string(),
+                coordinates: (39.0458, -77.5081),
+                network_endpoints: vec![
+                    "https://api.mainnet-beta.solana.com".to_string(),
+                    "https://solana-api.projectserum.com".to_string(),
+                ],
+                wallet_nodes: Vec::new(),
+                is_primary: true,
+                is_active: true,
+                network_metrics: NetworkMetrics {
+                    average_latency_ms: 50.0,
+                    packet_loss_rate: 0.001,
+                    bandwidth_mbps: 1000.0,
+                    jitter_ms: 2.0,
+                    uptime_percentage: 99.9,
+                    last_measurement: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
+                    quality_score: 0.95,
+                },
+                trading_hours: TradingHours {
+                    market_open_utc: "14:30".to_string(),  // 9:30 AM EST
+                    market_close_utc: "21:00".to_string(), // 4:00 PM EST
+                    timezone_offset: -300,                 // EST is UTC-5
+                    is_market_hours: true,
+                },
             },
-            trading_hours: TradingHours {
-                market_open_utc: "14:30".to_string(),  // 9:30 AM EST
-                market_close_utc: "21:00".to_string(),  // 4:00 PM EST
-                timezone_offset: -300, // EST is UTC-5
-                is_market_hours: true,
-            },
-        });
+        );
 
         // EU West (Ireland)
-        regions_guard.insert("eu-west-1".to_string(), GeographicRegion {
-            region_id: "eu-west-1".to_string(),
-            region_name: "EU West (Ireland)".to_string(),
-            country_code: "IE".to_string(),
-            timezone: "Europe/Dublin".to_string(),
-            coordinates: (53.3498, -6.2603),
-            network_endpoints: vec![
-                "https://api.mainnet-beta.solana.com".to_string(),
-            ],
-            wallet_nodes: Vec::new(),
-            is_primary: true,
-            is_active: true,
-            network_metrics: NetworkMetrics {
-                average_latency_ms: 75.0,
-                packet_loss_rate: 0.002,
-                bandwidth_mbps: 800.0,
-                jitter_ms: 3.0,
-                uptime_percentage: 99.8,
-                last_measurement: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
-                quality_score: 0.92,
+        regions_guard.insert(
+            "eu-west-1".to_string(),
+            GeographicRegion {
+                region_id: "eu-west-1".to_string(),
+                region_name: "EU West (Ireland)".to_string(),
+                country_code: "IE".to_string(),
+                timezone: "Europe/Dublin".to_string(),
+                coordinates: (53.3498, -6.2603),
+                network_endpoints: vec!["https://api.mainnet-beta.solana.com".to_string()],
+                wallet_nodes: Vec::new(),
+                is_primary: true,
+                is_active: true,
+                network_metrics: NetworkMetrics {
+                    average_latency_ms: 75.0,
+                    packet_loss_rate: 0.002,
+                    bandwidth_mbps: 800.0,
+                    jitter_ms: 3.0,
+                    uptime_percentage: 99.8,
+                    last_measurement: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
+                    quality_score: 0.92,
+                },
+                trading_hours: TradingHours {
+                    market_open_utc: "08:00".to_string(),
+                    market_close_utc: "16:30".to_string(),
+                    timezone_offset: 0, // UTC
+                    is_market_hours: false,
+                },
             },
-            trading_hours: TradingHours {
-                market_open_utc: "08:00".to_string(),
-                market_close_utc: "16:30".to_string(),
-                timezone_offset: 0, // UTC
-                is_market_hours: false,
-            },
-        });
+        );
 
         // Asia Pacific (Singapore)
-        regions_guard.insert("ap-southeast-1".to_string(), GeographicRegion {
-            region_id: "ap-southeast-1".to_string(),
-            region_name: "Asia Pacific (Singapore)".to_string(),
-            country_code: "SG".to_string(),
-            timezone: "Asia/Singapore".to_string(),
-            coordinates: (1.3521, 103.8198),
-            network_endpoints: vec![
-                "https://api.mainnet-beta.solana.com".to_string(),
-            ],
-            wallet_nodes: Vec::new(),
-            is_primary: true,
-            is_active: true,
-            network_metrics: NetworkMetrics {
-                average_latency_ms: 120.0,
-                packet_loss_rate: 0.003,
-                bandwidth_mbps: 600.0,
-                jitter_ms: 5.0,
-                uptime_percentage: 99.7,
-                last_measurement: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
-                quality_score: 0.88,
+        regions_guard.insert(
+            "ap-southeast-1".to_string(),
+            GeographicRegion {
+                region_id: "ap-southeast-1".to_string(),
+                region_name: "Asia Pacific (Singapore)".to_string(),
+                country_code: "SG".to_string(),
+                timezone: "Asia/Singapore".to_string(),
+                coordinates: (1.3521, 103.8198),
+                network_endpoints: vec!["https://api.mainnet-beta.solana.com".to_string()],
+                wallet_nodes: Vec::new(),
+                is_primary: true,
+                is_active: true,
+                network_metrics: NetworkMetrics {
+                    average_latency_ms: 120.0,
+                    packet_loss_rate: 0.003,
+                    bandwidth_mbps: 600.0,
+                    jitter_ms: 5.0,
+                    uptime_percentage: 99.7,
+                    last_measurement: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
+                    quality_score: 0.88,
+                },
+                trading_hours: TradingHours {
+                    market_open_utc: "01:00".to_string(),  // 9:00 AM SGT
+                    market_close_utc: "09:00".to_string(), // 5:00 PM SGT
+                    timezone_offset: 480,                  // SGT is UTC+8
+                    is_market_hours: false,
+                },
             },
-            trading_hours: TradingHours {
-                market_open_utc: "01:00".to_string(),  // 9:00 AM SGT
-                market_close_utc: "09:00".to_string(),  // 5:00 PM SGT
-                timezone_offset: 480, // SGT is UTC+8
-                is_market_hours: false,
-            },
-        });
+        );
 
         info!("🌍 Initialized {} geographic regions", regions_guard.len());
         Ok(())
@@ -305,18 +310,26 @@ impl GeographicDistribution {
                 for (region1_id, region1) in regions_guard.iter() {
                     for (region2_id, region2) in regions_guard.iter() {
                         if region1_id != region2_id {
-                            let latency = Self::measure_inter_region_latency(region1, region2).await;
+                            let latency =
+                                Self::measure_inter_region_latency(region1, region2).await;
                             matrix_guard.insert((region1_id.clone(), region2_id.clone()), latency);
                         }
                     }
 
                     // Update region quality score
                     let quality_score = Self::calculate_region_quality_score(region1).await;
-                    monitor_guard.quality_scores.insert(region1_id.clone(), quality_score);
-                    monitor_guard.last_measurement.insert(region1_id.clone(), current_time);
+                    monitor_guard
+                        .quality_scores
+                        .insert(region1_id.clone(), quality_score);
+                    monitor_guard
+                        .last_measurement
+                        .insert(region1_id.clone(), current_time);
                 }
 
-                debug!("📊 Updated network metrics for {} regions", regions_guard.len());
+                debug!(
+                    "📊 Updated network metrics for {} regions",
+                    regions_guard.len()
+                );
             }
         });
     }
@@ -335,14 +348,20 @@ impl GeographicDistribution {
                 let regions_guard = regions.read().await;
 
                 // Check replication lag for each configured replication
-                let replication_configs: Vec<_> = replication_guard.replication_configs.clone().into_iter().collect();
+                let replication_configs: Vec<_> = replication_guard
+                    .replication_configs
+                    .clone()
+                    .into_iter()
+                    .collect();
                 drop(replication_guard);
 
                 for (source_region, replication_config) in replication_configs {
                     if let Some(_source) = regions_guard.get(&source_region) {
                         for target_region in &replication_config.target_regions {
                             if let Some(_target) = regions_guard.get(target_region) {
-                                let lag = Self::measure_replication_lag(&source_region, target_region).await;
+                                let lag =
+                                    Self::measure_replication_lag(&source_region, target_region)
+                                        .await;
 
                                 let mut replication_guard = replication_manager.lock().await;
                                 replication_guard
@@ -387,16 +406,22 @@ impl GeographicDistribution {
                 let region_ids: Vec<String> = regions_guard.keys().cloned().collect();
 
                 // Remove entries for non-existent regions
-                matrix_guard.retain(|(from, to), _| {
-                    region_ids.contains(from) && region_ids.contains(to)
-                });
+                matrix_guard
+                    .retain(|(from, to), _| region_ids.contains(from) && region_ids.contains(to));
 
-                debug!("🗺️ Updated latency matrix with {} entries", matrix_guard.len());
+                debug!(
+                    "🗺️ Updated latency matrix with {} entries",
+                    matrix_guard.len()
+                );
             }
         });
     }
 
-    pub async fn select_optimal_region(&self, user_location: Option<(f64, f64)>, requirements: Option<RegionRequirements>) -> Result<RegionSelection> {
+    pub async fn select_optimal_region(
+        &self,
+        user_location: Option<(f64, f64)>,
+        requirements: Option<RegionRequirements>,
+    ) -> Result<RegionSelection> {
         let regions_guard = self.regions.read().await;
         let monitor_guard = self.network_monitor.lock().await;
         let _matrix_guard = self.latency_matrix.read().await;
@@ -412,15 +437,21 @@ impl GeographicDistribution {
             let mut reasoning_parts = Vec::new();
 
             // Network quality score (40% weight)
-            let quality_score = monitor_guard.quality_scores.get(region_id).copied().unwrap_or(0.5);
+            let quality_score = monitor_guard
+                .quality_scores
+                .get(region_id)
+                .copied()
+                .unwrap_or(0.5);
             score += quality_score * 0.4;
             reasoning_parts.push(format!("Quality: {:.2}", quality_score));
 
             // Geographic proximity score (30% weight)
             if let Some((user_lat, user_lon)) = user_location {
                 let distance = Self::calculate_distance(
-                    user_lat, user_lon,
-                    region.coordinates.0, region.coordinates.1
+                    user_lat,
+                    user_lon,
+                    region.coordinates.0,
+                    region.coordinates.1,
                 );
                 let proximity_score = 1.0 / (1.0 + distance / 10000.0); // Normalize by 10,000 km
                 score += proximity_score * 0.3;
@@ -431,7 +462,11 @@ impl GeographicDistribution {
             }
 
             // Trading hours alignment (20% weight)
-            let trading_hours_score = if region.trading_hours.is_market_hours { 1.0 } else { 0.5 };
+            let trading_hours_score = if region.trading_hours.is_market_hours {
+                1.0
+            } else {
+                0.5
+            };
             score += trading_hours_score * 0.2;
             reasoning_parts.push(format!("Trading Hours: {:.2}", trading_hours_score));
 
@@ -490,11 +525,16 @@ impl GeographicDistribution {
         })
     }
 
-    async fn measure_inter_region_latency(region1: &GeographicRegion, region2: &GeographicRegion) -> f64 {
+    async fn measure_inter_region_latency(
+        region1: &GeographicRegion,
+        region2: &GeographicRegion,
+    ) -> f64 {
         // Simplified latency calculation based on geographic distance
         let distance = Self::calculate_distance(
-            region1.coordinates.0, region1.coordinates.1,
-            region2.coordinates.0, region2.coordinates.1
+            region1.coordinates.0,
+            region1.coordinates.1,
+            region2.coordinates.0,
+            region2.coordinates.1,
         );
 
         // Approximate latency: ~1ms per 100km + base latency
@@ -530,8 +570,8 @@ impl GeographicDistribution {
         let dlat = (lat2 - lat1).to_radians();
         let dlon = (lon2 - lon1).to_radians();
 
-        let a = (dlat / 2.0).sin().powi(2) +
-                lat1.to_radians().cos() * lat2.to_radians().cos() * (dlon / 2.0).sin().powi(2);
+        let a = (dlat / 2.0).sin().powi(2)
+            + lat1.to_radians().cos() * lat2.to_radians().cos() * (dlon / 2.0).sin().powi(2);
 
         let c = 2.0 * a.sqrt().atan2((1.0 - a).sqrt());
 
@@ -575,16 +615,29 @@ impl GeographicDistribution {
         let primary_regions = regions_guard.values().filter(|r| r.is_primary).count();
 
         let avg_quality: f64 = if !monitor_guard.quality_scores.is_empty() {
-            monitor_guard.quality_scores.values().sum::<f64>() / monitor_guard.quality_scores.len() as f64
+            monitor_guard.quality_scores.values().sum::<f64>()
+                / monitor_guard.quality_scores.len() as f64
         } else {
             0.0
         };
 
         let mut stats = HashMap::new();
-        stats.insert("total_regions".to_string(), serde_json::Value::Number(total_regions.into()));
-        stats.insert("active_regions".to_string(), serde_json::Value::Number(active_regions.into()));
-        stats.insert("primary_regions".to_string(), serde_json::Value::Number(primary_regions.into()));
-        stats.insert("average_quality_score".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(avg_quality).unwrap()));
+        stats.insert(
+            "total_regions".to_string(),
+            serde_json::Value::Number(total_regions.into()),
+        );
+        stats.insert(
+            "active_regions".to_string(),
+            serde_json::Value::Number(active_regions.into()),
+        );
+        stats.insert(
+            "primary_regions".to_string(),
+            serde_json::Value::Number(primary_regions.into()),
+        );
+        stats.insert(
+            "average_quality_score".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(avg_quality).unwrap()),
+        );
 
         stats
     }

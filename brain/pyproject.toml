@@ -36,6 +36,8 @@ dependencies = [
     # "asyncio-mqtt>=0.13.0",  # Optional for MQTT communication
     "python-dotenv>=1.0.0",
     "httpx>=0.24.0",
+    "websockets>=11.0.0",  # For QuickNode WebSocket premium features
+    "aiohttp>=3.8.0",  # For async HTTP requests
 
     # TensorZero Integration (if available)
     # "tensorzero-python>=0.1.0; python_version>='3.8'",  # Custom integration
