@@ -767,6 +767,51 @@ impl AIConnector {
         *self.is_connected.read().await
     }
 
+    /// Send request to AI Brain and wait for response
+    /// Used by RugpullScanner for AI Brain communication
+    pub async fn send_request(&self, request: serde_json::Value) -> Result<serde_json::Value> {
+        let mut conn = self.dragonfly_client.clone();
+
+        // Generate unique request ID
+        let request_id = uuid::Uuid::new_v4().to_string();
+
+        // Add request ID to the request
+        let mut request_with_id = request;
+        request_with_id["request_id"] = serde_json::Value::String(request_id.clone());
+        request_with_id["timestamp"] = serde_json::Value::String(chrono::Utc::now().to_rfc3339());
+
+        // Send request to AI Brain
+        let request_json = serde_json::to_string(&request_with_id)?;
+        conn.lpush::<_, _, ()>("overmind:ai_requests", &request_json)
+            .await?;
+
+        info!("📤 Sent request to AI Brain: {}", request_id);
+
+        // Wait for response with timeout
+        let response_key = format!("overmind:ai_responses:{}", request_id);
+        let timeout = self.config.brain_request_timeout;
+
+        let start_time = std::time::Instant::now();
+        while start_time.elapsed() < timeout {
+            if let Ok(response_json) = conn.get::<&str, String>(&response_key).await {
+                // Clean up response key
+                let _: Result<(), _> = conn.del(&response_key).await;
+
+                // Parse and return response
+                let response: serde_json::Value = serde_json::from_str(&response_json)?;
+                info!("📥 Received response from AI Brain: {}", request_id);
+                return Ok(response);
+            }
+
+            // Small delay before checking again
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        }
+
+        // Timeout occurred
+        warn!("⏰ AI Brain request timeout: {}", request_id);
+        Err(anyhow::anyhow!("AI Brain request timeout"))
+    }
+
     // Static methods for spawned tasks
     async fn run_brain_listener(
         config: AIConnectorConfig,

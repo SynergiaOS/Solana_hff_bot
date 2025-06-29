@@ -14,7 +14,24 @@ from collections import defaultdict
 
 import chromadb
 from chromadb.config import Settings
-from sentence_transformers import SentenceTransformer
+
+# Try to import sentence_transformers, use mock if not available
+try:
+    from sentence_transformers import SentenceTransformer
+    SENTENCE_TRANSFORMERS_AVAILABLE = True
+except ImportError:
+    SENTENCE_TRANSFORMERS_AVAILABLE = False
+    # Mock SentenceTransformer for testing
+    class SentenceTransformer:
+        def __init__(self, model_name):
+            self.model_name = model_name
+
+        def encode(self, texts):
+            # Return mock embeddings
+            import random
+            if isinstance(texts, str):
+                return [random.random() for _ in range(384)]
+            return [[random.random() for _ in range(384)] for _ in texts]
 
 logger = logging.getLogger(__name__)
 
@@ -411,3 +428,401 @@ class VectorMemory:
         except Exception as e:
             logger.error(f"Error during cleanup: {e}")
             return 0
+
+    # 🧠 RUGPULL SCANNER - RAG Integration dla Historii Deweloperów
+
+    def add_developer_history(self, developer_address: str, project_data: Dict[str, Any]) -> str:
+        """Add developer project history to vector memory.
+
+        Args:
+            developer_address: Developer wallet address
+            project_data: Project information including outcome, timeline, etc.
+
+        Returns:
+            Memory ID of stored developer history
+        """
+        logger.info(f"📝 Adding developer history for: {developer_address}")
+
+        # Create comprehensive text description for embedding
+        project_text = f"""
+        Developer: {developer_address}
+        Project: {project_data.get('name', 'Unknown')}
+        Token: {project_data.get('token_symbol', 'N/A')}
+        Launch Date: {project_data.get('launch_date', 'Unknown')}
+        Outcome: {project_data.get('outcome', 'Unknown')}
+        Duration: {project_data.get('duration_days', 0)} days
+        Final Status: {project_data.get('final_status', 'Unknown')}
+        Rug Pull: {project_data.get('was_rug_pull', False)}
+        Exit Method: {project_data.get('exit_method', 'N/A')}
+        Investor Losses: {project_data.get('investor_losses', 0)} SOL
+        Red Flags: {', '.join(project_data.get('red_flags', []))}
+        Community Response: {project_data.get('community_response', 'N/A')}
+        """
+
+        # Metadata for filtering and analysis
+        metadata = {
+            "type": "developer_history",
+            "developer_address": developer_address,
+            "project_name": project_data.get('name', 'Unknown'),
+            "token_symbol": project_data.get('token_symbol', 'N/A'),
+            "outcome": project_data.get('outcome', 'Unknown'),
+            "was_rug_pull": project_data.get('was_rug_pull', False),
+            "duration_days": project_data.get('duration_days', 0),
+            "investor_losses": project_data.get('investor_losses', 0),
+            "launch_date": project_data.get('launch_date', 'Unknown'),
+            "final_status": project_data.get('final_status', 'Unknown'),
+            "red_flags_count": len(project_data.get('red_flags', [])),
+            "timestamp": datetime.now().isoformat()
+        }
+
+        memory_id = self.add_memory(project_text, metadata)
+        logger.info(f"✅ Developer history stored with ID: {memory_id}")
+        return memory_id
+
+    def get_developer_history(self, developer_address: str) -> List[Dict[str, Any]]:
+        """Get complete history for a specific developer.
+
+        Args:
+            developer_address: Developer wallet address to lookup
+
+        Returns:
+            List of developer's project history
+        """
+        logger.info(f"🔍 Retrieving developer history for: {developer_address}")
+
+        try:
+            # Search for all projects by this developer
+            filters = {
+                "type": "developer_history",
+                "developer_address": developer_address
+            }
+
+            history = self.search_by_metadata(filters, limit=50)  # Get up to 50 projects
+
+            logger.info(f"📊 Found {len(history)} projects for developer {developer_address}")
+            return history
+
+        except Exception as e:
+            logger.error(f"❌ Error retrieving developer history: {e}")
+            return []
+
+    def analyze_developer_reputation(self, developer_address: str) -> Dict[str, Any]:
+        """Analyze developer reputation based on project history.
+
+        Args:
+            developer_address: Developer wallet address to analyze
+
+        Returns:
+            Dict with reputation analysis and risk score
+        """
+        logger.info(f"🎯 Analyzing developer reputation for: {developer_address}")
+
+        history = self.get_developer_history(developer_address)
+
+        if not history:
+            return {
+                "developer_address": developer_address,
+                "reputation_score": 0.5,  # Neutral for unknown developers
+                "risk_level": "UNKNOWN",
+                "total_projects": 0,
+                "analysis": "No historical data available"
+            }
+
+        # Analyze project outcomes
+        total_projects = len(history)
+        rug_pulls = sum(1 for h in history if h.get("metadata", {}).get("was_rug_pull", False))
+        failed_projects = sum(1 for h in history if h.get("metadata", {}).get("outcome") in ["failed", "abandoned", "rug_pull"])
+        successful_projects = sum(1 for h in history if h.get("metadata", {}).get("outcome") in ["successful", "ongoing"])
+
+        # Calculate average project duration
+        durations = [h.get("metadata", {}).get("duration_days", 0) for h in history if h.get("metadata", {}).get("duration_days", 0) > 0]
+        avg_duration = sum(durations) / len(durations) if durations else 0
+
+        # Calculate total investor losses
+        total_losses = sum(h.get("metadata", {}).get("investor_losses", 0) for h in history)
+
+        # Calculate reputation score (0.0 = worst, 1.0 = best)
+        if total_projects == 0:
+            reputation_score = 0.5
+        else:
+            success_rate = successful_projects / total_projects
+            rug_pull_rate = rug_pulls / total_projects
+            failure_rate = failed_projects / total_projects
+
+            # Weighted scoring
+            reputation_score = (
+                success_rate * 0.5 +           # 50% weight for success
+                (1 - rug_pull_rate) * 0.3 +    # 30% weight for no rug pulls
+                (1 - failure_rate) * 0.2       # 20% weight for no failures
+            )
+
+        # Determine risk level
+        if rug_pulls > 0:
+            risk_level = "CRITICAL"
+        elif failure_rate > 0.7:
+            risk_level = "HIGH"
+        elif reputation_score < 0.3:
+            risk_level = "HIGH"
+        elif reputation_score < 0.6:
+            risk_level = "MEDIUM"
+        else:
+            risk_level = "LOW"
+
+        # Generate analysis summary
+        analysis_points = []
+        if rug_pulls > 0:
+            analysis_points.append(f"🚨 {rug_pulls} confirmed rug pull(s)")
+        if failed_projects > successful_projects:
+            analysis_points.append(f"⚠️ More failures ({failed_projects}) than successes ({successful_projects})")
+        if avg_duration < 30:
+            analysis_points.append(f"⚠️ Short average project duration: {avg_duration:.1f} days")
+        if total_losses > 100:
+            analysis_points.append(f"💸 High investor losses: {total_losses:.1f} SOL")
+        if successful_projects > 0:
+            analysis_points.append(f"✅ {successful_projects} successful project(s)")
+
+        result = {
+            "developer_address": developer_address,
+            "reputation_score": reputation_score,
+            "risk_level": risk_level,
+            "total_projects": total_projects,
+            "project_breakdown": {
+                "successful": successful_projects,
+                "failed": failed_projects,
+                "rug_pulls": rug_pulls
+            },
+            "metrics": {
+                "success_rate": successful_projects / total_projects if total_projects > 0 else 0,
+                "rug_pull_rate": rug_pulls / total_projects if total_projects > 0 else 0,
+                "avg_duration_days": avg_duration,
+                "total_investor_losses": total_losses
+            },
+            "analysis_points": analysis_points,
+            "recommendation": "REJECT" if risk_level == "CRITICAL" else ("CAUTION" if risk_level == "HIGH" else "PROCEED")
+        }
+
+        logger.info(f"📊 Developer reputation analysis complete: {risk_level} risk, {reputation_score:.2f} score")
+        return result
+
+    def detect_scam_patterns(self, project_description: str, developer_address: str) -> Dict[str, Any]:
+        """Detect scam patterns by comparing with historical scam projects.
+
+        Args:
+            project_description: Description of current project to analyze
+            developer_address: Developer address to check
+
+        Returns:
+            Dict with scam pattern analysis and risk assessment
+        """
+        logger.info(f"🔍 Detecting scam patterns for project by: {developer_address}")
+
+        # Get developer history first
+        developer_reputation = self.analyze_developer_reputation(developer_address)
+
+        # Search for similar failed/scam projects in vector memory
+        scam_query = f"rug pull scam failed project abandoned {project_description}"
+        similar_scams = self.find_similar(scam_query, limit=10)
+
+        # Filter for actual scam projects
+        confirmed_scams = [
+            scam for scam in similar_scams
+            if scam.get("metadata", {}).get("was_rug_pull", False) or
+               scam.get("metadata", {}).get("outcome") in ["rug_pull", "scam", "abandoned"]
+        ]
+
+        # Analyze pattern similarities
+        pattern_matches = []
+        risk_factors = []
+
+        if developer_reputation["risk_level"] == "CRITICAL":
+            pattern_matches.append("Developer has history of rug pulls")
+            risk_factors.append("CRITICAL: Known scammer")
+
+        if len(confirmed_scams) > 0:
+            pattern_matches.append(f"Similar to {len(confirmed_scams)} known scam projects")
+            risk_factors.append(f"Project description matches {len(confirmed_scams)} scam patterns")
+
+        # Check for common scam keywords in description
+        scam_keywords = [
+            "guaranteed returns", "100x", "moon", "diamond hands",
+            "to the moon", "ape in", "HODL", "pump", "lambo",
+            "get rich quick", "easy money", "no risk"
+        ]
+
+        found_keywords = [kw for kw in scam_keywords if kw.lower() in project_description.lower()]
+        if found_keywords:
+            pattern_matches.append(f"Contains scam keywords: {', '.join(found_keywords)}")
+            risk_factors.append("Suspicious marketing language")
+
+        # Calculate overall scam risk score
+        scam_risk_score = 0.0
+
+        # Developer history weight (40%)
+        if developer_reputation["risk_level"] == "CRITICAL":
+            scam_risk_score += 0.4
+        elif developer_reputation["risk_level"] == "HIGH":
+            scam_risk_score += 0.25
+        elif developer_reputation["risk_level"] == "MEDIUM":
+            scam_risk_score += 0.1
+
+        # Similar scam projects weight (35%)
+        if len(confirmed_scams) > 5:
+            scam_risk_score += 0.35
+        elif len(confirmed_scams) > 2:
+            scam_risk_score += 0.25
+        elif len(confirmed_scams) > 0:
+            scam_risk_score += 0.15
+
+        # Scam keywords weight (25%)
+        keyword_ratio = len(found_keywords) / len(scam_keywords)
+        scam_risk_score += keyword_ratio * 0.25
+
+        # Determine final risk level
+        if scam_risk_score > 0.7:
+            final_risk = "CRITICAL"
+            recommendation = "REJECT_IMMEDIATELY"
+        elif scam_risk_score > 0.5:
+            final_risk = "HIGH"
+            recommendation = "AVOID"
+        elif scam_risk_score > 0.3:
+            final_risk = "MEDIUM"
+            recommendation = "EXTREME_CAUTION"
+        else:
+            final_risk = "LOW"
+            recommendation = "PROCEED_WITH_NORMAL_CAUTION"
+
+        result = {
+            "developer_address": developer_address,
+            "scam_risk_score": scam_risk_score,
+            "risk_level": final_risk,
+            "recommendation": recommendation,
+            "pattern_analysis": {
+                "similar_scam_projects": len(confirmed_scams),
+                "pattern_matches": pattern_matches,
+                "scam_keywords_found": found_keywords,
+                "developer_reputation": developer_reputation
+            },
+            "risk_factors": risk_factors,
+            "confidence": min(0.95, 0.6 + (len(confirmed_scams) * 0.05) + (len(found_keywords) * 0.02))
+        }
+
+        if final_risk == "CRITICAL":
+            logger.warning(f"🚨 CRITICAL scam risk detected for {developer_address}")
+        elif final_risk == "HIGH":
+            logger.warning(f"⚠️ HIGH scam risk detected for {developer_address}")
+        else:
+            logger.info(f"✅ Acceptable scam risk for {developer_address}")
+
+        return result
+
+    def perform_developer_rag_scan(self, developer_address: str, project_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Perform complete RAG-based developer history scan.
+
+        Args:
+            developer_address: Developer wallet address
+            project_data: Current project information
+
+        Returns:
+            Dict with complete RAG analysis and verdict
+        """
+        logger.info(f"🧠 Starting Developer RAG Scan for: {developer_address}")
+
+        try:
+            # Get comprehensive developer analysis
+            reputation_analysis = self.analyze_developer_reputation(developer_address)
+
+            # Detect scam patterns
+            project_description = f"{project_data.get('name', '')} {project_data.get('description', '')}"
+            scam_analysis = self.detect_scam_patterns(project_description, developer_address)
+
+            # Aggregate risk factors
+            critical_risks = []
+            high_risks = []
+            warnings = []
+
+            # Analyze reputation risks
+            if reputation_analysis["risk_level"] == "CRITICAL":
+                critical_risks.append("Developer has history of rug pulls")
+            elif reputation_analysis["risk_level"] == "HIGH":
+                high_risks.append("Developer has poor track record")
+            elif reputation_analysis["risk_level"] == "MEDIUM":
+                warnings.append("Developer has mixed track record")
+
+            # Analyze scam pattern risks
+            if scam_analysis["risk_level"] == "CRITICAL":
+                critical_risks.append("Project matches known scam patterns")
+            elif scam_analysis["risk_level"] == "HIGH":
+                high_risks.append("Project shows scam indicators")
+            elif scam_analysis["risk_level"] == "MEDIUM":
+                warnings.append("Project has some concerning patterns")
+
+            # Determine overall verdict
+            if critical_risks:
+                overall_risk = "CRITICAL"
+                recommendation = "REJECT_IMMEDIATELY"
+                verdict = "DEVELOPER_HISTORY_DISQUALIFIED"
+            elif len(high_risks) >= 2:
+                overall_risk = "CRITICAL"
+                recommendation = "REJECT_IMMEDIATELY"
+                verdict = "MULTIPLE_HIGH_RISKS"
+            elif high_risks:
+                overall_risk = "HIGH"
+                recommendation = "AVOID"
+                verdict = "CONDITIONAL_REJECT"
+            elif warnings:
+                overall_risk = "MEDIUM"
+                recommendation = "PROCEED_WITH_EXTREME_CAUTION"
+                verdict = "CONDITIONAL_PASS"
+            else:
+                overall_risk = "LOW"
+                recommendation = "PROCEED"
+                verdict = "PASS"
+
+            # Compile comprehensive RAG scan report
+            scan_result = {
+                "developer_address": developer_address,
+                "scan_level": "DEVELOPER_RAG_ANALYSIS",
+                "timestamp": datetime.now().isoformat(),
+                "overall_risk": overall_risk,
+                "verdict": verdict,
+                "recommendation": recommendation,
+                "detailed_analyses": {
+                    "reputation_analysis": reputation_analysis,
+                    "scam_pattern_analysis": scam_analysis
+                },
+                "risk_summary": {
+                    "critical_risks": len(critical_risks),
+                    "high_risks": len(high_risks),
+                    "warnings": len(warnings),
+                    "total_issues": len(critical_risks) + len(high_risks) + len(warnings)
+                },
+                "risk_factors": {
+                    "critical": critical_risks,
+                    "high": high_risks,
+                    "warnings": warnings
+                },
+                "next_steps": "Proceed to final aggregation" if verdict == "PASS" else "Developer disqualified"
+            }
+
+            # Log results
+            if verdict in ["DEVELOPER_HISTORY_DISQUALIFIED", "MULTIPLE_HIGH_RISKS"]:
+                logger.error(f"🚨 DEVELOPER RAG SCAN FAILED for {developer_address} - {verdict}")
+            elif verdict == "CONDITIONAL_REJECT":
+                logger.warning(f"⚠️ DEVELOPER RAG SCAN REJECT for {developer_address}")
+            elif verdict == "CONDITIONAL_PASS":
+                logger.warning(f"⚠️ DEVELOPER RAG SCAN WARNING for {developer_address}")
+            else:
+                logger.info(f"✅ DEVELOPER RAG SCAN PASSED for {developer_address}")
+
+            return scan_result
+
+        except Exception as e:
+            logger.error(f"❌ Developer RAG scan failed for {developer_address}: {e}")
+            return {
+                "developer_address": developer_address,
+                "scan_level": "DEVELOPER_RAG_ANALYSIS",
+                "verdict": "ERROR",
+                "recommendation": "REJECT_IMMEDIATELY",
+                "error": str(e),
+                "overall_risk": "CRITICAL"
+            }

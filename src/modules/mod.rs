@@ -39,6 +39,15 @@ pub mod advanced_risk_management;
 pub mod dynamic_position_sizing;
 pub mod portfolio_rebalancer;
 
+// THE OVERMIND PROTOCOL - RUGPULL SCANNER
+pub mod rugpull_scanner;
+
+// THE OVERMIND PROTOCOL - ADVANCED MEV ENGINE
+pub mod advanced_mev_engine;
+
+// THE OVERMIND PROTOCOL - SHREDSTREAM PROXY
+pub mod shredstream_proxy;
+
 // MULTI-WALLET & HIGH-FREQUENCY OPTIMIZATION MODULES
 pub mod geographic_distribution;
 pub mod multi_wallet_load_balancer;
