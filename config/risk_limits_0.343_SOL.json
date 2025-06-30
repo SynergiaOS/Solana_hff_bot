@@ -1,0 +1,113 @@
+{
+  "portfolio_config": {
+    "initial_balance": 0.343,
+    "target_balance": 2.0,
+    "current_phase": "AGGRESSIVE_GROWTH",
+    "blitzkrieg_mode": true
+  },
+  "absolute_limits": {
+    "max_daily_loss_pct": 15.0,
+    "max_daily_loss_sol": 0.051,
+    "max_position_size_pct": 25.0,
+    "max_position_size_sol": 0.086,
+    "max_portfolio_risk_pct": 25.0,
+    "emergency_exit_threshold_pct": 20.0,
+    "emergency_exit_threshold_sol": 0.069
+  },
+  "dynamic_limits": {
+    "hourly_loss_limit_pct": 5.0,
+    "hourly_loss_limit_sol": 0.017,
+    "max_concurrent_positions": 5,
+    "max_slippage_bps": 100,
+    "max_gas_cost_pct": 10.0
+  },
+  "position_sizing": {
+    "base_position_size_pct": 8.0,
+    "base_position_size_sol": 0.027,
+    "max_position_size_pct": 25.0,
+    "max_position_size_sol": 0.086,
+    "risk_per_trade_pct": 5.0,
+    "risk_per_trade_sol": 0.017
+  },
+  "stop_loss_config": {
+    "default_stop_loss_pct": 8.0,
+    "min_stop_loss_pct": 3.0,
+    "max_stop_loss_pct": 15.0,
+    "volatility_multiplier": 2.0,
+    "trailing_stop_enabled": true
+  },
+  "take_profit_config": {
+    "default_take_profit_pct": 25.0,
+    "min_take_profit_pct": 10.0,
+    "risk_reward_ratio": 3.0,
+    "partial_profit_levels": [15.0, 30.0, 50.0]
+  },
+  "emergency_triggers": {
+    "daily_loss_trigger": 0.051,
+    "portfolio_drawdown_trigger": 0.069,
+    "volatility_spike_trigger": 50.0,
+    "system_error_rate_trigger": 10.0,
+    "network_latency_trigger_ms": 2000
+  },
+  "circuit_breakers": {
+    "portfolio_loss": {
+      "threshold": 0.051,
+      "cooldown_minutes": 30,
+      "action": "HALT_ALL_TRADING"
+    },
+    "max_drawdown": {
+      "threshold": 0.069,
+      "cooldown_minutes": 60,
+      "action": "EMERGENCY_EXIT"
+    },
+    "volatility_spike": {
+      "threshold": 50.0,
+      "cooldown_minutes": 15,
+      "action": "REDUCE_POSITION_SIZES"
+    }
+  },
+  "strategy_specific_limits": {
+    "memecoin_hunter": {
+      "max_position_sol": 0.086,
+      "stop_loss_pct": 8.0,
+      "take_profit_pct": 100.0,
+      "max_hold_time_hours": 24
+    },
+    "mev_opportunities": {
+      "max_position_sol": 0.043,
+      "stop_loss_pct": 5.0,
+      "take_profit_pct": 15.0,
+      "max_execution_time_ms": 5000
+    },
+    "arbitrage": {
+      "max_position_sol": 0.027,
+      "stop_loss_pct": 3.0,
+      "take_profit_pct": 8.0,
+      "max_execution_time_ms": 10000
+    }
+  },
+  "monitoring_thresholds": {
+    "warning_level": {
+      "daily_loss_pct": 10.0,
+      "position_concentration_pct": 20.0,
+      "error_rate_pct": 5.0
+    },
+    "critical_level": {
+      "daily_loss_pct": 15.0,
+      "position_concentration_pct": 25.0,
+      "error_rate_pct": 10.0
+    }
+  },
+  "recovery_procedures": {
+    "soft_stop": {
+      "trigger": "warning_level_breach",
+      "action": "pause_new_positions",
+      "duration_minutes": 15
+    },
+    "hard_stop": {
+      "trigger": "critical_level_breach",
+      "action": "emergency_exit_all",
+      "duration_minutes": 60
+    }
+  }
+}

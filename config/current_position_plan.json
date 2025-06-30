@@ -1,0 +1,81 @@
+{
+  "portfolio_config": {
+    "current_balance": 0.343,
+    "target_balance": 2.0,
+    "risk_profile": "blitzkrieg"
+  },
+  "portfolio_limits": {
+    "current_balance": 0.343,
+    "max_daily_loss": 0.05145,
+    "max_position_size": 0.08575,
+    "risk_per_trade": 0.01715,
+    "emergency_threshold": 0.0686,
+    "hourly_loss_limit": 0.01715,
+    "remaining_balance_after_max_loss": 0.29155
+  },
+  "strategy_positions": {
+    "memecoin_hunter": {
+      "strategy": "memecoin_hunter",
+      "position_size_sol": 0.077175,
+      "position_size_pct": 22.5,
+      "stop_loss_amount": 0.006174,
+      "take_profit_amount": 0.077175,
+      "risk_reward_ratio": 12.5,
+      "confidence_used": 0.9,
+      "strategy_multiplier": 1.0
+    },
+    "mev_opportunities": {
+      "strategy": "mev_opportunities",
+      "position_size_sol": 0.0343,
+      "position_size_pct": 10.0,
+      "stop_loss_amount": 0.002744,
+      "take_profit_amount": 0.0343,
+      "risk_reward_ratio": 12.5,
+      "confidence_used": 0.8,
+      "strategy_multiplier": 0.5
+    },
+    "arbitrage": {
+      "strategy": "arbitrage",
+      "position_size_sol": 0.018007,
+      "position_size_pct": 5.25,
+      "stop_loss_amount": 0.001441,
+      "take_profit_amount": 0.018007,
+      "risk_reward_ratio": 12.5,
+      "confidence_used": 0.7,
+      "strategy_multiplier": 0.3
+    },
+    "soul_meteor": {
+      "strategy": "soul_meteor",
+      "position_size_sol": 0.05488,
+      "position_size_pct": 16.0,
+      "stop_loss_amount": 0.00439,
+      "take_profit_amount": 0.05488,
+      "risk_reward_ratio": 12.5,
+      "confidence_used": 0.8,
+      "strategy_multiplier": 0.8
+    },
+    "developer_tracking": {
+      "strategy": "developer_tracking",
+      "position_size_sol": 0.03087,
+      "position_size_pct": 9.0,
+      "stop_loss_amount": 0.00247,
+      "take_profit_amount": 0.03087,
+      "risk_reward_ratio": 12.5,
+      "confidence_used": 0.6,
+      "strategy_multiplier": 0.6
+    },
+    "sol_momentum": {
+      "strategy": "sol_momentum",
+      "position_size_sol": 0.01715,
+      "position_size_pct": 5.0,
+      "stop_loss_amount": 0.001372,
+      "take_profit_amount": 0.01715,
+      "risk_reward_ratio": 12.5,
+      "confidence_used": 0.5,
+      "strategy_multiplier": 0.4
+    }
+  },
+  "total_allocated": 0.232382,
+  "remaining_balance": 0.110618,
+  "allocation_percentage": 67.75
+}
