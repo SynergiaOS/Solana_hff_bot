@@ -9,11 +9,9 @@ use serde::{Deserialize, Serialize};
 use solana_client::rpc_client::RpcClient;
 use solana_sdk::{
     commitment_config::CommitmentConfig,
-    instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
     signature::{Keypair, Signature},
     signer::Signer,
-    system_instruction,
     transaction::Transaction,
 };
 use std::str::FromStr;
@@ -59,10 +57,8 @@ impl RealSellExecutor {
         max_slippage: f64,
         priority_fee: u64,
     ) -> Result<Self> {
-        let rpc_client = RpcClient::new_with_commitment(
-            rpc_url.to_string(),
-            CommitmentConfig::confirmed(),
-        );
+        let rpc_client =
+            RpcClient::new_with_commitment(rpc_url.to_string(), CommitmentConfig::confirmed());
 
         // Parse wallet private key
         let wallet_keypair = if wallet_private_key.len() == 88 {
@@ -72,8 +68,7 @@ impl RealSellExecutor {
             // JSON array format
             let key_bytes: Vec<u8> = serde_json::from_str(wallet_private_key)
                 .context("Failed to parse wallet private key")?;
-            Keypair::from_bytes(&key_bytes)
-                .context("Failed to create keypair from bytes")?
+            Keypair::from_bytes(&key_bytes).context("Failed to create keypair from bytes")?
         };
 
         // Create Jito client for MEV protection
@@ -99,12 +94,15 @@ impl RealSellExecutor {
         min_sol_output: Option<f64>,
     ) -> Result<RealSellResult> {
         let start_time = Instant::now();
-        
-        info!("🔥 EXECUTING IMMEDIATE SELL: {} tokens of {}", amount, token_address);
+
+        info!(
+            "🔥 EXECUTING IMMEDIATE SELL: {} tokens of {}",
+            amount, token_address
+        );
 
         // Step 1: Get Jupiter quote for SELL
         let quote = self.get_jupiter_sell_quote(token_address, amount).await?;
-        
+
         // Step 2: Validate minimum output
         if let Some(min_output) = min_sol_output {
             if quote.out_amount < min_output {
@@ -127,9 +125,11 @@ impl RealSellExecutor {
         match self.execute_jupiter_sell_transaction(&quote).await {
             Ok(signature) => {
                 let execution_time = start_time.elapsed().as_millis() as u64;
-                
-                info!("✅ SELL EXECUTED: {} SOL received in {}ms", 
-                      quote.out_amount, execution_time);
+
+                info!(
+                    "✅ SELL EXECUTED: {} SOL received in {}ms",
+                    quote.out_amount, execution_time
+                );
 
                 Ok(RealSellResult {
                     transaction_signature: signature.to_string(),
@@ -163,10 +163,10 @@ impl RealSellExecutor {
         amount: f64,
     ) -> Result<JupiterQuote> {
         let client = reqwest::Client::new();
-        
+
         // Convert amount to token units (assuming 6 decimals for most tokens)
         let amount_units = (amount * 1_000_000.0) as u64;
-        
+
         let url = format!(
             "{}/quote?inputMint={}&outputMint=So11111111111111111111111111111111111111112&amount={}&slippageBps={}",
             self.jupiter_api_url,
@@ -187,17 +187,17 @@ impl RealSellExecutor {
             .await
             .context("Failed to parse Jupiter quote")?;
 
-        debug!("📊 Jupiter SELL quote: {} tokens → {} SOL", amount, quote.out_amount);
+        debug!(
+            "📊 Jupiter SELL quote: {} tokens → {} SOL",
+            amount, quote.out_amount
+        );
         Ok(quote)
     }
 
     /// Execute Jupiter SELL transaction
-    async fn execute_jupiter_sell_transaction(
-        &self,
-        quote: &JupiterQuote,
-    ) -> Result<Signature> {
+    async fn execute_jupiter_sell_transaction(&self, quote: &JupiterQuote) -> Result<Signature> {
         let client = reqwest::Client::new();
-        
+
         // Get swap transaction from Jupiter
         let swap_request = serde_json::json!({
             "quoteResponse": quote,
@@ -221,17 +221,22 @@ impl RealSellExecutor {
 
         // Deserialize and sign transaction
         use base64::prelude::*;
-        let transaction_bytes = BASE64_STANDARD.decode(&swap_response.swap_transaction)
+        let transaction_bytes = BASE64_STANDARD
+            .decode(&swap_response.swap_transaction)
             .context("Failed to decode transaction")?;
-        
+
         let mut transaction: Transaction = bincode::deserialize(&transaction_bytes)
             .context("Failed to deserialize transaction")?;
 
         // Sign transaction
-        transaction.sign(&[&self.wallet_keypair], self.rpc_client.get_latest_blockhash()?);
+        transaction.sign(
+            &[&self.wallet_keypair],
+            self.rpc_client.get_latest_blockhash()?,
+        );
 
         // Send transaction with high priority
-        let signature = self.rpc_client
+        let signature = self
+            .rpc_client
             .send_and_confirm_transaction_with_spinner_and_config(
                 &transaction,
                 CommitmentConfig::confirmed(),
@@ -252,10 +257,10 @@ impl RealSellExecutor {
     /// Emergency SELL ALL - liquidate entire position immediately
     pub async fn emergency_sell_all(&self, token_address: &str) -> Result<RealSellResult> {
         warn!("🚨 EMERGENCY SELL ALL for token: {}", token_address);
-        
+
         // Get token balance
         let token_balance = self.get_token_balance(token_address).await?;
-        
+
         if token_balance <= 0.0 {
             return Ok(RealSellResult {
                 transaction_signature: "".to_string(),
@@ -269,16 +274,17 @@ impl RealSellExecutor {
         }
 
         // Execute immediate sell with maximum slippage tolerance
-        self.execute_immediate_sell(token_address, token_balance, None).await
+        self.execute_immediate_sell(token_address, token_balance, None)
+            .await
     }
 
     /// Get token balance for wallet
     async fn get_token_balance(&self, token_address: &str) -> Result<f64> {
-        let token_pubkey = Pubkey::from_str(token_address)
-            .context("Invalid token address")?;
-        
+        let token_pubkey = Pubkey::from_str(token_address).context("Invalid token address")?;
+
         // Get token accounts for wallet
-        let token_accounts = self.rpc_client
+        let token_accounts = self
+            .rpc_client
             .get_token_accounts_by_owner(
                 &self.wallet_keypair.pubkey(),
                 solana_client::rpc_request::TokenAccountsFilter::Mint(token_pubkey),

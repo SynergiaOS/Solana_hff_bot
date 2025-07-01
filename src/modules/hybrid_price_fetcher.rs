@@ -1,5 +1,5 @@
 //! Hybrid Price Fetcher for THE OVERMIND PROTOCOL
-//! 
+//!
 //! Uses multiple data sources with fallback hierarchy:
 //! 1. Helius API (Primary - no rate limits)
 //! 2. CoinGecko API (Secondary - has rate limits)
@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::RwLock;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 /// Price data with source tracking
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -86,11 +86,26 @@ impl HybridPriceFetcher {
 
         // Token mint addresses for Helius API
         let mut token_addresses = HashMap::new();
-        token_addresses.insert("SOL".to_string(), "So11111111111111111111111111111111111111112".to_string());
-        token_addresses.insert("USDC".to_string(), "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string());
-        token_addresses.insert("BONK".to_string(), "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263".to_string());
-        token_addresses.insert("RAY".to_string(), "4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R".to_string());
-        token_addresses.insert("ORCA".to_string(), "orcaEKTdK7LKz57vaAYr9QeNsVEPfiu6QeMU1kektZE".to_string());
+        token_addresses.insert(
+            "SOL".to_string(),
+            "So11111111111111111111111111111111111111112".to_string(),
+        );
+        token_addresses.insert(
+            "USDC".to_string(),
+            "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string(),
+        );
+        token_addresses.insert(
+            "BONK".to_string(),
+            "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263".to_string(),
+        );
+        token_addresses.insert(
+            "RAY".to_string(),
+            "4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R".to_string(),
+        );
+        token_addresses.insert(
+            "ORCA".to_string(),
+            "orcaEKTdK7LKz57vaAYr9QeNsVEPfiu6QeMU1kektZE".to_string(),
+        );
 
         Self {
             client,
@@ -128,13 +143,16 @@ impl HybridPriceFetcher {
         for (symbol, mint_address) in &self.token_addresses {
             match self.get_helius_token_price(mint_address).await {
                 Ok(price) => {
-                    prices.insert(symbol.clone(), HybridPriceData {
-                        symbol: symbol.clone(),
-                        price_usd: price,
-                        last_updated: current_time,
-                        data_source: PriceSource::Helius,
-                        confidence: 0.95, // High confidence for Helius
-                    });
+                    prices.insert(
+                        symbol.clone(),
+                        HybridPriceData {
+                            symbol: symbol.clone(),
+                            price_usd: price,
+                            last_updated: current_time,
+                            data_source: PriceSource::Helius,
+                            confidence: 0.95, // High confidence for Helius
+                        },
+                    );
                     debug!("✅ Helius price for {}: ${:.4}", symbol, price);
                 }
                 Err(e) => {
@@ -144,7 +162,10 @@ impl HybridPriceFetcher {
         }
 
         if !prices.is_empty() {
-            info!("✅ Helius prices fetched successfully: {} tokens", prices.len());
+            info!(
+                "✅ Helius prices fetched successfully: {} tokens",
+                prices.len()
+            );
         }
 
         Ok(prices)
@@ -153,12 +174,13 @@ impl HybridPriceFetcher {
     /// Get single token price from Helius
     async fn get_helius_token_price(&self, mint_address: &str) -> Result<f64> {
         let url = format!("{}/token-metadata", self.helius_url);
-        
+
         let payload = serde_json::json!({
             "mintAccounts": [mint_address]
         });
 
-        let response = self.client
+        let response = self
+            .client
             .post(&url)
             .query(&[("api-key", &self.helius_api_key)])
             .json(&payload)
@@ -170,7 +192,9 @@ impl HybridPriceFetcher {
             return Err(anyhow::anyhow!("Helius API error: {}", response.status()));
         }
 
-        let data: Vec<serde_json::Value> = response.json().await
+        let data: Vec<serde_json::Value> = response
+            .json()
+            .await
             .context("Failed to parse Helius response")?;
 
         if let Some(token_data) = data.first() {
@@ -189,11 +213,12 @@ impl HybridPriceFetcher {
     async fn get_jupiter_price_via_helius(&self, mint_address: &str) -> Result<f64> {
         // Use Jupiter quote API to get current price
         let jupiter_url = "https://quote-api.jup.ag/v6/quote";
-        
+
         // Get quote for 1 token to SOL to determine price
         let amount = 1_000_000; // 1 token with 6 decimals
-        
-        let response = self.client
+
+        let response = self
+            .client
             .get(jupiter_url)
             .query(&[
                 ("inputMint", mint_address),
@@ -207,13 +232,13 @@ impl HybridPriceFetcher {
 
         if response.status().is_success() {
             let quote: serde_json::Value = response.json().await?;
-            
+
             if let Some(out_amount) = quote.get("outAmount").and_then(|a| a.as_str()) {
                 let sol_amount: f64 = out_amount.parse().unwrap_or(0.0) / 1_000_000_000.0; // Convert lamports to SOL
-                
+
                 // Get SOL price in USD (we'll use a simple fallback for now)
                 let sol_price_usd = 150.0; // This should be fetched from another source
-                
+
                 let token_price_usd = sol_amount * sol_price_usd;
                 return Ok(token_price_usd);
             }
@@ -234,7 +259,10 @@ impl HybridPriceFetcher {
         let response = self.client.get(&url).send().await?;
 
         if !response.status().is_success() {
-            return Err(anyhow::anyhow!("CoinGecko API error: {}", response.status()));
+            return Err(anyhow::anyhow!(
+                "CoinGecko API error: {}",
+                response.status()
+            ));
         }
 
         let coingecko_data: CoinGeckoResponse = response.json().await?;
@@ -244,26 +272,35 @@ impl HybridPriceFetcher {
 
         // Map CoinGecko data to our format
         if let Some(sol_data) = coingecko_data.solana {
-            prices.insert("SOL".to_string(), HybridPriceData {
-                symbol: "SOL".to_string(),
-                price_usd: sol_data.usd,
-                last_updated: current_time,
-                data_source: PriceSource::CoinGecko,
-                confidence: 0.85, // Lower confidence due to rate limits
-            });
+            prices.insert(
+                "SOL".to_string(),
+                HybridPriceData {
+                    symbol: "SOL".to_string(),
+                    price_usd: sol_data.usd,
+                    last_updated: current_time,
+                    data_source: PriceSource::CoinGecko,
+                    confidence: 0.85, // Lower confidence due to rate limits
+                },
+            );
         }
 
         if let Some(usdc_data) = coingecko_data.usd_coin {
-            prices.insert("USDC".to_string(), HybridPriceData {
-                symbol: "USDC".to_string(),
-                price_usd: usdc_data.usd,
-                last_updated: current_time,
-                data_source: PriceSource::CoinGecko,
-                confidence: 0.85,
-            });
+            prices.insert(
+                "USDC".to_string(),
+                HybridPriceData {
+                    symbol: "USDC".to_string(),
+                    price_usd: usdc_data.usd,
+                    last_updated: current_time,
+                    data_source: PriceSource::CoinGecko,
+                    confidence: 0.85,
+                },
+            );
         }
 
-        info!("✅ CoinGecko backup prices fetched: {} tokens", prices.len());
+        info!(
+            "✅ CoinGecko backup prices fetched: {} tokens",
+            prices.len()
+        );
         Ok(prices)
     }
 
@@ -274,9 +311,12 @@ impl HybridPriceFetcher {
             let cache = self.cache.read().await;
             if let Some(cached_price) = cache.get(symbol) {
                 if self.is_cache_valid(cached_price) {
-                    debug!("💾 Using cached price for {}: ${:.4} ({})", 
-                           symbol, cached_price.price_usd, 
-                           format!("{:?}", cached_price.data_source));
+                    debug!(
+                        "💾 Using cached price for {}: ${:.4} ({})",
+                        symbol,
+                        cached_price.price_usd,
+                        format!("{:?}", cached_price.data_source)
+                    );
                     return Ok(cached_price.price_usd);
                 }
             }
@@ -288,8 +328,11 @@ impl HybridPriceFetcher {
                 // Update cache
                 let mut cache = self.cache.write().await;
                 cache.insert(symbol.to_string(), price_data.clone());
-                
-                info!("✅ Using Helius price for {}: ${:.4}", symbol, price_data.price_usd);
+
+                info!(
+                    "✅ Using Helius price for {}: ${:.4}",
+                    symbol, price_data.price_usd
+                );
                 return Ok(price_data.price_usd);
             }
         }
@@ -300,25 +343,34 @@ impl HybridPriceFetcher {
                 // Update cache
                 let mut cache = self.cache.write().await;
                 cache.insert(symbol.to_string(), price_data.clone());
-                
-                warn!("⚠️ Using CoinGecko fallback for {}: ${:.4}", symbol, price_data.price_usd);
+
+                warn!(
+                    "⚠️ Using CoinGecko fallback for {}: ${:.4}",
+                    symbol, price_data.price_usd
+                );
                 return Ok(price_data.price_usd);
             }
         }
 
         // Final fallback to hardcoded prices
         let fallback_price = self.get_fallback_price(symbol);
-        warn!("🚨 Using emergency fallback price for {}: ${:.4}", symbol, fallback_price);
-        
+        warn!(
+            "🚨 Using emergency fallback price for {}: ${:.4}",
+            symbol, fallback_price
+        );
+
         // Cache fallback price
         let mut cache = self.cache.write().await;
-        cache.insert(symbol.to_string(), HybridPriceData {
-            symbol: symbol.to_string(),
-            price_usd: fallback_price,
-            last_updated: Self::current_timestamp(),
-            data_source: PriceSource::Fallback,
-            confidence: 0.5, // Low confidence for fallback
-        });
+        cache.insert(
+            symbol.to_string(),
+            HybridPriceData {
+                symbol: symbol.to_string(),
+                price_usd: fallback_price,
+                last_updated: Self::current_timestamp(),
+                data_source: PriceSource::Fallback,
+                confidence: 0.5, // Low confidence for fallback
+            },
+        );
 
         Ok(fallback_price)
     }

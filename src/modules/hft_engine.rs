@@ -54,10 +54,7 @@ impl std::fmt::Display for LiveExecutionReport {
         write!(
             f,
             "LiveExecutionReport(status: {}, tx_id: {}, price: ${:.6}, fees: ${:.6})",
-            self.status,
-            self.transaction_id,
-            self.executed_price,
-            self.fees_paid
+            self.status, self.transaction_id, self.executed_price, self.fees_paid
         )
     }
 }
@@ -204,18 +201,19 @@ impl HftEngine {
         );
 
         // Step 1: Optimize transaction via TensorZero
-        let (optimized_tx, tensorzero_optimization) = match self
-            .optimize_with_tensorzero(&signal)
-            .await
-        {
-            Ok(tx) => (tx, Some("TensorZero optimization applied".to_string())),
-            Err(e) => {
-                warn!("⚠️ TensorZero optimization failed: {}, proceeding without optimization", e);
-                // Create basic transaction without optimization
-                let basic_tx = self.create_basic_transaction(&signal).await?;
-                (basic_tx, None)
-            }
-        };
+        let (optimized_tx, tensorzero_optimization) =
+            match self.optimize_with_tensorzero(&signal).await {
+                Ok(tx) => (tx, Some("TensorZero optimization applied".to_string())),
+                Err(e) => {
+                    warn!(
+                        "⚠️ TensorZero optimization failed: {}, proceeding without optimization",
+                        e
+                    );
+                    // Create basic transaction without optimization
+                    let basic_tx = self.create_basic_transaction(&signal).await?;
+                    (basic_tx, None)
+                }
+            };
 
         // Step 2: Execute with retries and capture detailed results
         match self.execute_with_retry(optimized_tx).await {
@@ -234,7 +232,7 @@ impl HftEngine {
                     tensorzero_optimization,
                     execution_timestamp,
                     fees_paid: 0.005, // TODO: Calculate actual fees
-                    slippage: 0.001, // TODO: Calculate actual slippage
+                    slippage: 0.001,  // TODO: Calculate actual slippage
                     execution_latency_ms: execution_latency,
                 })
             }
@@ -262,7 +260,10 @@ impl HftEngine {
 
     /// Create basic transaction without TensorZero optimization
     async fn create_basic_transaction(&self, signal: &TradingSignal) -> Result<Transaction> {
-        debug!("Creating basic transaction for {} {}", signal.action, signal.symbol);
+        debug!(
+            "Creating basic transaction for {} {}",
+            signal.action, signal.symbol
+        );
 
         // For now, create a simple mock transaction
         // TODO: Implement proper transaction creation based on signal
@@ -270,11 +271,8 @@ impl HftEngine {
         let recent_blockhash = self.rpc_client.get_latest_blockhash()?;
 
         // Create a minimal transaction (transfer 0 SOL to self)
-        let instruction = solana_sdk::system_instruction::transfer(
-            &keypair.pubkey(),
-            &keypair.pubkey(),
-            0,
-        );
+        let instruction =
+            solana_sdk::system_instruction::transfer(&keypair.pubkey(), &keypair.pubkey(), 0);
 
         let transaction = Transaction::new_signed_with_payer(
             &[instruction],

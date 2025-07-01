@@ -198,7 +198,10 @@ async fn process_brain_command(command_json: &str) -> Result<String> {
 
             info!(
                 "🎯 Executing {} {} (qty: {}, conf: {:.2}) - Mode: {}",
-                action, symbol, quantity, confidence,
+                action,
+                symbol,
+                quantity,
+                confidence,
                 if paper_trading { "PAPER" } else { "LIVE" }
             );
 
@@ -220,17 +223,26 @@ async fn execute_live_trading(
     quantity: f64,
     confidence: f64,
 ) -> Result<String> {
-    info!("🔥 LIVE TRADING: Executing {} {} with quantity {}", action, symbol, quantity);
+    info!(
+        "🔥 LIVE TRADING: Executing {} {} with quantity {}",
+        action, symbol, quantity
+    );
 
     // Get real market price
     let price_fetcher = HybridPriceFetcher::new();
     let real_price = match price_fetcher.get_real_price(symbol).await {
         Ok(price) => {
-            info!("📊 LIVE: Using REAL market price for {}: ${:.4}", symbol, price);
+            info!(
+                "📊 LIVE: Using REAL market price for {}: ${:.4}",
+                symbol, price
+            );
             price
         }
         Err(e) => {
-            warn!("⚠️ LIVE: Failed to fetch real price for {}: {}, using fallback", symbol, e);
+            warn!(
+                "⚠️ LIVE: Failed to fetch real price for {}: {}, using fallback",
+                symbol, e
+            );
             match symbol {
                 "SOL" => 150.0,
                 "BTC" => 107000.0,
@@ -246,17 +258,15 @@ async fn execute_live_trading(
 
     // For now, simulate live trading with enhanced logging
     // TODO: Implement actual Solana transaction execution
-    let transaction_id = format!(
-        "live_{}_{}",
-        action.to_lowercase(),
-        uuid::Uuid::new_v4()
-    );
+    let transaction_id = format!("live_{}_{}", action.to_lowercase(), uuid::Uuid::new_v4());
 
     let fees = quantity * real_price * 0.001; // 0.1% fees for live trading
     let estimated_profit = quantity * real_price * (confidence - 0.5) * 0.015; // Slightly lower profit for live
 
-    info!("🔥 LIVE TRADE EXECUTED: {} {} @ ${:.4} (qty: {}, fees: ${:.4}, estimated profit: ${:.4})",
-          action, symbol, real_price, quantity, fees, estimated_profit);
+    info!(
+        "🔥 LIVE TRADE EXECUTED: {} {} @ ${:.4} (qty: {}, fees: ${:.4}, estimated profit: ${:.4})",
+        action, symbol, real_price, quantity, fees, estimated_profit
+    );
 
     // Store execution result for tracking and AI Brain feedback (DeepSeek optimized)
     let execution_result = serde_json::json!({
@@ -287,19 +297,17 @@ async fn execute_live_trading(
     if let Ok(client) = redis::Client::open("redis://127.0.0.1:6379") {
         if let Ok(mut conn) = client.get_connection() {
             // Send to execution results for Python AI Brain
-            let _: Result<(), redis::RedisError> = conn.lpush(
-                "overmind:execution_results",
-                execution_result.to_string()
-            );
+            let _: Result<(), redis::RedisError> =
+                conn.lpush("overmind:execution_results", execution_result.to_string());
 
             // Also send to feedback channel for real-time learning
-            let _: Result<(), redis::RedisError> = conn.lpush(
-                "overmind:feedback",
-                execution_result.to_string()
-            );
+            let _: Result<(), redis::RedisError> =
+                conn.lpush("overmind:feedback", execution_result.to_string());
 
-            info!("📤 Execution result sent to AI Brain: {} {} @ ${:.4} (Profit: ${:.6})",
-                  action, symbol, real_price, estimated_profit);
+            info!(
+                "📤 Execution result sent to AI Brain: {} {} @ ${:.4} (Profit: ${:.6})",
+                action, symbol, real_price, estimated_profit
+            );
         }
     }
 
