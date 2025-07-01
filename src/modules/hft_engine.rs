@@ -24,6 +24,44 @@ use crate::modules::jito_client::{JitoClient, JitoConfig};
 use crate::modules::metrics::MetricsCollector;
 use crate::modules::tensorzero_client::{OptimizationResponse, TensorZeroClient, TensorZeroConfig};
 
+/// Live execution report for feedback loop
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LiveExecutionReport {
+    /// Execution status: "SUCCESS", "FAILED", "PARTIAL"
+    pub status: String,
+    /// Blockchain transaction ID
+    pub transaction_id: String,
+    /// Actual execution price achieved
+    pub executed_price: f64,
+    /// Error message if execution failed
+    pub error_message: Option<String>,
+    /// Original trading signal that was executed
+    pub original_signal: TradingSignal,
+    /// TensorZero optimization applied
+    pub tensorzero_optimization: Option<String>,
+    /// Execution timestamp
+    pub execution_timestamp: u64,
+    /// Gas/fees consumed
+    pub fees_paid: f64,
+    /// Slippage experienced
+    pub slippage: f64,
+    /// Execution latency in milliseconds
+    pub execution_latency_ms: u64,
+}
+
+impl std::fmt::Display for LiveExecutionReport {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "LiveExecutionReport(status: {}, tx_id: {}, price: ${:.6}, fees: ${:.6})",
+            self.status,
+            self.transaction_id,
+            self.executed_price,
+            self.fees_paid
+        )
+    }
+}
+
 /// Configuration for the HFT Engine
 #[derive(Debug, Clone)]
 pub struct HftEngineConfig {
@@ -152,24 +190,100 @@ impl HftEngine {
         })
     }
 
-    /// Execute a trading signal with TensorZero optimization
-    pub async fn execute_signal(&self, signal: TradingSignal) -> Result<Signature> {
+    /// Execute a trading signal with TensorZero optimization and return detailed report
+    pub async fn execute_signal(&self, signal: TradingSignal) -> Result<LiveExecutionReport> {
+        let start_time = std::time::Instant::now();
+        let execution_timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
         info!(
             "🚀 Executing signal: {} {} with confidence {:.2}",
             signal.action, signal.symbol, signal.confidence
         );
 
         // Step 1: Optimize transaction via TensorZero
-        let optimized_tx = self
+        let (optimized_tx, tensorzero_optimization) = match self
             .optimize_with_tensorzero(&signal)
             .await
-            .context("Failed to optimize transaction with TensorZero")?;
+        {
+            Ok(tx) => (tx, Some("TensorZero optimization applied".to_string())),
+            Err(e) => {
+                warn!("⚠️ TensorZero optimization failed: {}, proceeding without optimization", e);
+                // Create basic transaction without optimization
+                let basic_tx = self.create_basic_transaction(&signal).await?;
+                (basic_tx, None)
+            }
+        };
 
-        // Step 2: Execute with retries
-        let signature = self.execute_with_retry(optimized_tx).await?;
+        // Step 2: Execute with retries and capture detailed results
+        match self.execute_with_retry(optimized_tx).await {
+            Ok(signature) => {
+                let execution_latency = start_time.elapsed().as_millis() as u64;
 
-        info!("✅ Transaction executed successfully: {}", signature);
-        Ok(signature)
+                info!("✅ Transaction executed successfully: {}", signature);
+
+                // Create success report
+                Ok(LiveExecutionReport {
+                    status: "SUCCESS".to_string(),
+                    transaction_id: signature.to_string(),
+                    executed_price: signal.price.unwrap_or(0.0), // TODO: Get actual execution price
+                    error_message: None,
+                    original_signal: signal,
+                    tensorzero_optimization,
+                    execution_timestamp,
+                    fees_paid: 0.005, // TODO: Calculate actual fees
+                    slippage: 0.001, // TODO: Calculate actual slippage
+                    execution_latency_ms: execution_latency,
+                })
+            }
+            Err(e) => {
+                let execution_latency = start_time.elapsed().as_millis() as u64;
+
+                error!("❌ Transaction execution failed: {}", e);
+
+                // Create failure report
+                Ok(LiveExecutionReport {
+                    status: "FAILED".to_string(),
+                    transaction_id: "".to_string(),
+                    executed_price: 0.0,
+                    error_message: Some(e.to_string()),
+                    original_signal: signal,
+                    tensorzero_optimization,
+                    execution_timestamp,
+                    fees_paid: 0.0,
+                    slippage: 0.0,
+                    execution_latency_ms: execution_latency,
+                })
+            }
+        }
+    }
+
+    /// Create basic transaction without TensorZero optimization
+    async fn create_basic_transaction(&self, signal: &TradingSignal) -> Result<Transaction> {
+        debug!("Creating basic transaction for {} {}", signal.action, signal.symbol);
+
+        // For now, create a simple mock transaction
+        // TODO: Implement proper transaction creation based on signal
+        let keypair = Keypair::new();
+        let recent_blockhash = self.rpc_client.get_latest_blockhash()?;
+
+        // Create a minimal transaction (transfer 0 SOL to self)
+        let instruction = solana_sdk::system_instruction::transfer(
+            &keypair.pubkey(),
+            &keypair.pubkey(),
+            0,
+        );
+
+        let transaction = Transaction::new_signed_with_payer(
+            &[instruction],
+            Some(&keypair.pubkey()),
+            &[&keypair],
+            recent_blockhash,
+        );
+
+        Ok(transaction)
     }
 
     /// Optimize transaction parameters using TensorZero

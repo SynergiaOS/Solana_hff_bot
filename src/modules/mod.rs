@@ -11,9 +11,11 @@ pub mod ai_connector;
 pub mod dex_integration;
 pub mod error_handling;
 pub mod hft_engine;
+pub mod hybrid_price_fetcher;
 pub mod jito_client;
 pub mod metrics;
 pub mod real_price_fetcher;
+pub mod real_sell_executor;
 pub mod tensorzero_client;
 // THE OVERMIND PROTOCOL - Multi-Wallet Support
 pub mod multi_wallet_config;
