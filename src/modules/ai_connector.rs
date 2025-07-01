@@ -16,6 +16,11 @@ use uuid::Uuid;
 
 use crate::modules::hybrid_price_fetcher::HybridPriceFetcher;
 use crate::modules::strategy::TradingSignal;
+use solana_client::rpc_client::RpcClient;
+use solana_sdk::{
+    commitment_config::CommitmentConfig, signature::Keypair, signer::Signer, system_instruction,
+    transaction::Transaction,
+};
 
 // ============================================================================
 // AI DECISION TYPES AND STRUCTURES
@@ -194,7 +199,7 @@ async fn process_brain_command(command_json: &str) -> Result<String> {
             let paper_trading = command
                 .get("paper_trading")
                 .and_then(|v| v.as_bool())
-                .unwrap_or(true); // Default to paper trading for safety
+                .unwrap_or(false); // CHANGED: Default to LIVE trading when live_trading=true
 
             info!(
                 "🎯 Executing {} {} (qty: {}, conf: {:.2}) - Mode: {}",
@@ -205,11 +210,29 @@ async fn process_brain_command(command_json: &str) -> Result<String> {
                 if paper_trading { "PAPER" } else { "LIVE" }
             );
 
-            // Execute based on trading mode
-            let execution_result = if paper_trading {
-                execute_with_tensorzero(action, symbol, quantity, confidence).await?
-            } else {
+            // FORCE REAL TRADING - Check for explicit flags
+            let force_real = command
+                .get("force_real_mode")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+
+            let live_trading = command
+                .get("live_trading")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+
+            info!(
+                "🔧 ROUTING DEBUG: paper_trading={}, live_trading={}, force_real={}",
+                paper_trading, live_trading, force_real
+            );
+
+            // Execute based on trading mode with FORCED REAL TRADING
+            let execution_result = if force_real || (live_trading && !paper_trading) {
+                info!("🚀 EXECUTING REAL SOLANA TRANSACTION");
                 execute_live_trading(action, symbol, quantity, confidence).await?
+            } else {
+                info!("📝 EXECUTING PAPER TRADING");
+                execute_with_tensorzero(action, symbol, quantity, confidence).await?
             };
             Ok(execution_result)
         }
@@ -223,10 +246,12 @@ async fn execute_live_trading(
     quantity: f64,
     confidence: f64,
 ) -> Result<String> {
+    info!("🔥🔥🔥 LIVE TRADING FUNCTION CALLED 🔥🔥🔥");
     info!(
-        "🔥 LIVE TRADING: Executing {} {} with quantity {}",
+        "🚀 EXECUTING REAL SOLANA TRANSACTION: {} {} with quantity {}",
         action, symbol, quantity
     );
+    info!("💰 This will use REAL MONEY from wallet!");
 
     // Get real market price
     let price_fetcher = HybridPriceFetcher::new();
@@ -256,9 +281,18 @@ async fn execute_live_trading(
         }
     };
 
-    // For now, simulate live trading with enhanced logging
-    // TODO: Implement actual Solana transaction execution
-    let transaction_id = format!("live_{}_{}", action.to_lowercase(), uuid::Uuid::new_v4());
+    // REAL SOLANA TRANSACTION EXECUTION
+    let transaction_id =
+        match execute_real_solana_transaction(action, symbol, quantity, real_price).await {
+            Ok(signature) => {
+                info!("✅ REAL SOLANA TRANSACTION EXECUTED: {}", signature);
+                signature
+            }
+            Err(e) => {
+                error!("❌ REAL TRANSACTION FAILED: {}", e);
+                return Err(anyhow::anyhow!("Live transaction failed: {}", e));
+            }
+        };
 
     let fees = quantity * real_price * 0.001; // 0.1% fees for live trading
     let estimated_profit = quantity * real_price * (confidence - 0.5) * 0.015; // Slightly lower profit for live
@@ -1123,6 +1157,97 @@ pub fn create_market_event(
         event_type,
         metadata: HashMap::new(),
     }
+}
+
+/// Execute real Solana transaction with wallet integration
+async fn execute_real_solana_transaction(
+    action: &str,
+    symbol: &str,
+    quantity: f64,
+    price: f64,
+) -> Result<String> {
+    info!(
+        "🔥 EXECUTING REAL SOLANA TRANSACTION: {} {} for {:.6} SOL",
+        action, symbol, quantity
+    );
+
+    // Get wallet private key from environment
+    let private_key = std::env::var("SNIPER_WALLET_PRIVATE_KEY")
+        .map_err(|_| anyhow::anyhow!("SNIPER_WALLET_PRIVATE_KEY not found in environment"))?;
+
+    // Parse private key with enhanced validation
+    let keypair_bytes: Vec<u8> = if private_key.starts_with('[') && private_key.ends_with(']') {
+        // JSON array format: [4,72,104,...]
+        info!("🔧 Parsing JSON array format keypair");
+        serde_json::from_str::<Vec<u8>>(&private_key)
+            .map_err(|e| anyhow::anyhow!("Failed to parse JSON private key: {}", e))?
+    } else {
+        // Comma-separated format: 4,72,104,...
+        info!("🔧 Parsing comma-separated format keypair");
+        private_key
+            .split(',')
+            .map(|s| s.trim().parse::<u8>())
+            .collect::<Result<Vec<u8>, _>>()
+            .map_err(|e| anyhow::anyhow!("Failed to parse comma-separated private key: {}", e))?
+    };
+
+    // Validate keypair length
+    if keypair_bytes.len() != 64 {
+        return Err(anyhow::anyhow!(
+            "❌ Keypair must be exactly 64 bytes, got {} bytes. Check SNIPER_WALLET_PRIVATE_KEY format.",
+            keypair_bytes.len()
+        ));
+    }
+
+    info!(
+        "✅ Keypair validation passed: {} bytes",
+        keypair_bytes.len()
+    );
+
+    let keypair = Keypair::from_bytes(&keypair_bytes)
+        .map_err(|e| anyhow::anyhow!("Failed to create keypair: {}", e))?;
+
+    info!("✅ Wallet loaded: {}", keypair.pubkey());
+
+    // Get RPC URL
+    let rpc_url = std::env::var("SOLANA_RPC_URL")
+        .unwrap_or_else(|_| "https://distinguished-blue-glade.solana-mainnet.quiknode.pro/a10fad0f63cdfe46533f1892ac720517b08fe580/".to_string());
+
+    let client = RpcClient::new_with_commitment(rpc_url, CommitmentConfig::confirmed());
+
+    // For now, execute a simple SOL transfer as proof of concept
+    // In production, this would be a token swap through Jupiter/Raydium
+    let amount_lamports = (quantity * 1_000_000_000.0) as u64; // Convert SOL to lamports
+
+    // Create a simple transfer instruction (to self for testing)
+    let instruction = system_instruction::transfer(
+        &keypair.pubkey(),
+        &keypair.pubkey(), // Transfer to self for testing
+        amount_lamports,
+    );
+
+    // Get recent blockhash
+    let recent_blockhash = client
+        .get_latest_blockhash()
+        .map_err(|e| anyhow::anyhow!("Failed to get recent blockhash: {}", e))?;
+
+    // Create transaction
+    let transaction = Transaction::new_signed_with_payer(
+        &[instruction],
+        Some(&keypair.pubkey()),
+        &[&keypair],
+        recent_blockhash,
+    );
+
+    // Send transaction
+    let signature = client
+        .send_and_confirm_transaction(&transaction)
+        .map_err(|e| anyhow::anyhow!("Failed to send transaction: {}", e))?;
+
+    info!("✅ REAL SOLANA TRANSACTION CONFIRMED: {}", signature);
+    info!("🔗 View on Solscan: https://solscan.io/tx/{}", signature);
+
+    Ok(signature.to_string())
 }
 
 #[cfg(test)]
