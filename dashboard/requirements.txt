@@ -1,0 +1,32 @@
+# THE OVERMIND PROTOCOL - Dashboard Requirements
+# Core dashboard dependencies
+
+# Streamlit framework
+streamlit>=1.28.0
+
+# Data visualization
+plotly>=5.17.0
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Data processing
+pandas>=2.1.0
+numpy>=1.24.0
+
+# HTTP client
+httpx>=0.25.0
+requests>=2.31.0
+
+# Redis client
+redis>=5.0.0
+
+# Async support
+asyncio-mqtt>=0.13.0
+
+# Utilities
+python-dateutil>=2.8.0
+pytz>=2023.3
+
+# Optional: Enhanced features
+plotly-dash>=2.14.0  # For advanced dashboards
+dash-bootstrap-components>=1.5.0  # For better styling
