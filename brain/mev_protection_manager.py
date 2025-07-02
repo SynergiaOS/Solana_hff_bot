@@ -15,6 +15,19 @@ from mev_risk_analyzer import create_mev_risk_analyzer, MEVRiskLevel
 from transaction_timing_optimizer import create_transaction_timing_optimizer
 from anti_sandwich_protection import create_anti_sandwich_protection
 
+# Import vector memory for MEV incident storage
+try:
+    import sys
+    import os
+    # Add the correct path to vector memory
+    brain_path = os.path.dirname(os.path.abspath(__file__))
+    sys.path.append(os.path.join(brain_path, 'src', 'overmind_brain'))
+    from vector_memory import VectorMemory
+    VECTOR_MEMORY_AVAILABLE = True
+except ImportError:
+    VECTOR_MEMORY_AVAILABLE = False
+    print("⚠️ Vector Memory not available - MEV incidents will only be stored in Redis")
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('MEVProtectionManager')
@@ -33,11 +46,21 @@ class MEVProtectionManager:
     def __init__(self):
         """Initialize MEV Protection Manager"""
         self.redis_client = redis.Redis(host='localhost', port=6379, decode_responses=True)
-        
+
         # Initialize protection components
         self.risk_analyzer = create_mev_risk_analyzer()
         self.timing_optimizer = create_transaction_timing_optimizer()
         self.sandwich_protection = create_anti_sandwich_protection()
+
+        # Initialize vector memory for MEV incident storage
+        self.vector_memory = None
+        if VECTOR_MEMORY_AVAILABLE:
+            try:
+                self.vector_memory = VectorMemory()
+                logger.info("🧠 Vector Memory initialized for MEV incident storage")
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to initialize Vector Memory: {e}")
+                self.vector_memory = None
         
         # Protection statistics
         self.protection_stats = {
@@ -96,6 +119,11 @@ class MEVProtectionManager:
             
             # Store protection data
             await self.store_protection_data(protected_transaction, protection_report)
+
+            # Store MEV incident in vector memory for learning
+            await self.store_mev_incident_in_vector_memory(
+                transaction_data, risk_assessment, timing_recommendation, protection_report
+            )
             
             logger.info(f"✅ MEV protection applied successfully")
             logger.info(f"   Risk Level: {risk_assessment.risk_level.value}")
@@ -281,7 +309,107 @@ class MEVProtectionManager:
             
         except Exception as e:
             logger.error(f"❌ Error storing protection data: {e}")
-    
+
+    async def store_mev_incident_in_vector_memory(self,
+                                                transaction_data: Dict[str, Any],
+                                                risk_assessment,
+                                                timing_recommendation,
+                                                protection_report: Dict[str, Any]):
+        """Store MEV incident in vector memory for learning and pattern recognition"""
+        try:
+            if not self.vector_memory:
+                logger.debug("🧠 Vector Memory not available - skipping MEV incident storage")
+                return
+
+            # Create MEV incident record for vector memory
+            mev_incident = {
+                "incident_type": "mev_protection_applied",
+                "timestamp": datetime.now().isoformat(),
+                "token_address": transaction_data.get('token_address', 'unknown'),
+                "transaction_amount": transaction_data.get('amount', 0.0),
+                "transaction_type": transaction_data.get('transaction_type', 'swap'),
+
+                # Risk assessment data
+                "risk_score": risk_assessment.risk_score,
+                "risk_level": risk_assessment.risk_level.value,
+                "congestion_score": risk_assessment.congestion_score,
+                "bot_activity_score": risk_assessment.bot_activity_score,
+                "sandwich_risk": risk_assessment.sandwich_risk,
+                "frontrun_risk": risk_assessment.frontrun_risk,
+
+                # Protection measures applied
+                "protection_applied": {
+                    "use_jito_bundle": risk_assessment.use_jito_bundle,
+                    "timing_delay": timing_recommendation.delay_seconds,
+                    "slippage_adjustment": risk_assessment.recommended_slippage,
+                    "priority_fee_multiplier": timing_recommendation.priority_fee_multiplier,
+                    "timing_strategy": timing_recommendation.strategy.value
+                },
+
+                # Effectiveness metrics
+                "protection_effectiveness": protection_report['overall_effectiveness'],
+                "protection_level": protection_report['protection_level'],
+                "estimated_savings": protection_report.get('estimated_savings', 0.0),
+
+                # Learning data
+                "market_conditions": {
+                    "network_congestion": risk_assessment.congestion_score,
+                    "bot_activity": risk_assessment.bot_activity_score,
+                    "time_of_day": datetime.now().hour
+                },
+
+                "outcome": "protection_applied",  # Will be updated with actual results
+                "lessons_learned": f"Applied {protection_report['protection_level']} protection with {protection_report['overall_effectiveness']:.1%} effectiveness"
+            }
+
+            # Store in vector memory with MEV-specific metadata
+            metadata = {
+                "category": "mev_incident",
+                "risk_level": risk_assessment.risk_level.value,
+                "protection_level": protection_report['protection_level'],
+                "token": transaction_data.get('token_address', 'unknown'),
+                "timestamp": time.time(),
+                "effectiveness": protection_report['overall_effectiveness']
+            }
+
+            # Create searchable content for vector memory
+            content = f"""
+            MEV Protection Incident Report:
+            Token: {transaction_data.get('token_address', 'unknown')}
+            Amount: {transaction_data.get('amount', 0.0)} SOL
+            Risk Level: {risk_assessment.risk_level.value}
+            Risk Score: {risk_assessment.risk_score:.2f}
+
+            Protection Measures:
+            - Jito Bundle: {risk_assessment.use_jito_bundle}
+            - Timing Delay: {timing_recommendation.delay_seconds}s
+            - Slippage: {risk_assessment.recommended_slippage:.1%}
+            - Strategy: {timing_recommendation.strategy.value}
+
+            Effectiveness: {protection_report['overall_effectiveness']:.1%}
+            Protection Level: {protection_report['protection_level']}
+
+            Market Conditions:
+            - Network Congestion: {risk_assessment.congestion_score:.2f}
+            - Bot Activity: {risk_assessment.bot_activity_score:.2f}
+            - Sandwich Risk: {risk_assessment.sandwich_risk:.2f}
+            - Frontrun Risk: {risk_assessment.frontrun_risk:.2f}
+
+            Reasoning: {risk_assessment.reasoning}
+            """
+
+            # Store in vector memory
+            self.vector_memory.store_memory(
+                content=content.strip(),
+                metadata=metadata,
+                memory_type="mev_incident"
+            )
+
+            logger.info(f"🧠 MEV incident stored in vector memory: {risk_assessment.risk_level.value} risk")
+
+        except Exception as e:
+            logger.error(f"❌ Error storing MEV incident in vector memory: {e}")
+
     async def process_trading_command(self, command: Dict[str, Any]) -> Dict[str, Any]:
         """Process trading command with MEV protection"""
         try:

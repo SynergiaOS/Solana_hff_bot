@@ -1,0 +1,8 @@
+{
+  "min_replicas": 2,
+  "max_replicas": 10,
+  "target_cpu_utilization": 70,
+  "scale_up_threshold": 0.8,
+  "scale_down_threshold": 0.3,
+  "cooldown_period": 300
+}

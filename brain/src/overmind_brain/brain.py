@@ -6,6 +6,7 @@ import asyncio
 import logging
 import json
 import os
+import time
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
 import redis.asyncio as redis
@@ -19,6 +20,16 @@ from .market_analyzer import MarketAnalyzer, MarketAnalysis
 from .helius_integration import helius_client, get_enhanced_token_data
 from .strategy_manager import StrategyManager
 from .exit_strategy_manager import ExitStrategyManager, Position, ExitDecision
+from .drawdown_guard import DrawdownGuard
+from .market_regime_detector import MarketRegimeDetector, MarketRegime
+from .strategy_profiles import StrategyRegimeMapper, MarketRegime as RegimeEnum
+from .performance_analytics import PerformanceAnalyzer, PerformanceMetrics
+from .performance_benchmarking import PerformanceBenchmarkingSystem
+from .realtime_strategy_optimizer import RealtimeStrategyOptimizer
+from .hedging_strategy_engine import HedgingStrategyEngine
+from .correlation_analysis_system import CorrelationAnalysisSystem
+from .dynamic_hedge_executor import DynamicHedgeExecutor
+from .risk_neutralization_engine import RiskNeutralizationEngine
 
 # Import advanced AI components
 try:
@@ -28,6 +39,19 @@ try:
     ADVANCED_AI_AVAILABLE = True
 except ImportError:
     ADVANCED_AI_AVAILABLE = False
+
+# Import advanced trading features
+try:
+    import sys
+    sys.path.append(os.path.join(os.path.dirname(__file__), '../../..'))
+    from brain.drawdown_guard import DrawdownGuard
+    from brain.feedback_scorer import AIFeedbackScorer
+    from brain.add_to_winner import AddToWinnerSystem
+    from brain.post_trade_orchestrator import PostTradeOrchestrator
+    ADVANCED_FEATURES_AVAILABLE = True
+except ImportError as e:
+    logging.warning(f"Advanced trading features not available: {e}")
+    ADVANCED_FEATURES_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +104,61 @@ class OVERMINDBrain:
 
         # Advanced AI status
         self.advanced_ai_enabled = ADVANCED_AI_AVAILABLE
+
+        # Initialize Drawdown Guard - CRITICAL SAFETY COMPONENT
+        try:
+            self.drawdown_guard = DrawdownGuard(
+                max_daily_loss_percentage=0.15,
+                max_hourly_loss_percentage=0.05,
+                emergency_threshold_percentage=0.20
+            )
+            logger.info("🛡️ Drawdown Guard initialized - Portfolio protection active")
+        except Exception as e:
+            logger.error(f"❌ CRITICAL: Failed to initialize Drawdown Guard: {e}")
+            raise RuntimeError("Cannot start trading without Drawdown Guard protection")
+
+        # Initialize Market Regime Detector - MARKET AWARENESS
+        try:
+            self.regime_detector = MarketRegimeDetector()
+            self.strategy_mapper = StrategyRegimeMapper()
+            self.current_market_regime = MarketRegime.NEUTRAL
+            logger.info("📊 Market Regime Detector initialized - Market awareness active")
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize Market Regime Detector: {e}")
+            # Non-critical - system can work without regime detection
+            self.regime_detector = None
+            self.strategy_mapper = None
+            self.current_market_regime = MarketRegime.NEUTRAL
+
+        # Initialize other Advanced Trading Features
+        self.advanced_features_enabled = ADVANCED_FEATURES_AVAILABLE
+        self.feedback_scorer = None
+        self.add_to_winner = None
+        self.post_trade_orchestrator = None
+        self.performance_analyzer = None
+        self.benchmarking_system = None
+        self.realtime_optimizer = None
+        self.hedging_strategy_engine = None
+        self.correlation_analysis_system = None
+        self.dynamic_hedge_executor = None
+        self.risk_neutralization_engine = None
+
+        if self.advanced_features_enabled:
+            try:
+                self.feedback_scorer = AIFeedbackScorer()
+                self.add_to_winner = AddToWinnerSystem()
+                self.post_trade_orchestrator = PostTradeOrchestrator()
+                self.performance_analyzer = PerformanceAnalyzer()
+                self.benchmarking_system = PerformanceBenchmarkingSystem()
+                self.realtime_optimizer = RealtimeStrategyOptimizer()
+                self.hedging_strategy_engine = HedgingStrategyEngine()
+                self.correlation_analysis_system = CorrelationAnalysisSystem()
+                self.dynamic_hedge_executor = DynamicHedgeExecutor()
+                self.risk_neutralization_engine = RiskNeutralizationEngine()
+                logger.info("🚀 Advanced Features initialized: Feedback Scorer, Add to Winner, Post-Trade Orchestrator, Performance Analytics, Real-time Optimizer, Hedging Layer")
+            except Exception as e:
+                logger.error(f"❌ Failed to initialize additional features: {e}")
+                self.advanced_features_enabled = False
 
         if self.advanced_ai_enabled:
             logger.info("🧠 THE OVERMIND PROTOCOL Brain initialized with ADVANCED AI capabilities")
@@ -262,7 +341,30 @@ class OVERMINDBrain:
     async def start(self):
         """Start the OVERMIND Brain processing loop"""
         logger.info("Starting OVERMIND Brain processing loop")
-        
+
+        # Start Post-Trade Intelligence if available
+        if self.post_trade_orchestrator:
+            asyncio.create_task(self.post_trade_orchestrator.orchestrator_main_loop())
+            logger.info("🧠 Post-Trade Intelligence Orchestrator started")
+
+        # Start Real-time Strategy Optimizer if available
+        if self.realtime_optimizer:
+            asyncio.create_task(self.realtime_optimizer.monitor_strategy_performance())
+            logger.info("🔧 Real-time Strategy Optimizer started")
+
+        # Start Hedging Layer if available
+        if self.correlation_analysis_system:
+            asyncio.create_task(self.correlation_analysis_system.start_correlation_monitoring())
+            logger.info("📊 Correlation Analysis System started")
+
+        if self.dynamic_hedge_executor:
+            asyncio.create_task(self.dynamic_hedge_executor.start_hedge_execution_engine())
+            logger.info("🔄 Dynamic Hedge Executor started")
+
+        if self.risk_neutralization_engine:
+            asyncio.create_task(self.risk_neutralization_engine.start_risk_neutralization_monitoring())
+            logger.info("⚖️ Risk Neutralization Engine started")
+
         try:
             while True:
                 # Listen for market events from Rust
@@ -301,10 +403,34 @@ class OVERMINDBrain:
     async def process_cycle(self):
         """Process one cycle of AI brain operations"""
         try:
-            # Check exit conditions for all active positions FIRST
+            # STEP 1: DRAWDOWN GUARD - GLOBALNY BEZPIECZNIK (NAJWYŻSZY PRIORYTET)
+            is_safe = self.drawdown_guard.check_portfolio_health()
+            if not is_safe:
+                if not self.is_emergency_stop_active():
+                    await self.emergency_stop("Drawdown limit exceeded - Portfolio protection activated")
+
+                # Przerwij obecny cykl i poczekaj, nie przetwarzaj nowych sygnałów
+                logger.warning("⏸️ Trading cycle paused due to drawdown protection")
+                await asyncio.sleep(60)  # Czekaj minutę przed następnym sprawdzeniem
+                return
+
+            # STEP 2: MARKET REGIME DETECTION - ŚWIADOMOŚĆ RYNKOWA
+            if self.regime_detector:
+                try:
+                    regime_str = await self.regime_detector.detect_regime()
+                    self.current_market_regime = MarketRegime(regime_str)
+                    logger.info(f"📊 Current market regime: {self.current_market_regime.value}")
+                except Exception as e:
+                    logger.warning(f"⚠️ Market regime detection failed: {e}")
+                    self.current_market_regime = MarketRegime.NEUTRAL
+
+            # STEP 3: Przetwórz wyniki transakcji i zaktualizuj Drawdown Guard
+            await self.process_execution_results()
+
+            # STEP 4: Check exit conditions for all active positions
             await self._check_exit_conditions()
-            
-            # Listen for market events from Rust executor
+
+            # STEP 5: Listen for market events from Rust executor
             market_event = await self.dragonfly.blpop(  # type: ignore
                 ['overmind:market_events'],
                 timeout=1
@@ -341,16 +467,43 @@ class OVERMINDBrain:
         """
         try:
             symbol = event_data.get("symbol", "unknown")
-            logger.info(f"🧠 Analyzing market event for {symbol}")
+            strategy = event_data.get("strategy", "unknown")
+            confidence = event_data.get("confidence", 0.5)
 
-            # Step 0: Strategy Selection and Validation
-            strategy_matches = self.strategy_manager.select_and_validate_strategies(event_data)
-            
-            if not strategy_matches:
-                logger.info(f"❌ No applicable strategies found for signal {event_data.get('signal_id', 'unknown')}. Ignoring.")
-                return None
-            
-            logger.info(f"✅ {len(strategy_matches)} strategies qualified for {symbol}")
+            logger.info(f"🧠 Analyzing market event for {symbol} (Strategy: {strategy})")
+
+            # Step 0: MARKET REGIME VALIDATION - Sprawdź czy strategia jest dozwolona w obecnej fazie rynku
+            if self.strategy_mapper:
+                validation_result = self.strategy_mapper.validate_strategy_signal(
+                    strategy=strategy,
+                    confidence=confidence,
+                    current_regime=self.current_market_regime,
+                    market_indicators=self.regime_detector.last_analysis.indicators.__dict__ if self.regime_detector and self.regime_detector.last_analysis else None
+                )
+
+                if not validation_result["allowed"]:
+                    logger.info(f"🚫 Strategy {strategy} rejected by regime filter: {validation_result['reason']}")
+                    return None
+
+                # Użyj dostosowanej pewności
+                confidence = validation_result["adjusted_confidence"]
+                event_data["confidence"] = confidence
+
+                logger.info(f"✅ Strategy {strategy} validated for {self.current_market_regime.value} regime (Confidence: {confidence:.2f})")
+
+            # Step 1: Strategy Selection and Validation (legacy system)
+            # TODO: Migrate to new regime-based validation
+            try:
+                strategy_matches = self.strategy_manager.select_and_validate_strategies(event_data)
+
+                if not strategy_matches:
+                    logger.info(f"❌ No applicable strategies found for signal {event_data.get('signal_id', 'unknown')}. Ignoring.")
+                    return None
+
+                logger.info(f"✅ {len(strategy_matches)} strategies qualified for {symbol}")
+            except AttributeError:
+                # strategy_manager nie istnieje - używamy nowej walidacji regime-based
+                logger.info(f"✅ Using regime-based validation for {symbol}")
 
             # Step 1: Market Analysis
             market_analysis = await self.market_analyzer.analyze_market(
@@ -397,6 +550,14 @@ class OVERMINDBrain:
                 decision=asdict(decision)
             )
 
+            # Step 7: Enhanced feedback scoring for AI learning
+            if self.advanced_features_enabled and self.feedback_scorer:
+                await self._process_decision_feedback(decision, event_data, risk_assessment)
+
+            # Step 8: Hedging Analysis (if hedging layer is available)
+            if self.hedging_strategy_engine and decision and decision.action in ["BUY", "SELL"]:
+                await self._analyze_hedging_opportunities(decision, event_data)
+
             logger.info(f"🎯 Decision generated: {decision.action} {symbol} "
                        f"(Confidence: {decision.confidence:.2f}, Risk: {risk_assessment.risk_level})")
 
@@ -409,6 +570,114 @@ class OVERMINDBrain:
         except Exception as e:
             logger.error(f"❌ Failed to process market event: {e}")
             return None
+
+    async def _analyze_hedging_opportunities(self, decision: TradingDecision, event_data: Dict[str, Any]):
+        """Analyze hedging opportunities for the trading decision"""
+        try:
+            if not self.hedging_strategy_engine:
+                return
+
+            logger.debug(f"🛡️ Analyzing hedging opportunities for {decision.symbol}")
+
+            # Get current portfolio positions
+            portfolio_positions = await self._get_portfolio_positions()
+
+            # Analyze hedging opportunities
+            hedge_recommendations = await self.hedging_strategy_engine.analyze_hedging_opportunities(portfolio_positions)
+
+            if hedge_recommendations:
+                logger.info(f"🎯 Found {len(hedge_recommendations)} hedging opportunities")
+
+                # Execute high-priority hedge recommendations
+                for recommendation in hedge_recommendations[:2]:  # Top 2 recommendations
+                    if recommendation.urgency > 0.7 and self.dynamic_hedge_executor:
+                        execution_id = await self.dynamic_hedge_executor.execute_hedge_recommendation(
+                            asdict(recommendation)
+                        )
+                        if execution_id:
+                            logger.info(f"✅ Hedge execution initiated: {execution_id}")
+
+        except Exception as e:
+            logger.error(f"❌ Error analyzing hedging opportunities: {e}")
+
+    async def _get_portfolio_positions(self) -> Dict[str, Any]:
+        """Get current portfolio positions for hedging analysis"""
+        try:
+            # This would typically get positions from the portfolio manager
+            # For now, return a simplified structure
+            positions = {}
+
+            # Try to get positions from Redis
+            try:
+                positions_key = "overmind:active_positions"
+                positions_str = self.redis_client.get(positions_key)
+
+                if positions_str:
+                    position_symbols = json.loads(positions_str)
+
+                    for symbol in position_symbols:
+                        position_key = f"overmind:position:{symbol}"
+                        position_str = self.redis_client.get(position_key)
+
+                        if position_str:
+                            position = json.loads(position_str)
+                            positions[symbol] = position
+            except Exception as e:
+                logger.debug(f"Could not get positions from Redis: {e}")
+
+            return positions
+
+        except Exception as e:
+            logger.error(f"❌ Error getting portfolio positions: {e}")
+            return {}
+
+    async def _get_hedging_status(self) -> Dict[str, Any]:
+        """Get hedging layer status"""
+        try:
+            hedging_status = {
+                "hedging_strategy_engine": "disabled",
+                "correlation_analysis_system": "disabled",
+                "dynamic_hedge_executor": "disabled",
+                "risk_neutralization_engine": "disabled"
+            }
+
+            if self.hedging_strategy_engine:
+                hedging_status["hedging_strategy_engine"] = "operational"
+                try:
+                    engine_status = await self.hedging_strategy_engine.get_hedging_status()
+                    hedging_status["hedging_engine_details"] = engine_status
+                except:
+                    pass
+
+            if self.correlation_analysis_system:
+                hedging_status["correlation_analysis_system"] = "operational"
+                try:
+                    correlation_status = await self.correlation_analysis_system.get_correlation_analysis_status()
+                    hedging_status["correlation_details"] = correlation_status
+                except:
+                    pass
+
+            if self.dynamic_hedge_executor:
+                hedging_status["dynamic_hedge_executor"] = "operational"
+                try:
+                    executor_status = await self.dynamic_hedge_executor.get_hedge_execution_status()
+                    hedging_status["executor_details"] = executor_status
+                except:
+                    pass
+
+            if self.risk_neutralization_engine:
+                hedging_status["risk_neutralization_engine"] = "operational"
+                try:
+                    risk_status = await self.risk_neutralization_engine.get_risk_neutralization_status()
+                    hedging_status["risk_neutralization_details"] = risk_status
+                except:
+                    pass
+
+            return hedging_status
+
+        except Exception as e:
+            logger.error(f"❌ Error getting hedging status: {e}")
+            return {"error": str(e)}
 
     def _apply_risk_adjustments(self,
                                decision: TradingDecision,
@@ -502,12 +771,20 @@ class OVERMINDBrain:
                     "market_analyzer": "operational",
                     "strategy_manager": "operational",
                     "exit_strategy_manager": "operational",
+                    "post_trade_intelligence": "operational" if self.post_trade_orchestrator else "disabled",
+                    "performance_analytics": "operational" if self.performance_analyzer else "disabled",
+                    "benchmarking_system": "operational" if self.benchmarking_system else "disabled",
+                    "realtime_optimizer": "operational" if self.realtime_optimizer else "disabled",
+                    "hedging_strategy_engine": "operational" if self.hedging_strategy_engine else "disabled",
+                    "correlation_analysis_system": "operational" if self.correlation_analysis_system else "disabled",
+                    "dynamic_hedge_executor": "operational" if self.dynamic_hedge_executor else "disabled",
+                    "risk_neutralization_engine": "operational" if self.risk_neutralization_engine else "disabled",
                     "helius_integration": "premium" if helius_status['api_key_configured'] else "basic",
                     "dragonfly_connection": "connected" if self.dragonfly else "disconnected"
                 },
                 "memory_stats": memory_stats,
                 "helius_status": helius_status,
-                "strategy_summary": self.strategy_manager.get_strategy_summary(),
+                "hedging_status": await self._get_hedging_status(),
                 "positions_summary": await self.get_positions_summary(),
                 "version": "1.0.0"
             }
@@ -666,6 +943,117 @@ class OVERMINDBrain:
                 await self.dragonfly.close()
         except:
             pass  # Ignore errors during emergency stop
+
+    async def _check_drawdown_protection(self):
+        """Check drawdown protection and trigger emergency measures if needed"""
+        try:
+            if not self.drawdown_guard:
+                return
+
+            # Get current portfolio metrics
+            metrics = await self.drawdown_guard.get_current_portfolio_metrics()
+
+            if not metrics:
+                return
+
+            # Check emergency stop condition
+            if (metrics.current_drawdown >= self.drawdown_guard.config['emergency_stop_drawdown']
+                and not self.drawdown_guard.emergency_stop_triggered):
+                logger.critical("🚨 DRAWDOWN GUARD: Emergency stop triggered!")
+                await self.drawdown_guard.trigger_emergency_stop(metrics)
+
+                # Set emergency stop in brain
+                await self.emergency_stop()
+
+            # Check position reduction condition
+            elif (metrics.current_drawdown >= self.drawdown_guard.config['position_reduction_threshold']
+                  and not self.drawdown_guard.drawdown_mode):
+                logger.warning("⚠️ DRAWDOWN GUARD: Reducing position sizes")
+                await self.drawdown_guard.reduce_position_sizes(metrics)
+
+            # Check recovery conditions
+            await self.drawdown_guard.check_recovery_conditions(metrics)
+
+        except Exception as e:
+            logger.error(f"❌ Error in drawdown protection: {e}")
+
+    async def _process_decision_feedback(self, decision: TradingDecision, event_data: Dict[str, Any], risk_assessment):
+        """Process decision feedback for AI learning"""
+        try:
+            if not self.feedback_scorer:
+                return
+
+            # Create execution result for feedback analysis
+            execution_result = {
+                'transaction_id': f"decision_{decision.symbol}_{int(time.time())}",
+                'symbol': decision.symbol,
+                'action': decision.action,
+                'quantity': decision.quantity,
+                'execution_price': decision.price_target or event_data.get('price', 0),
+                'confidence': decision.confidence,
+                'strategy': event_data.get('strategy', 'AI_DECISION'),
+                'timestamp': time.time(),
+                'estimated_profit': 0,  # Will be updated later
+                'hold_time': 300,  # Default 5 minutes
+                'market_conditions': {
+                    'volatility': risk_assessment.volatility if hasattr(risk_assessment, 'volatility') else 0.5,
+                    'sentiment': event_data.get('sentiment', 0.5),
+                    'volume': event_data.get('volume', 0.5)
+                }
+            }
+
+            # Store for later feedback analysis
+            await self.redis.lpush('overmind:execution_results', json.dumps(execution_result))  # type: ignore
+
+            logger.info(f"📊 Decision feedback prepared for {decision.symbol}")
+
+        except Exception as e:
+            logger.error(f"❌ Error processing decision feedback: {e}")
+
+    async def process_execution_results(self):
+        """
+        Przetwarza wyniki wykonanych transakcji i aktualizuje Drawdown Guard
+        Ta metoda powinna być wywoływana regularnie w głównej pętli
+        """
+        try:
+            # Pobierz najnowsze wyniki transakcji z kolejki
+            execution_results = await self.redis.lrange('overmind:execution_results', 0, 9)  # type: ignore
+
+            if not execution_results:
+                return
+
+            for result_str in execution_results:
+                result = json.loads(result_str)
+
+                # Sprawdź czy to jest nowy wynik (nie przetworzony wcześniej)
+                transaction_id = result.get('transaction_id', '')
+                if not transaction_id:
+                    continue
+
+                # Sprawdź czy już przetworzono ten wynik
+                processed_key = f"processed_tx:{transaction_id}"
+                already_processed = await self.redis.get(processed_key)  # type: ignore
+
+                if already_processed:
+                    continue
+
+                # Pobierz P&L z transakcji
+                pnl_change = result.get('estimated_profit', 0.0)
+
+                if pnl_change != 0.0:
+                    # Aktualizuj Drawdown Guard
+                    self.drawdown_guard.update_pnl(pnl_change)
+
+                    logger.info(f"📊 Drawdown Guard updated with transaction: {transaction_id}")
+                    logger.info(f"   P&L: ${pnl_change:.4f}")
+                    logger.info(f"   Daily P&L: ${self.drawdown_guard.daily_pnl:.4f}")
+                    logger.info(f"   Hourly P&L: ${self.drawdown_guard.hourly_pnl:.4f}")
+
+                # Oznacz jako przetworzony (ważne 1 godzinę)
+                await self.redis.setex(processed_key, 3600, "1")  # type: ignore
+
+        except Exception as e:
+            logger.error(f"❌ Error processing execution results: {e}")
 
     async def _check_exit_conditions(self):
         """Check exit conditions for all active positions"""

@@ -1,292 +1,228 @@
-"""THE OVERMIND PROTOCOL - Strategy Profiles
-Defines three distinct trading personalities for adaptive behavior based on portfolio progression.
+#!/usr/bin/env python3
+"""
+THE OVERMIND PROTOCOL - Strategy Profiles
+Mapowanie strategii do faz rynku dla inteligentnej adaptacji
 """
 
-import logging
-from typing import Dict, Any, List, Optional
-from dataclasses import dataclass, asdict
+from typing import Dict, List, Set
+from dataclasses import dataclass
 from enum import Enum
 
-logger = logging.getLogger(__name__)
+class MarketRegime(Enum):
+    """Fazy rynku"""
+    BULLISH = "BULLISH"
+    BEARISH = "BEARISH"
+    SIDEWAYS = "SIDEWAYS"
+    NEUTRAL = "NEUTRAL"
 
-class StrategyType(Enum):
-    """Available trading strategies."""
-    MEMECOIN_HUNTER = "memecoin_hunter"
-    SOUL_METEOR = "soul_meteor"
-    DEVELOPER_TRACKING = "developer_tracking"
-    METEORA_DAMM = "meteora_damm"
-    CROSS_DEX_ARBITRAGE = "cross_dex_arbitrage"
-    LIQUIDITY_SNIPING = "liquidity_sniping"
-    MARKET_MAKING = "market_making"
-    LOW_RISK_ARBITRAGE = "low_risk_arbitrage"
-
-class ProfileType(Enum):
-    """Trading profile types."""
-    AGGRESSIVE_GROWTH = "aggressive_growth"
-    BALANCED_RISK = "balanced_risk"
-    CAPITAL_PRESERVATION = "capital_preservation"
-
-@dataclass
-class SignalProcessingRules:
-    """Signal processing configuration for each profile."""
-    min_confidence_threshold: float
-    max_signals_per_hour: int
-    signal_quality_weight: float
-    volume_threshold_multiplier: float
-    price_change_sensitivity: float
-    social_sentiment_weight: float
-    technical_analysis_weight: float
-
-@dataclass
-class PositionSizingRules:
-    """Position sizing configuration for each profile."""
-    base_position_size: float  # Percentage of portfolio
-    max_position_size: float   # Maximum position size
-    risk_per_trade: float      # Risk percentage per trade
-    correlation_limit: float   # Maximum correlation between positions
-    volatility_adjustment: bool # Adjust size based on volatility
-    kelly_criterion_enabled: bool # Use Kelly criterion for sizing
-
-@dataclass
-class RiskParameters:
-    """Risk management parameters for each profile."""
-    risk_multiplier: float
-    max_daily_loss: float
-    max_drawdown: float
-    stop_loss_percentage: float
-    take_profit_percentage: float
-    trailing_stop_enabled: bool
-    position_timeout_hours: int
-    emergency_exit_threshold: float
+# MAPOWANIE STRATEGII DO FAZ RYNKU
+STRATEGY_REGIME_MAP = {
+    "BULLISH": [
+        "memecoin_hunter",          # Polowanie na memecoin w hossie
+        "high_vol_sniper",          # Wykorzystanie wysokiej volatility
+        "sol_momentum_trader",      # Trading momentum SOL
+        "governance_alpha_hunter",  # Alpha z governance (może być bullish)
+        "soul_meteor",              # Soul Meteor w hossie
+        "developer_tracking",       # Tracking deweloperów
+        "liquidity_sniping"         # Sniping płynności
+    ],
+    "BEARISH": [
+        "low_risk_arbitrage",       # Bezpieczny arbitraż
+        "governance_alpha_hunter",  # Alpha z governance (defensywne)
+        "cross_dex_arbitrage",      # Arbitraż między DEX
+        "market_making"             # Market making (ostrożny)
+    ],
+    "SIDEWAYS": [
+        "cross_dex_arbitrage",      # Klasyczny arbitraż
+        "market_making",            # Market making w range
+        "low_risk_arbitrage",       # Bezpieczny arbitraż
+        "meteora_damm"              # DAMM trading
+    ],
+    "NEUTRAL": [
+        "low_risk_arbitrage",       # Tylko bezpieczny arbitraż
+        "market_making"             # Podstawowy market making
+    ]
+}
 
 @dataclass
 class StrategyProfile:
-    """Complete strategy profile definition."""
-    profile_type: ProfileType
-    name: str
+    """Profil strategii dla konkretnej fazy rynku"""
+    regime: MarketRegime
+    strategies: List[str]
+    risk_multiplier: float  # Mnożnik ryzyka dla tej fazy
+    position_size_multiplier: float  # Mnożnik wielkości pozycji
+    confidence_threshold: float  # Minimalny próg pewności dla sygnałów
     description: str
-    goal_progress_range: tuple  # (min_percentage, max_percentage)
-    enabled_strategies: List[StrategyType]
-    risk_parameters: RiskParameters
-    position_sizing: PositionSizingRules
-    signal_processing: SignalProcessingRules
-    execution_priority: str  # LOW, MEDIUM, HIGH, URGENT
-    rebalance_frequency_hours: int
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert profile to dictionary."""
-        return asdict(self)
-    
-    def is_applicable_for_progress(self, progress_percentage: float) -> bool:
-        """Check if this profile is applicable for the given progress percentage."""
-        min_progress, max_progress = self.goal_progress_range
-        return min_progress <= progress_percentage < max_progress
 
-class AggressiveGrowthProfile:
-    """AGGRESSIVE_GROWTH profile for 0-25% goal progress."""
+class StrategyRegimeMapper:
+    """
+    Mapowanie strategii do odpowiednich faz rynku
     
-    @staticmethod
-    def create() -> StrategyProfile:
-        """Create AGGRESSIVE_GROWTH strategy profile."""
-        
-        risk_parameters = RiskParameters(
-            risk_multiplier=1.5,
-            max_daily_loss=15.0,  # 15% max daily loss
-            max_drawdown=25.0,    # 25% max drawdown
-            stop_loss_percentage=8.0,  # 8% stop loss
-            take_profit_percentage=25.0,  # 25% take profit
-            trailing_stop_enabled=True,
-            position_timeout_hours=24,  # 24 hour position timeout
-            emergency_exit_threshold=20.0  # 20% emergency exit
-        )
-        
-        position_sizing = PositionSizingRules(
-            base_position_size=8.0,  # 8% base position
-            max_position_size=10.0,  # 10% max position
-            risk_per_trade=3.0,      # 3% risk per trade
-            correlation_limit=0.7,   # 70% max correlation
-            volatility_adjustment=True,
-            kelly_criterion_enabled=True
-        )
-        
-        signal_processing = SignalProcessingRules(
-            min_confidence_threshold=0.6,  # 60% minimum confidence
-            max_signals_per_hour=20,       # High frequency
-            signal_quality_weight=0.7,
-            volume_threshold_multiplier=1.5,
-            price_change_sensitivity=1.2,
-            social_sentiment_weight=0.8,   # High social weight
-            technical_analysis_weight=0.6
-        )
-        
-        return StrategyProfile(
-            profile_type=ProfileType.AGGRESSIVE_GROWTH,
-            name="Aggressive Growth Hunter",
-            description="High-risk, high-reward profile focused on memecoin hunting and rapid growth opportunities. Suitable for early portfolio building phase (0-25% of goal).",
-            goal_progress_range=(0.0, 25.0),
-            enabled_strategies=[
-                StrategyType.MEMECOIN_HUNTER,
-                StrategyType.SOUL_METEOR,
-                StrategyType.DEVELOPER_TRACKING
-            ],
-            risk_parameters=risk_parameters,
-            position_sizing=position_sizing,
-            signal_processing=signal_processing,
-            execution_priority="HIGH",
-            rebalance_frequency_hours=6  # Rebalance every 6 hours
-        )
-
-class BalancedRiskProfile:
-    """BALANCED_RISK profile for 25-100% goal progress."""
-    
-    @staticmethod
-    def create() -> StrategyProfile:
-        """Create BALANCED_RISK strategy profile."""
-        
-        risk_parameters = RiskParameters(
-            risk_multiplier=1.0,
-            max_daily_loss=8.0,   # 8% max daily loss
-            max_drawdown=15.0,    # 15% max drawdown
-            stop_loss_percentage=5.0,  # 5% stop loss
-            take_profit_percentage=15.0,  # 15% take profit
-            trailing_stop_enabled=True,
-            position_timeout_hours=48,  # 48 hour position timeout
-            emergency_exit_threshold=12.0  # 12% emergency exit
-        )
-        
-        position_sizing = PositionSizingRules(
-            base_position_size=4.0,  # 4% base position
-            max_position_size=5.0,   # 5% max position
-            risk_per_trade=2.0,      # 2% risk per trade
-            correlation_limit=0.5,   # 50% max correlation
-            volatility_adjustment=True,
-            kelly_criterion_enabled=True
-        )
-        
-        signal_processing = SignalProcessingRules(
-            min_confidence_threshold=0.7,  # 70% minimum confidence
-            max_signals_per_hour=10,       # Moderate frequency
-            signal_quality_weight=0.8,
-            volume_threshold_multiplier=1.0,
-            price_change_sensitivity=1.0,
-            social_sentiment_weight=0.6,
-            technical_analysis_weight=0.8  # Higher technical weight
-        )
-        
-        return StrategyProfile(
-            profile_type=ProfileType.BALANCED_RISK,
-            name="Balanced Growth Optimizer",
-            description="Moderate risk profile balancing growth and preservation. Focuses on arbitrage and systematic opportunities. Suitable for mid-stage portfolio growth (25-100% of goal).",
-            goal_progress_range=(25.0, 100.0),
-            enabled_strategies=[
-                StrategyType.METEORA_DAMM,
-                StrategyType.CROSS_DEX_ARBITRAGE,
-                StrategyType.LIQUIDITY_SNIPING
-            ],
-            risk_parameters=risk_parameters,
-            position_sizing=position_sizing,
-            signal_processing=signal_processing,
-            execution_priority="MEDIUM",
-            rebalance_frequency_hours=12  # Rebalance every 12 hours
-        )
-
-class CapitalPreservationProfile:
-    """CAPITAL_PRESERVATION profile for 100%+ goal progress."""
-    
-    @staticmethod
-    def create() -> StrategyProfile:
-        """Create CAPITAL_PRESERVATION strategy profile."""
-        
-        risk_parameters = RiskParameters(
-            risk_multiplier=0.5,
-            max_daily_loss=3.0,   # 3% max daily loss
-            max_drawdown=8.0,     # 8% max drawdown
-            stop_loss_percentage=2.0,  # 2% stop loss
-            take_profit_percentage=8.0,   # 8% take profit
-            trailing_stop_enabled=True,
-            position_timeout_hours=72,  # 72 hour position timeout
-            emergency_exit_threshold=5.0  # 5% emergency exit
-        )
-        
-        position_sizing = PositionSizingRules(
-            base_position_size=1.5,  # 1.5% base position
-            max_position_size=2.0,   # 2% max position
-            risk_per_trade=1.0,      # 1% risk per trade
-            correlation_limit=0.3,   # 30% max correlation
-            volatility_adjustment=True,
-            kelly_criterion_enabled=False  # Conservative sizing
-        )
-        
-        signal_processing = SignalProcessingRules(
-            min_confidence_threshold=0.85,  # 85% minimum confidence
-            max_signals_per_hour=5,         # Low frequency
-            signal_quality_weight=0.9,
-            volume_threshold_multiplier=0.8,
-            price_change_sensitivity=0.8,
-            social_sentiment_weight=0.3,    # Low social weight
-            technical_analysis_weight=0.9   # High technical weight
-        )
-        
-        return StrategyProfile(
-            profile_type=ProfileType.CAPITAL_PRESERVATION,
-            name="Capital Guardian",
-            description="Conservative profile focused on capital preservation and steady returns. Emphasizes market making and low-risk arbitrage. Suitable for goal achievement phase (100%+ of goal).",
-            goal_progress_range=(100.0, float('inf')),
-            enabled_strategies=[
-                StrategyType.MARKET_MAKING,
-                StrategyType.LOW_RISK_ARBITRAGE
-            ],
-            risk_parameters=risk_parameters,
-            position_sizing=position_sizing,
-            signal_processing=signal_processing,
-            execution_priority="LOW",
-            rebalance_frequency_hours=24  # Rebalance every 24 hours
-        )
-
-class StrategyProfileManager:
-    """Manager for strategy profiles."""
+    Główne funkcje:
+    - Definiowanie które strategie są odpowiednie dla każdej fazy rynku
+    - Dynamiczne dostosowywanie parametrów ryzyka
+    - Filtrowanie sygnałów na podstawie obecnej fazy rynku
+    """
     
     def __init__(self):
-        """Initialize the strategy profile manager."""
-        self.profiles = {
-            ProfileType.AGGRESSIVE_GROWTH: AggressiveGrowthProfile.create(),
-            ProfileType.BALANCED_RISK: BalancedRiskProfile.create(),
-            ProfileType.CAPITAL_PRESERVATION: CapitalPreservationProfile.create()
+        """Inicjalizacja mapowania strategii do faz rynku"""
+        
+        # PROFILE STRATEGII dla każdej fazy rynku
+        self.strategy_profiles = {
+            
+            # BULLISH - Hossa: Agresywne strategie wzrostowe
+            MarketRegime.BULLISH: StrategyProfile(
+                regime=MarketRegime.BULLISH,
+                strategies=STRATEGY_REGIME_MAP["BULLISH"],
+                risk_multiplier=1.25,           # 25% więcej ryzyka w hossie
+                position_size_multiplier=1.2,   # 20% większe pozycje
+                confidence_threshold=0.55,      # Niższy próg pewności (więcej sygnałów)
+                description="Aggressive growth strategies for bull market"
+            ),
+            
+            # BEARISH - Bessa: Ostrożne, defensywne strategie
+            MarketRegime.BEARISH: StrategyProfile(
+                regime=MarketRegime.BEARISH,
+                strategies=STRATEGY_REGIME_MAP["BEARISH"],
+                risk_multiplier=0.65,           # 35% mniej ryzyka w bessie
+                position_size_multiplier=0.7,   # 30% mniejsze pozycje
+                confidence_threshold=0.75,      # Wyższy próg pewności (mniej sygnałów)
+                description="Conservative defensive strategies for bear market"
+            ),
+            
+            # SIDEWAYS - Konsolidacja: Strategie range-bound
+            MarketRegime.SIDEWAYS: StrategyProfile(
+                regime=MarketRegime.SIDEWAYS,
+                strategies=STRATEGY_REGIME_MAP["SIDEWAYS"],
+                risk_multiplier=0.8,            # 20% mniej ryzyka
+                position_size_multiplier=0.9,   # 10% mniejsze pozycje
+                confidence_threshold=0.65,      # Średni próg pewności
+                description="Range-bound strategies for sideways market"
+            ),
+            
+            # NEUTRAL - Nieokreślony: Tylko najbezpieczniejsze strategie
+            MarketRegime.NEUTRAL: StrategyProfile(
+                regime=MarketRegime.NEUTRAL,
+                strategies=STRATEGY_REGIME_MAP["NEUTRAL"],
+                risk_multiplier=0.5,            # 50% mniej ryzyka
+                position_size_multiplier=0.6,   # 40% mniejsze pozycje
+                confidence_threshold=0.8,       # Bardzo wysoki próg pewności
+                description="Ultra-safe strategies for uncertain market conditions"
+            )
         }
         
-        logger.info("📋 Strategy Profile Manager initialized with 3 profiles")
+        # MAPOWANIE STRATEGII DO DOZWOLONYCH FAZ (dla szybkiego lookup)
+        self.strategy_regime_map = {}
+        for regime, profile in self.strategy_profiles.items():
+            for strategy in profile.strategies:
+                if strategy not in self.strategy_regime_map:
+                    self.strategy_regime_map[strategy] = set()
+                self.strategy_regime_map[strategy].add(regime)
     
-    def get_profile(self, profile_type: ProfileType) -> StrategyProfile:
-        """Get a specific strategy profile."""
-        return self.profiles[profile_type]
-    
-    def get_profile_for_progress(self, progress_percentage: float) -> StrategyProfile:
-        """Get the appropriate profile for the given progress percentage."""
-        for profile in self.profiles.values():
-            if profile.is_applicable_for_progress(progress_percentage):
-                return profile
+    def is_strategy_allowed(self, strategy: str, current_regime: MarketRegime) -> bool:
+        """
+        Sprawdza czy strategia jest dozwolona w obecnej fazie rynku
         
-        # Fallback to capital preservation if progress > 100%
-        return self.profiles[ProfileType.CAPITAL_PRESERVATION]
-    
-    def get_all_profiles(self) -> Dict[ProfileType, StrategyProfile]:
-        """Get all available profiles."""
-        return self.profiles.copy()
-    
-    def validate_profile(self, profile: StrategyProfile) -> bool:
-        """Validate a strategy profile configuration."""
-        try:
-            # Check required fields
-            assert profile.profile_type in ProfileType
-            assert len(profile.enabled_strategies) > 0
-            assert 0 <= profile.risk_parameters.risk_multiplier <= 3.0
-            assert 0 <= profile.position_sizing.max_position_size <= 20.0
-            assert 0 <= profile.signal_processing.min_confidence_threshold <= 1.0
+        Args:
+            strategy: Nazwa strategii
+            current_regime: Obecna faza rynku
             
-            return True
-        except (AssertionError, AttributeError) as e:
-            logger.error(f"❌ Profile validation failed: {e}")
-            return False
-
-# Global instance
-strategy_profile_manager = StrategyProfileManager()
+        Returns:
+            True jeśli strategia jest dozwolona
+        """
+        
+        # Standardowe mapowanie
+        if strategy in self.strategy_regime_map:
+            return current_regime in self.strategy_regime_map[strategy]
+        
+        # Nieznana strategia - domyślnie dozwolona tylko w NEUTRAL
+        return current_regime == MarketRegime.NEUTRAL
+    
+    def get_allowed_strategies(self, current_regime: MarketRegime) -> List[str]:
+        """
+        Zwraca listę dozwolonych strategii dla obecnej fazy rynku
+        
+        Args:
+            current_regime: Obecna faza rynku
+            
+        Returns:
+            Lista nazw dozwolonych strategii
+        """
+        
+        if current_regime in self.strategy_profiles:
+            return self.strategy_profiles[current_regime].strategies.copy()
+        
+        return []
+    
+    def get_regime_parameters(self, current_regime: MarketRegime) -> Dict:
+        """
+        Zwraca parametry dla obecnej fazy rynku
+        
+        Args:
+            current_regime: Obecna faza rynku
+            
+        Returns:
+            Słownik z parametrami ryzyka i pozycji
+        """
+        
+        if current_regime in self.strategy_profiles:
+            profile = self.strategy_profiles[current_regime]
+            return {
+                "risk_multiplier": profile.risk_multiplier,
+                "position_size_multiplier": profile.position_size_multiplier,
+                "confidence_threshold": profile.confidence_threshold,
+                "description": profile.description
+            }
+        
+        # Domyślne parametry dla nieznanej fazy
+        return {
+            "risk_multiplier": 0.5,
+            "position_size_multiplier": 0.5,
+            "confidence_threshold": 0.9,
+            "description": "Unknown regime - ultra conservative"
+        }
+    
+    def validate_strategy_signal(self, strategy: str, confidence: float, 
+                                current_regime: MarketRegime,
+                                market_indicators: Dict = None) -> Dict:
+        """
+        Kompleksowa walidacja sygnału strategii
+        
+        Args:
+            strategy: Nazwa strategii
+            confidence: Pewność sygnału
+            current_regime: Obecna faza rynku
+            market_indicators: Wskaźniki rynku
+            
+        Returns:
+            Słownik z wynikiem walidacji
+        """
+        
+        result = {
+            "allowed": False,
+            "adjusted_confidence": confidence,
+            "reason": "",
+            "regime_match": False,
+            "confidence_pass": False
+        }
+        
+        # Sprawdź czy strategia jest dozwolona w obecnej fazie
+        if not self.is_strategy_allowed(strategy, current_regime):
+            result["reason"] = f"Strategy {strategy} not allowed in {current_regime.value} regime"
+            return result
+        
+        result["regime_match"] = True
+        
+        # Sprawdź próg pewności dla obecnej fazy
+        regime_params = self.get_regime_parameters(current_regime)
+        confidence_threshold = regime_params["confidence_threshold"]
+        
+        if confidence < confidence_threshold:
+            result["reason"] = f"Confidence {confidence:.2f} below threshold {confidence_threshold:.2f} for {current_regime.value}"
+            return result
+        
+        result["confidence_pass"] = True
+        result["allowed"] = True
+        result["reason"] = f"Signal validated for {current_regime.value} regime"
+        
+        return result

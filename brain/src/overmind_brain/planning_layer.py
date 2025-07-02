@@ -366,4 +366,39 @@ class PlanningLayer:
         
     async def reflect_on_outcome(self, plan: Dict[str, Any], outcome: Dict[str, Any]) -> Dict[str, Any]:
         """Reflect on the outcome of a plan execution"""
-        return await self.reflection_engine.reflect
+        return await self.reflection_engine.reflect_on_outcome(plan, outcome)
+        
+    async def learn_from_experiences(self, experiences: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Learn from multiple trading experiences"""
+        if not experiences:
+            return {"suggestions": [], "learning_status": "insufficient_data"}
+            
+        # Extract reflections from experiences
+        reflections = []
+        for exp in experiences:
+            if "plan" in exp and "outcome" in exp:
+                reflection = await self.reflect_on_outcome(exp["plan"], exp["outcome"])
+                reflections.append(reflection)
+                
+        # Generate improvement suggestions
+        suggestions = await self.reflection_engine.generate_improvement_suggestions(reflections)
+        
+        # Calculate success metrics
+        success_count = sum(1 for r in reflections if r.get("success", False))
+        success_rate = success_count / len(reflections) if reflections else 0
+        
+        # Calculate profit metrics
+        profit_sum = sum(exp.get("outcome", {}).get("profit", 0) for exp in experiences)
+        avg_profit = profit_sum / len(experiences) if experiences else 0
+        
+        learning_result = {
+            "suggestions": suggestions,
+            "success_rate": success_rate,
+            "average_profit": avg_profit,
+            "learning_status": "success" if suggestions else "no_insights",
+            "experiences_analyzed": len(experiences),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+        logger.info(f"Learning complete: {len(suggestions)} suggestions generated")
+        return learning_result

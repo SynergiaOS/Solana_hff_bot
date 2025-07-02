@@ -1,0 +1,49 @@
+# THE OVERMIND PROTOCOL - ResearchAgent Microservice Flow Configuration
+# Jina-Serve configuration for scalable ResearchAgent deployment
+
+jtype: Flow
+version: '1'
+with:
+  port: 8080
+  protocol: 'http'
+  cors: true
+  title: 'THE OVERMIND PROTOCOL - ResearchAgent'
+  description: 'AI-powered research microservice with Jina AI integration'
+  
+executors:
+  - name: research_agent
+    uses: research_agent_microservice.py
+    replicas: 3
+    with:
+      # ResearchAgent configuration
+      cache_ttl: 300  # 5 minutes cache
+      max_concurrent_requests: 10
+      timeout: 60
+    env:
+      JINA_LOG_LEVEL: INFO
+      OVERMIND_RESEARCH_MODE: production
+    resources:
+      memory: '2Gi'
+      cpu: '1'
+    
+  - name: load_balancer
+    uses: jina://LoadBalancer
+    needs: research_agent
+    
+monitoring:
+  enable: true
+  port: 9090
+  
+scaling:
+  min_replicas: 1
+  max_replicas: 10
+  target_cpu_utilization: 70
+  
+health_check:
+  endpoint: '/health'
+  interval: 30
+  timeout: 10
+  
+logging:
+  level: INFO
+  format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'

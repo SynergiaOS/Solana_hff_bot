@@ -232,7 +232,7 @@ async fn process_brain_command(command_json: &str) -> Result<String> {
                 execute_live_trading(action, symbol, quantity, confidence).await?
             } else {
                 info!("📝 EXECUTING PAPER TRADING");
-                execute_with_tensorzero(action, symbol, quantity, confidence).await?
+                execute_with_tensorzero(action, symbol, quantity, confidence, &command).await?
             };
             Ok(execution_result)
         }
@@ -357,6 +357,7 @@ async fn execute_with_tensorzero(
     symbol: &str,
     quantity: f64,
     confidence: f64,
+    command: &serde_json::Value,
 ) -> Result<String> {
     // Simulate TensorZero optimization delay
     tokio::time::sleep(Duration::from_millis(25)).await;
@@ -412,6 +413,40 @@ async fn execute_with_tensorzero(
     info!("🧠 TensorZero Analysis: {}", ai_enhancement);
     info!("💰 Paper Trade Executed: {} {} @ ${:.2} (REAL PRICE: ${:.4}, fees: ${:.4}, profit: ${:.2})",
           action, symbol, final_price, real_price, fees, estimated_profit);
+
+    // Create execution result for AI Brain feedback
+    let execution_result = serde_json::json!({
+        "type": "PAPER_TRADE",
+        "action": action,
+        "symbol": symbol,
+        "quantity": quantity,
+        "price": final_price,
+        "real_price": real_price,
+        "fees": fees,
+        "estimated_profit": estimated_profit,
+        "confidence": confidence,
+        "transaction_id": transaction_id,
+        "timestamp": chrono::Utc::now().to_rfc3339(),
+        "paper_trading": true,
+        "status": "success",
+        "ai_brain_id": command.get("ai_brain_id").and_then(|v| v.as_str()).unwrap_or("rust_executor"),
+        "strategy": command.get("strategy").and_then(|v| v.as_str()).unwrap_or("tensorzero_enhanced"),
+        "market_regime": command.get("market_regime").and_then(|v| v.as_str()).unwrap_or("unknown")
+    });
+
+    // Store in Redis for AI Brain feedback loop
+    if let Ok(client) = redis::Client::open("redis://127.0.0.1:6379") {
+        if let Ok(mut conn) = client.get_connection() {
+            // Send to execution results for Python AI Brain
+            let _: Result<(), redis::RedisError> =
+                conn.lpush("overmind:execution_results", execution_result.to_string());
+
+            info!(
+                "📤 Paper trade result sent to AI Brain: {} {} @ ${:.4}",
+                action, symbol, final_price
+            );
+        }
+    }
 
     Ok(format!(
         "Paper trade executed: {} {} @ ${:.2} (ID: {}) [REAL PRICE]",
