@@ -1,0 +1,91 @@
+{
+  "strategy_configuration": {
+    "primary_strategies": {
+      "token_sniping": {
+        "enabled": true,
+        "priority": 1,
+        "allocation_percentage": 60,
+        "confidence_threshold": 0.55,
+        "target_criteria": {
+          "min_liquidity_usd": 20000,
+          "max_liquidity_usd": 100000,
+          "age_minutes_min": 5,
+          "age_minutes_max": 10,
+          "market_cap_min": 800000,
+          "market_cap_max": 2000000,
+          "max_holder_concentration": 0.3
+        },
+        "risk_parameters": {
+          "max_position_size": 0.05,
+          "stop_loss_percentage": 0.15,
+          "take_profit_percentage": 0.25
+        }
+      },
+      "arbitrage": {
+        "enabled": true,
+        "priority": 2,
+        "allocation_percentage": 30,
+        "confidence_threshold": 0.70,
+        "target_criteria": {
+          "min_price_difference": 0.005,
+          "min_volume_usd": 10000,
+          "max_execution_time_ms": 3000
+        },
+        "risk_parameters": {
+          "max_position_size": 0.03,
+          "max_slippage": 0.02
+        }
+      },
+      "momentum_trading": {
+        "enabled": true,
+        "priority": 3,
+        "allocation_percentage": 10,
+        "confidence_threshold": 0.65,
+        "indicators": {
+          "rsi_oversold": 30,
+          "rsi_overbought": 70,
+          "volume_multiplier": 2.0
+        },
+        "risk_parameters": {
+          "max_position_size": 0.02,
+          "stop_loss_percentage": 0.10
+        }
+      }
+    },
+    "wallet_strategy_mapping": {
+      "primary_wallet": {
+        "strategies": ["token_sniping", "arbitrage", "momentum_trading"],
+        "allocation": 0.4,
+        "risk_profile": "medium"
+      },
+      "hft_wallet": {
+        "strategies": ["arbitrage", "mev_arbitrage", "cross_dex_arbitrage"],
+        "allocation": 0.3,
+        "risk_profile": "high"
+      },
+      "conservative_wallet": {
+        "strategies": ["momentum_trading", "volume_analysis"],
+        "allocation": 0.2,
+        "risk_profile": "low"
+      },
+      "experimental_wallet": {
+        "strategies": ["soul_meteor", "social_sentiment", "developer_tracking"],
+        "allocation": 0.1,
+        "risk_profile": "experimental"
+      }
+    },
+    "ai_enhancement": {
+      "enabled": true,
+      "confidence_boost": 0.1,
+      "pattern_recognition": true,
+      "adaptive_thresholds": true,
+      "learning_enabled": true
+    },
+    "risk_management": {
+      "global_stop_loss": 0.15,
+      "daily_loss_limit": 0.10,
+      "max_concurrent_positions": 5,
+      "correlation_limit": 0.7
+    }
+  }
+}
