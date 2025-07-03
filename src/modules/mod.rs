@@ -13,6 +13,7 @@ pub mod error_handling;
 pub mod hft_engine;
 pub mod hybrid_price_fetcher;
 pub mod jito_client;
+pub mod jupiter_dex;
 pub mod metrics;
 pub mod real_price_fetcher;
 pub mod real_sell_executor;

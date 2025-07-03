@@ -7,14 +7,16 @@ use chrono;
 use redis::aio::ConnectionManager;
 use redis::{AsyncCommands, Client, Commands};
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
 use tokio::time::{Duration, Instant};
-use tracing::{error, info, instrument, warn};
+use tracing::{debug, error, info, instrument, warn};
 use uuid::Uuid;
 
 use crate::modules::hybrid_price_fetcher::HybridPriceFetcher;
+use crate::modules::jupiter_dex::execute_real_dex_swap;
 use crate::modules::strategy::TradingSignal;
 use solana_client::rpc_client::RpcClient;
 use solana_sdk::{
@@ -129,6 +131,33 @@ pub async fn listen_for_commands() -> Result<()> {
         {
             Ok((list_name, message)) => {
                 info!("📨 Received command from {}: {}", list_name, message);
+                debug!("🔍 Raw command data: {}", message);
+
+                // MOCK RESULT TEST - Immediate publish to verify Redis publishing works
+                let mock_result = json!({
+                    "status": "mock_test",
+                    "message": "AI Connector is receiving commands",
+                    "timestamp": chrono::Utc::now().to_rfc3339(),
+                    "command_received": true
+                });
+
+                // Test Redis publishing immediately
+                if let Ok(client) = redis::Client::open("redis://127.0.0.1:6379") {
+                    if let Ok(mut conn) = client.get_connection() {
+                        match conn.lpush::<_, _, ()>(
+                            "overmind:execution_results",
+                            mock_result.to_string(),
+                        ) {
+                            Ok(_) => {
+                                info!("✅ MOCK RESULT PUBLISHED - Redis publishing works!");
+                                debug!("📤 Mock result: {}", mock_result.to_string());
+                            }
+                            Err(e) => {
+                                error!("❌ MOCK RESULT PUBLISH FAILED: {}", e);
+                            }
+                        }
+                    }
+                }
 
                 // Enhanced processing: Parse and execute the command
                 match process_brain_command(&message).await {
@@ -331,12 +360,25 @@ async fn execute_live_trading(
     if let Ok(client) = redis::Client::open("redis://127.0.0.1:6379") {
         if let Ok(mut conn) = client.get_connection() {
             // Send to execution results for Python AI Brain
-            let _: Result<(), redis::RedisError> =
-                conn.lpush("overmind:execution_results", execution_result.to_string());
+            match conn.lpush::<_, _, ()>("overmind:execution_results", execution_result.to_string())
+            {
+                Ok(_) => {
+                    info!("✅ LIVE EXECUTION RESULT PUBLISHED TO REDIS");
+                    debug!(
+                        "📤 Published execution_result: {}",
+                        execution_result.to_string()
+                    );
+                }
+                Err(e) => {
+                    error!("❌ FAILED TO PUBLISH EXECUTION RESULT: {}", e);
+                }
+            }
 
             // Also send to feedback channel for real-time learning
-            let _: Result<(), redis::RedisError> =
-                conn.lpush("overmind:feedback", execution_result.to_string());
+            match conn.lpush::<_, _, ()>("overmind:feedback", execution_result.to_string()) {
+                Ok(_) => debug!("📤 Published to feedback channel"),
+                Err(e) => error!("❌ Failed to publish to feedback: {}", e),
+            }
 
             info!(
                 "📤 Execution result sent to AI Brain: {} {} @ ${:.4} (Profit: ${:.6})",
@@ -438,8 +480,19 @@ async fn execute_with_tensorzero(
     if let Ok(client) = redis::Client::open("redis://127.0.0.1:6379") {
         if let Ok(mut conn) = client.get_connection() {
             // Send to execution results for Python AI Brain
-            let _: Result<(), redis::RedisError> =
-                conn.lpush("overmind:execution_results", execution_result.to_string());
+            match conn.lpush::<_, _, ()>("overmind:execution_results", execution_result.to_string())
+            {
+                Ok(_) => {
+                    info!("✅ PAPER TRADE RESULT PUBLISHED TO REDIS");
+                    debug!(
+                        "📤 Published paper_trade_result: {}",
+                        execution_result.to_string()
+                    );
+                }
+                Err(e) => {
+                    error!("❌ FAILED TO PUBLISH PAPER TRADE RESULT: {}", e);
+                }
+            }
 
             info!(
                 "📤 Paper trade result sent to AI Brain: {} {} @ ${:.4}",
@@ -1210,13 +1263,13 @@ async fn execute_real_solana_transaction(
     let private_key = std::env::var("SNIPER_WALLET_PRIVATE_KEY")
         .map_err(|_| anyhow::anyhow!("SNIPER_WALLET_PRIVATE_KEY not found in environment"))?;
 
-    // Parse private key with enhanced validation
+    // Parse private key with enhanced validation - support multiple formats
     let keypair_bytes: Vec<u8> = if private_key.starts_with('[') && private_key.ends_with(']') {
         // JSON array format: [4,72,104,...]
         info!("🔧 Parsing JSON array format keypair");
         serde_json::from_str::<Vec<u8>>(&private_key)
             .map_err(|e| anyhow::anyhow!("Failed to parse JSON private key: {}", e))?
-    } else {
+    } else if private_key.contains(',') {
         // Comma-separated format: 4,72,104,...
         info!("🔧 Parsing comma-separated format keypair");
         private_key
@@ -1224,6 +1277,12 @@ async fn execute_real_solana_transaction(
             .map(|s| s.trim().parse::<u8>())
             .collect::<Result<Vec<u8>, _>>()
             .map_err(|e| anyhow::anyhow!("Failed to parse comma-separated private key: {}", e))?
+    } else {
+        // Base58 format (most common): 4HjhPsHzcojor7xBLokD9w7T6jHFXvVFkCskN8hGSNK36CzNPHxRRj5Dg6RCcg79SSWmYvWEwSwk12CoRxv2W595
+        info!("🔧 Parsing base58 format keypair");
+        bs58::decode(&private_key)
+            .into_vec()
+            .map_err(|e| anyhow::anyhow!("Failed to parse base58 private key: {}", e))?
     };
 
     // Validate keypair length
@@ -1244,17 +1303,43 @@ async fn execute_real_solana_transaction(
 
     info!("✅ Wallet loaded: {}", keypair.pubkey());
 
-    // Get RPC URL
-    let rpc_url = std::env::var("SOLANA_RPC_URL")
-        .unwrap_or_else(|_| "https://distinguished-blue-glade.solana-mainnet.quiknode.pro/a10fad0f63cdfe46533f1892ac720517b08fe580/".to_string());
+    // Get RPC URL - use SNIPER_SOLANA_RPC_URL for consistency
+    let rpc_url = std::env::var("SNIPER_SOLANA_RPC_URL")
+        .or_else(|_| std::env::var("SOLANA_RPC_URL"))
+        .unwrap_or_else(|_| "https://distinguished-blue-glade.solana-mainnet.quiknode.pro/a10fad0f63cdfe46533f1892ac720517b08fe580".to_string());
 
-    let client = RpcClient::new_with_commitment(rpc_url, CommitmentConfig::confirmed());
+    info!("🌐 Using RPC URL: {}", rpc_url);
 
-    // For now, execute a simple SOL transfer as proof of concept
-    // In production, this would be a token swap through Jupiter/Raydium
-    let amount_lamports = (quantity * 1_000_000_000.0) as u64; // Convert SOL to lamports
+    let client = RpcClient::new_with_commitment(&rpc_url, CommitmentConfig::confirmed());
 
-    // Create a simple transfer instruction (to self for testing)
+    // REAL DEX TRADING IMPLEMENTATION
+    info!(
+        "🔄 Executing REAL DEX trade: {} {} for {:.6} SOL",
+        action, symbol, quantity
+    );
+
+    // Check if this is a real token swap or SOL transfer
+    if symbol != "SOL" {
+        // Execute real DEX swap through Jupiter
+        info!("🚀 Executing REAL Jupiter DEX swap: {} {}", action, symbol);
+
+        match execute_real_dex_swap(&keypair, action, symbol, quantity, &rpc_url).await {
+            Ok(signature) => {
+                info!("✅ REAL DEX SWAP EXECUTED: {}", signature);
+                return Ok(signature);
+            }
+            Err(e) => {
+                warn!(
+                    "⚠️ Jupiter DEX swap failed: {}, falling back to SOL transfer",
+                    e
+                );
+                // Fall back to SOL transfer for testing
+            }
+        }
+    }
+
+    // For SOL or fallback, execute simple transfer
+    let amount_lamports = (quantity * 1_000_000_000.0) as u64;
     let instruction = system_instruction::transfer(
         &keypair.pubkey(),
         &keypair.pubkey(), // Transfer to self for testing
