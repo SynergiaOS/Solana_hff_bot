@@ -6,6 +6,7 @@ Test script to verify QuickNode mainnet endpoints are working correctly.
 import asyncio
 import json
 import logging
+import os
 import time
 from typing import Dict, Any
 import httpx
@@ -19,8 +20,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # QuickNode Mainnet Endpoints
-QUICKNODE_RPC_URL = "https://distinguished-blue-glade.solana-mainnet.quiknode.pro/a10fad0f63cdfe46533f1892ac720517b08fe580"
-QUICKNODE_WSS_URL = "wss://distinguished-blue-glade.solana-mainnet.quiknode.pro/a10fad0f63cdfe46533f1892ac720517b08fe580"
+QUICKNODE_RPC_URL = os.getenv("QUICKNODE_RPC_URL", "https://api.mainnet-beta.solana.com")
+QUICKNODE_WSS_URL = os.getenv("QUICKNODE_WSS_URL", "wss://api.mainnet-beta.solana.com")
 
 async def test_rpc_endpoint():
     """Test the QuickNode RPC endpoint"""

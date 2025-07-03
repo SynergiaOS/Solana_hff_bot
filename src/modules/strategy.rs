@@ -47,6 +47,29 @@ pub enum StrategyType {
     OptionsStrategy,    // Options trading strategies
 }
 
+impl std::fmt::Display for StrategyType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            StrategyType::TokenSniping => write!(f, "token_sniping"),
+            StrategyType::Arbitrage => write!(f, "arbitrage"),
+            StrategyType::MomentumTrading => write!(f, "momentum_trading"),
+            StrategyType::SoulMeteorSniping => write!(f, "soul_meteor"),
+            StrategyType::MeteoraDAMM => write!(f, "meteora"),
+            StrategyType::DeveloperTracking => write!(f, "developer_tracking"),
+            StrategyType::AxiomMemeCoin => write!(f, "axiom_memecoin"),
+            StrategyType::AIDecision => write!(f, "ai_decision"),
+            StrategyType::MEVArbitrage => write!(f, "mev_arbitrage"),
+            StrategyType::CrossDexArbitrage => write!(f, "cross_dex_arbitrage"),
+            StrategyType::LiquiditySniping => write!(f, "liquidity_sniping"),
+            StrategyType::VolumeAnalysis => write!(f, "volume_analysis"),
+            StrategyType::SocialSentiment => write!(f, "social_sentiment"),
+            StrategyType::FlashLoanArbitrage => write!(f, "flash_loan_arbitrage"),
+            StrategyType::YieldFarming => write!(f, "yield_farming"),
+            StrategyType::OptionsStrategy => write!(f, "options_strategy"),
+        }
+    }
+}
+
 pub struct StrategyEngine {
     market_data_receiver: mpsc::UnboundedReceiver<MarketData>,
     signal_sender: mpsc::UnboundedSender<TradingSignal>,

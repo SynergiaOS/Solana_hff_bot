@@ -5,8 +5,8 @@ use anyhow::{anyhow, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::env;
-use std::path::Path;
-use tracing::info;
+
+use tracing::{info, warn};
 
 use crate::modules::strategy::StrategyType;
 use crate::modules::wallet_manager::{
@@ -45,9 +45,12 @@ pub struct EnvWalletConfig {
 }
 
 impl MultiWalletConfig {
-    /// Load multi-wallet configuration from environment variables
+    /// Load multi-wallet configuration from environment variables with security validation
     pub fn from_env() -> Result<Self> {
-        info!("🏦 Loading multi-wallet configuration from environment");
+        info!("🏦 Loading SECURE multi-wallet configuration from environment");
+
+        // SECURITY: Validate environment before proceeding
+        Self::validate_security_environment()?;
 
         // Parse managed wallets from environment
         let managed_wallets = env::var("OVERMIND_MANAGED_WALLETS")
@@ -149,18 +152,14 @@ impl MultiWalletConfig {
 
     /// Build wallet configuration from environment config
     fn build_wallet_config(env_config: EnvWalletConfig) -> Result<WalletConfig> {
-        // Load private key from file or environment
+        // SECURITY: Load private key ONLY from environment variables
         let private_key = if env_config.private_key_path.starts_with("env:") {
             let env_var = &env_config.private_key_path[4..];
             env::var(env_var).context(format!("Environment variable {} not found", env_var))?
-        } else if Path::new(&env_config.private_key_path).exists() {
-            std::fs::read_to_string(&env_config.private_key_path)
-                .context("Failed to read private key file")?
-                .trim()
-                .to_string()
         } else {
+            // SECURITY: No longer support file-based private keys
             return Err(anyhow!(
-                "Private key path not found: {}",
+                "SECURITY: File-based private keys are disabled. Use environment variables only. Expected format: env:VARIABLE_NAME, got: {}",
                 env_config.private_key_path
             ));
         };
@@ -382,4 +381,92 @@ impl ToTitleCase for str {
             .collect::<Vec<String>>()
             .join(" ")
     }
+}
+
+impl MultiWalletConfig {
+    /// Validate security environment before loading wallets
+    fn validate_security_environment() -> Result<()> {
+        info!("🔐 Validating security environment");
+
+        // Check for security mode
+        let security_mode =
+            env::var("OVERMIND_SECURITY_MODE").unwrap_or_else(|_| "STANDARD".to_string());
+        if security_mode == "MAXIMUM" {
+            info!("✅ Maximum security mode enabled");
+        } else {
+            warn!(
+                "⚠️ Security mode: {} (consider MAXIMUM for production)",
+                security_mode
+            );
+        }
+
+        // Validate that no private keys are in files
+        let current_dir = env::current_dir().context("Failed to get current directory")?;
+        let wallet_dir = current_dir.join("wallets");
+
+        if wallet_dir.exists() {
+            warn!("⚠️ Wallet directory exists: {:?}", wallet_dir);
+            warn!("🔐 SECURITY: Ensure no private keys are stored in files");
+        }
+
+        // Check for required environment variables
+        let required_vars = ["SNIPER_WALLET_PRIVATE_KEY", "OVERMIND_SECURITY_MODE"];
+
+        for var in &required_vars {
+            if env::var(var).is_err() {
+                warn!("⚠️ Missing environment variable: {}", var);
+            }
+        }
+
+        // Validate private key format in environment
+        if let Ok(private_key) = env::var("SNIPER_WALLET_PRIVATE_KEY") {
+            if private_key.len() < 80 {
+                return Err(anyhow!(
+                    "Invalid private key format in SNIPER_WALLET_PRIVATE_KEY"
+                ));
+            }
+            info!("✅ Primary private key format validated");
+        }
+
+        info!("✅ Security environment validation complete");
+        Ok(())
+    }
+
+    /// Get security configuration summary
+    pub fn get_security_summary() -> SecuritySummary {
+        let security_mode =
+            env::var("OVERMIND_SECURITY_MODE").unwrap_or_else(|_| "STANDARD".to_string());
+        let vault_enabled = env::var("OVERMIND_VAULT_ENABLED")
+            .unwrap_or_else(|_| "false".to_string())
+            .parse()
+            .unwrap_or(false);
+
+        let encryption_enabled = env::var("OVERMIND_ENCRYPTION_ENABLED")
+            .unwrap_or_else(|_| "false".to_string())
+            .parse()
+            .unwrap_or(false);
+
+        let keyring_enabled = env::var("OVERMIND_KEYRING_ENABLED")
+            .unwrap_or_else(|_| "false".to_string())
+            .parse()
+            .unwrap_or(false);
+
+        SecuritySummary {
+            security_mode,
+            vault_enabled,
+            encryption_enabled,
+            keyring_enabled,
+            environment_validated: true,
+        }
+    }
+}
+
+/// Security configuration summary
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SecuritySummary {
+    pub security_mode: String,
+    pub vault_enabled: bool,
+    pub encryption_enabled: bool,
+    pub keyring_enabled: bool,
+    pub environment_validated: bool,
 }

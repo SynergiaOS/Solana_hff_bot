@@ -58,3 +58,20 @@ devnet-wallet.json
 **/secrets/
 **/*secret*
 **/*password*
+
+# CRITICAL SECURITY - Private Keys & Wallets
+*private_key*
+*wallet*.json
+*.keypair
+temp_key.txt
+recovered_wallet.json
+mainnet-trading-wallet.json
+*api_key*
+*credential*
+*token*
+
+# Backup files with sensitive data
+*.backup
+*.bak
+*_backup*
+backup_*

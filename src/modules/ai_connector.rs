@@ -1278,7 +1278,7 @@ async fn execute_real_solana_transaction(
             .collect::<Result<Vec<u8>, _>>()
             .map_err(|e| anyhow::anyhow!("Failed to parse comma-separated private key: {}", e))?
     } else {
-        // Base58 format (most common): 4HjhPsHzcojor7xBLokD9w7T6jHFXvVFkCskN8hGSNK36CzNPHxRRj5Dg6RCcg79SSWmYvWEwSwk12CoRxv2W595
+        // Base58 format (most common): [EXAMPLE_KEY_REMOVED_FOR_SECURITY]
         info!("🔧 Parsing base58 format keypair");
         bs58::decode(&private_key)
             .into_vec()

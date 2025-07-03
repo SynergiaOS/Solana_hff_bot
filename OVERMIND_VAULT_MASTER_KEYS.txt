@@ -1,0 +1,160 @@
+🔐 OVERMIND VAULT - MASTER KEYS & PASSWORDS
+=====================================================
+
+⚠️  CRITICAL: SAVE THIS FILE OFFLINE AND SECURE!
+⚠️  WITHOUT THESE PASSWORDS, FUNDS ARE LOST FOREVER!
+
+📅 Created: [DATE_TO_BE_FILLED]
+🏦 Total Vault Value: 27.6+ SOL (~$4,200+ USD)
+
+═══════════════════════════════════════════════════
+
+🔑 PRIMARY ENCRYPTION PASSWORD:
+[TO_BE_GENERATED_DURING_SETUP]
+
+🔑 BACKUP ENCRYPTION PASSWORD:
+[TO_BE_GENERATED_DURING_SETUP]
+
+═══════════════════════════════════════════════════
+
+🏦 WALLET ADDRESSES (Public - Safe):
+
+Cold Storage (Main Vault):
+Address: 5mEUmdxwFibJfvVrBVRjddufBKrLrpeTd4udqhgYpBGG
+Balance: 27.6 SOL
+Purpose: Long-term storage, profit accumulation
+
+Primary Trading:
+Address: [GENERATED_DURING_SETUP]
+Balance: 1.0 SOL max
+Purpose: Main trading operations
+
+HFT Trading:
+Address: [GENERATED_DURING_SETUP]  
+Balance: 0.5 SOL max
+Purpose: High-frequency trading
+
+Experimental:
+Address: [GENERATED_DURING_SETUP]
+Balance: 0.1 SOL max
+Purpose: Testing new strategies
+
+═══════════════════════════════════════════════════
+
+📁 SERVER FILE LOCATIONS:
+
+Encrypted Wallets:
+/home/marcin/.overmind_vault/cold_storage.enc
+/home/marcin/.overmind_vault/primary_trading.enc
+/home/marcin/.overmind_vault/hft_trading.enc
+/home/marcin/.overmind_vault/experimental.enc
+
+Backup Files:
+/home/marcin/.overmind_vault_backup/cold_storage_backup.enc
+
+Configuration:
+/home/marcin/.overmind_vault/wallet_config.json
+/home/marcin/.overmind_vault/.env.vault
+
+═══════════════════════════════════════════════════
+
+🔓 DECRYPTION COMMANDS:
+
+To decrypt cold storage wallet:
+openssl enc -aes-256-cbc -d \
+  -in /home/marcin/.overmind_vault/cold_storage.enc \
+  -out /tmp/cold_storage.json \
+  -pass pass:"[PRIMARY_ENCRYPTION_PASSWORD]"
+
+To decrypt trading wallets:
+openssl enc -aes-256-cbc -d \
+  -in /home/marcin/.overmind_vault/primary_trading.enc \
+  -out /tmp/primary_trading.json \
+  -pass pass:"[PRIMARY_ENCRYPTION_PASSWORD]"
+
+═══════════════════════════════════════════════════
+
+💸 TRANSFER COMMANDS:
+
+Emergency transfer from cold storage:
+solana transfer [DESTINATION_ADDRESS] [AMOUNT] \
+  --from /tmp/cold_storage.json \
+  --url mainnet-beta
+
+Transfer from trading wallet:
+solana transfer [DESTINATION_ADDRESS] [AMOUNT] \
+  --from /tmp/primary_trading.json \
+  --url mainnet-beta
+
+═══════════════════════════════════════════════════
+
+🚨 EMERGENCY PROCEDURES:
+
+1. Server Compromised:
+   - Decrypt cold storage wallet
+   - Transfer all funds to new wallet
+   - Generate new encryption passwords
+
+2. Passwords Lost:
+   - Use backup encryption password
+   - Decrypt from backup files
+   - Create new encrypted wallets
+
+3. Files Corrupted:
+   - Use backup files in .overmind_vault_backup/
+   - Decrypt with backup password
+   - Restore to new location
+
+═══════════════════════════════════════════════════
+
+🛡️ SECURITY BEST PRACTICES:
+
+✅ Store this file offline (USB drive, paper, safe)
+✅ Create multiple copies in different locations
+✅ Never store passwords in cloud or email
+✅ Test decryption before transferring large amounts
+✅ Regularly backup encrypted files
+✅ Monitor wallet balances daily
+✅ Change passwords every 90 days (optional)
+
+❌ Never commit passwords to git repository
+❌ Never store in plain text on server
+❌ Never share passwords via insecure channels
+❌ Never store all copies in same location
+
+═══════════════════════════════════════════════════
+
+📞 EMERGENCY CONTACTS:
+
+System Administrator: marcin@[domain]
+Backup Contact: [BACKUP_CONTACT]
+Emergency Phone: [EMERGENCY_PHONE]
+
+═══════════════════════════════════════════════════
+
+🔍 VERIFICATION CHECKSUMS:
+
+Cold Storage File:
+SHA256: [TO_BE_CALCULATED]
+
+Primary Trading File:
+SHA256: [TO_BE_CALCULATED]
+
+Configuration File:
+SHA256: [TO_BE_CALCULATED]
+
+═══════════════════════════════════════════════════
+
+📝 NOTES:
+
+- All encrypted files are safe to store on server
+- Only passwords need to be kept offline
+- Addresses are public and safe to share
+- System automatically manages hot wallet keys
+- Profit sweep transfers 90% to cold storage daily
+
+═══════════════════════════════════════════════════
+
+⚠️  REMEMBER: WITHOUT THESE PASSWORDS, FUNDS ARE LOST!
+⚠️  SAVE MULTIPLE COPIES IN SECURE LOCATIONS!
+⚠️  TEST DECRYPTION BEFORE RELYING ON BACKUPS!

@@ -711,13 +711,26 @@ impl WalletManager {
     }
 
     /// Load wallet configurations from file
+    /// WARNING: This loads configuration only - private keys must be in environment variables
     pub async fn load_from_config_file(&mut self, config_path: &str) -> Result<()> {
+        warn!("🔐 SECURITY: Loading wallet configuration from file. Private keys must be in environment variables only!");
+
         let config_content = tokio::fs::read_to_string(config_path)
             .await
             .context("Failed to read wallet configuration file")?;
 
         let wallet_configs: Vec<WalletConfig> = serde_json::from_str(&config_content)
             .context("Failed to parse wallet configuration")?;
+
+        // Validate that no private keys are in the configuration
+        for config in &wallet_configs {
+            if !config.private_key.is_empty() && !config.private_key.starts_with("env:") {
+                return Err(anyhow!(
+                    "SECURITY VIOLATION: Private key found in configuration file for wallet {}. Use environment variables only! Expected format: env:VARIABLE_NAME",
+                    config.wallet_id
+                ));
+            }
+        }
 
         self.initialize(wallet_configs).await
     }

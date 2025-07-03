@@ -19,9 +19,18 @@ pub mod real_price_fetcher;
 pub mod real_sell_executor;
 pub mod tensorzero_client;
 // THE OVERMIND PROTOCOL - Multi-Wallet Support
+pub mod dynamic_wallet_generator;
 pub mod multi_wallet_config;
 pub mod multi_wallet_executor;
 pub mod wallet_manager;
+pub mod wallet_orchestrator;
+
+// OVERMIND VAULT - Security Modules
+pub mod encrypted_key_storage;
+pub mod hardware_wallet_interface;
+pub mod multisig_wallet_manager;
+pub mod secure_wallet_manager;
+pub mod vault_access_manager;
 
 // Advanced strategy modules based on Solana knowledge
 pub mod dev_tracker;

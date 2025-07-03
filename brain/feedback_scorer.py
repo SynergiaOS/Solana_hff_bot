@@ -10,7 +10,7 @@ import time
 import redis
 import logging
 import numpy as np
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass
 import chromadb
 from datetime import datetime
