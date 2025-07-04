@@ -1,0 +1,41 @@
+{
+  "multi_timeframe_system": {
+    "timeframe_strategies": {
+      "ultra_hft": {
+        "timeframe": "1s-10s",
+        "allocation": 0.2,
+        "strategies": ["latency_arbitrage", "tick_scalping", "microstructure_trading"],
+        "target_trades": 1000,
+        "avg_hold_time": "5s"
+      },
+      "hft": {
+        "timeframe": "10s-5m",
+        "allocation": 0.3,
+        "strategies": ["momentum_scalping", "mean_reversion", "order_flow_trading"],
+        "target_trades": 200,
+        "avg_hold_time": "2m"
+      },
+      "short_term": {
+        "timeframe": "5m-1h",
+        "allocation": 0.3,
+        "strategies": ["breakout_trading", "support_resistance", "volume_profile"],
+        "target_trades": 50,
+        "avg_hold_time": "20m"
+      },
+      "medium_term": {
+        "timeframe": "1h-24h",
+        "allocation": 0.15,
+        "strategies": ["trend_following", "swing_trading", "event_driven"],
+        "target_trades": 10,
+        "avg_hold_time": "8h"
+      },
+      "long_term": {
+        "timeframe": "1d+",
+        "allocation": 0.05,
+        "strategies": ["position_trading", "fundamental_analysis", "macro_trends"],
+        "target_trades": 2,
+        "avg_hold_time": "7d"
+      }
+    }
+  }
+}
