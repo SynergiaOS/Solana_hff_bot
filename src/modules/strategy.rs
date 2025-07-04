@@ -26,6 +26,16 @@ pub enum TradeAction {
     Hold,
 }
 
+impl std::fmt::Display for TradeAction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TradeAction::Buy => write!(f, "BUY"),
+            TradeAction::Sell => write!(f, "SELL"),
+            TradeAction::Hold => write!(f, "HOLD"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Hash, Eq, PartialEq)]
 pub enum StrategyType {
     TokenSniping,

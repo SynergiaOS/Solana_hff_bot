@@ -5,6 +5,7 @@ use crate::config::TradingMode;
 use crate::modules::hft_engine::{HftEngine, HftEngineConfig};
 use crate::modules::risk::ApprovedSignal;
 use anyhow::Result;
+use rand;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
@@ -124,6 +125,23 @@ impl Executor {
     async fn execute_signal(&mut self, signal: ApprovedSignal) -> Result<()> {
         let signal_id = signal.original_signal.signal_id.clone();
 
+        // Comprehensive logging for signal execution
+        info!(
+            "🎯 EXECUTING SIGNAL: ID={}, Action={}, Symbol={}, Quantity={:.6}, Price={:.6}",
+            signal_id,
+            signal.original_signal.action,
+            signal.original_signal.symbol,
+            signal.approved_quantity,
+            signal.original_signal.target_price
+        );
+
+        debug!(
+            "📊 Signal Details: Strategy={:?}, Confidence={:.3}, Timestamp={}",
+            signal.original_signal.strategy_type,
+            signal.original_signal.confidence,
+            signal.original_signal.timestamp
+        );
+
         if self.hft_mode_enabled {
             info!(
                 "🧠 THE OVERMIND PROTOCOL executing AI-enhanced signal: {} with quantity: {}",
@@ -182,43 +200,93 @@ impl Executor {
             signal.original_signal.signal_id
         );
 
-        // TODO: Implement actual Solana transaction execution
+        // Execute with retry logic and exponential backoff
+        let result = self.execute_with_retry(&signal).await?;
+
+        Ok(result)
+    }
+
+    /// Execute transaction with retry logic and exponential backoff
+    async fn execute_with_retry(&self, signal: &ApprovedSignal) -> Result<ExecutionResult> {
+        let max_retries = 3;
+        let mut retry_count = 0;
+        let mut backoff_ms = 100; // Start with 100ms
+
+        loop {
+            match self.build_and_send_transaction(signal).await {
+                Ok(result) => {
+                    info!(
+                        "✅ Transaction successful on attempt {}: {}",
+                        retry_count + 1,
+                        result.transaction_id
+                    );
+                    return Ok(result);
+                }
+                Err(e) => {
+                    retry_count += 1;
+
+                    if retry_count >= max_retries {
+                        error!(
+                            "❌ Transaction failed after {} attempts: {}",
+                            max_retries, e
+                        );
+                        return Ok(ExecutionResult {
+                            signal_id: signal.original_signal.signal_id.clone(),
+                            transaction_id: uuid::Uuid::new_v4().to_string(),
+                            status: ExecutionStatus::Failed,
+                            executed_quantity: 0.0,
+                            executed_price: 0.0,
+                            fees: 0.0,
+                            timestamp: chrono::Utc::now(),
+                            error_message: Some(format!("Max retries exceeded: {}", e)),
+                        });
+                    }
+
+                    warn!(
+                        "⚠️ Transaction attempt {}/{} failed: {}. Retrying in {}ms...",
+                        retry_count, max_retries, e, backoff_ms
+                    );
+
+                    // Exponential backoff with jitter
+                    let jitter = (rand::random::<f64>() * 0.1 + 0.95) * backoff_ms as f64;
+                    tokio::time::sleep(tokio::time::Duration::from_millis(jitter as u64)).await;
+                    backoff_ms = std::cmp::min(backoff_ms * 2, 2000); // Cap at 2 seconds
+                }
+            }
+        }
+    }
+
+    /// Build and send transaction to Solana network
+    async fn build_and_send_transaction(&self, signal: &ApprovedSignal) -> Result<ExecutionResult> {
+        let start_time = std::time::Instant::now();
+
+        // TODO: Implement actual Solana transaction building and sending
         // This would involve:
         // 1. Building the transaction with Solana SDK
         // 2. Signing with wallet private key
-        // 3. Sending with HFT optimizations
+        // 3. Sending via RPC with proper configuration
         // 4. Monitoring transaction status
 
-        // For now, simulate with higher latency and potential failures
-        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        // For now, simulate with realistic behavior
+        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
 
-        let success = true; // Always succeed for now
+        // Simulate occasional failures (10% failure rate)
+        if rand::random::<f64>() < 0.1 {
+            return Err(anyhow::anyhow!("RPC timeout or network congestion"));
+        }
 
-        let result = if success {
-            ExecutionResult {
-                signal_id: signal.original_signal.signal_id,
-                transaction_id: uuid::Uuid::new_v4().to_string(),
-                status: ExecutionStatus::Confirmed,
-                executed_quantity: signal.approved_quantity,
-                executed_price: signal.original_signal.target_price * 1.005, // Small slippage
-                fees: signal.approved_quantity * signal.original_signal.target_price * 0.0025, // 0.25% fee
-                timestamp: chrono::Utc::now(),
-                error_message: None,
-            }
-        } else {
-            ExecutionResult {
-                signal_id: signal.original_signal.signal_id,
-                transaction_id: uuid::Uuid::new_v4().to_string(),
-                status: ExecutionStatus::Failed,
-                executed_quantity: 0.0,
-                executed_price: 0.0,
-                fees: 0.0,
-                timestamp: chrono::Utc::now(),
-                error_message: Some("Transaction failed due to network congestion".to_string()),
-            }
-        };
+        let execution_time = start_time.elapsed().as_millis() as f64;
 
-        Ok(result)
+        Ok(ExecutionResult {
+            signal_id: signal.original_signal.signal_id.clone(),
+            transaction_id: format!("tx_{}", &uuid::Uuid::new_v4().to_string()[..8]),
+            status: ExecutionStatus::Confirmed,
+            executed_quantity: signal.approved_quantity,
+            executed_price: signal.original_signal.target_price * 1.002, // Minimal slippage
+            fees: signal.approved_quantity * signal.original_signal.target_price * 0.0015,
+            timestamp: chrono::Utc::now(),
+            error_message: None,
+        })
     }
 
     /// Execute AI-enhanced paper trade using THE OVERMIND PROTOCOL

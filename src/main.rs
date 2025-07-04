@@ -26,18 +26,34 @@ struct AppState {
 
 #[tokio::main(worker_threads = 6)]
 async fn main() -> Result<()> {
-    // Initialize logging
+    // Initialize comprehensive logging
+    let log_level = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string());
+
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .with_target(true)
+        .with_thread_ids(true)
+        .with_file(true)
+        .with_line_number(true)
+        .with_level(true)
+        .json()
         .init();
 
-    info!("🚀 THE OVERMIND PROTOCOL - Starting HTTP Server");
+    info!("🚀 THE OVERMIND PROTOCOL - Starting with comprehensive logging");
+    info!("📊 Log Level: {}", log_level);
     info!("🎯 5-Layer Autonomous AI Trading System for Solana");
 
     // Load configuration
     let config = Arc::new(Config::from_env()?);
     info!("✅ Configuration loaded");
     info!("📊 Trading Mode: {}", config.trading_mode_str());
+    info!(
+        "🧠 AI Enabled: {}",
+        std::env::var("OVERMIND_AI_MODE").unwrap_or_else(|_| "disabled".to_string())
+    );
+    info!("🌐 RPC URL: {}", config.solana.rpc_url);
+    info!("🏦 Multi-Wallet: {}", config.solana.multi_wallet_enabled);
+    info!("🔧 Server Port: {}", config.server.port);
     info!("🧠 OVERMIND Enabled: {}", config.overmind.enabled);
 
     // Create application state

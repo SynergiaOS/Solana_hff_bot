@@ -75,3 +75,9 @@ mainnet-trading-wallet.json
 *.bak
 *_backup*
 backup_*
+# Backup folders
+overmind_max_throughput_*/
+*.tar.gz
+.core_pid
+.master_pid
+start_*.sh

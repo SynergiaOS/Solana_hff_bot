@@ -8,7 +8,7 @@ import json
 import os
 import time
 from typing import Dict, Any, List, Optional
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import redis.asyncio as redis
 from dataclasses import asdict
 
@@ -336,8 +336,194 @@ class OVERMINDBrain:
             
         except Exception as e:
             logger.error(f"Error processing market event: {str(e)}", exc_info=True)
+
+            # Enhanced error handling with fallback
+            return await self._handle_processing_error(e, event_data)
+
+    async def _handle_processing_error(self, error: Exception, event_data: Dict[str, Any]) -> Optional[TradingDecision]:
+        """
+        Enhanced error handling with fallback mechanisms
+
+        Args:
+            error: The exception that occurred
+            event_data: Market event data that caused the error
+
+        Returns:
+            Fallback trading decision or None
+        """
+        try:
+            error_type = type(error).__name__
+            error_msg = str(error)
+
+            # Increment error counter
+            if not hasattr(self, '_error_count'):
+                self._error_count = 0
+            self._error_count += 1
+
+            # Log detailed error information
+            logger.error(f"🚨 AI Brain Processing Error #{self._error_count}")
+            logger.error(f"   Error Type: {error_type}")
+            logger.error(f"   Error Message: {error_msg}")
+            logger.error(f"   Event Symbol: {event_data.get('symbol', 'unknown')}")
+            logger.error(f"   Event Type: {event_data.get('event_type', 'unknown')}")
+
+            # Determine fallback strategy based on error type
+            if "timeout" in error_msg.lower() or "connection" in error_msg.lower():
+                logger.warning("🔄 Network/timeout error - using conservative fallback")
+                return await self._create_conservative_fallback_decision(event_data)
+
+            elif "memory" in error_msg.lower() or "vector" in error_msg.lower():
+                logger.warning("🧠 Memory/vector error - using rule-based fallback")
+                return await self._create_rule_based_fallback_decision(event_data)
+
+            elif "api" in error_msg.lower() or "key" in error_msg.lower():
+                logger.warning("🔑 API/key error - disabling AI temporarily")
+                await self._disable_ai_temporarily()
+                return None
+
+            elif self._error_count >= 5:
+                logger.error("🚨 Too many consecutive errors - emergency fallback")
+                return await self._create_emergency_fallback_decision(event_data)
+
+            else:
+                logger.warning("❓ Unknown error - using safe fallback")
+                return await self._create_safe_fallback_decision(event_data)
+
+        except Exception as fallback_error:
+            logger.error(f"❌ Fallback error handling failed: {fallback_error}")
             return None
-    
+
+    async def _create_conservative_fallback_decision(self, event_data: Dict[str, Any]) -> Optional[TradingDecision]:
+        """Create conservative fallback decision for network/timeout errors"""
+        try:
+            # Very conservative approach - only trade if clear signals
+            symbol = event_data.get('symbol', 'unknown')
+            price = event_data.get('price', 0)
+
+            if price > 0 and symbol != 'unknown':
+                # Simple rule: only buy if price dropped significantly
+                price_change = event_data.get('price_change_24h', 0)
+                if price_change < -10:  # 10% drop
+                    return TradingDecision(
+                        action="BUY",
+                        symbol=symbol,
+                        quantity=0.1,  # Very small position
+                        confidence=0.3,  # Low confidence
+                        reasoning="Conservative fallback: significant price drop detected",
+                        strategy="ConservativeFallback",
+                        timestamp=datetime.utcnow()
+                    )
+
+            return None  # Default to no action
+
+        except Exception as e:
+            logger.error(f"❌ Conservative fallback failed: {e}")
+            return None
+
+    async def _create_rule_based_fallback_decision(self, event_data: Dict[str, Any]) -> Optional[TradingDecision]:
+        """Create rule-based fallback decision for memory/vector errors"""
+        try:
+            # Simple technical analysis rules
+            symbol = event_data.get('symbol', 'unknown')
+            price = event_data.get('price', 0)
+            volume = event_data.get('volume_24h', 0)
+
+            if price > 0 and volume > 1000:  # Minimum liquidity
+                # Simple momentum rule
+                price_change = event_data.get('price_change_1h', 0)
+                volume_change = event_data.get('volume_change_1h', 0)
+
+                if price_change > 5 and volume_change > 50:  # Strong momentum
+                    return TradingDecision(
+                        action="BUY",
+                        symbol=symbol,
+                        quantity=0.05,  # Small position
+                        confidence=0.4,
+                        reasoning="Rule-based fallback: momentum detected",
+                        strategy="RuleBasedFallback",
+                        timestamp=datetime.utcnow()
+                    )
+
+            return None
+
+        except Exception as e:
+            logger.error(f"❌ Rule-based fallback failed: {e}")
+            return None
+
+    async def _disable_ai_temporarily(self):
+        """Temporarily disable AI processing due to critical errors"""
+        try:
+            if not hasattr(self, '_ai_disabled_until'):
+                self._ai_disabled_until = None
+
+            # Disable AI for 5 minutes
+            self._ai_disabled_until = datetime.utcnow() + timedelta(minutes=5)
+            logger.warning(f"🚫 AI temporarily disabled until {self._ai_disabled_until}")
+
+            # Send notification to Rust executor
+            await self.dragonfly.lpush(
+                'overmind:system_alerts',
+                json.dumps({
+                    'alert_type': 'AI_DISABLED',
+                    'message': 'AI Brain temporarily disabled due to errors',
+                    'disabled_until': self._ai_disabled_until.isoformat(),
+                    'timestamp': datetime.utcnow().isoformat()
+                })
+            )
+
+        except Exception as e:
+            logger.error(f"❌ Failed to disable AI temporarily: {e}")
+
+    async def _create_emergency_fallback_decision(self, event_data: Dict[str, Any]) -> Optional[TradingDecision]:
+        """Create emergency fallback decision for critical errors"""
+        try:
+            # Emergency mode - only SELL to reduce risk
+            symbol = event_data.get('symbol', 'unknown')
+
+            return TradingDecision(
+                action="SELL",
+                symbol=symbol,
+                quantity=0.5,  # Reduce positions
+                confidence=0.8,  # High confidence in risk reduction
+                reasoning="Emergency fallback: reducing risk due to system errors",
+                timestamp=datetime.utcnow().isoformat()
+            )
+
+        except Exception as e:
+            logger.error(f"❌ Emergency fallback failed: {e}")
+            return None
+
+    async def _create_safe_fallback_decision(self, event_data: Dict[str, Any]) -> Optional[TradingDecision]:
+        """Create safe fallback decision for unknown errors"""
+        try:
+            # Safe mode - HOLD position
+            symbol = event_data.get('symbol', 'unknown')
+
+            return TradingDecision(
+                action="HOLD",
+                symbol=symbol,
+                quantity=0.0,
+                confidence=0.5,
+                reasoning="Safe fallback: holding position due to processing error",
+                timestamp=datetime.utcnow().isoformat()
+            )
+
+        except Exception as e:
+            logger.error(f"❌ Safe fallback failed: {e}")
+            return None
+
+    def _is_ai_disabled(self) -> bool:
+        """Check if AI is temporarily disabled"""
+        if not hasattr(self, '_ai_disabled_until') or self._ai_disabled_until is None:
+            return False
+
+        if datetime.utcnow() > self._ai_disabled_until:
+            logger.info("✅ AI re-enabled after temporary disable")
+            self._ai_disabled_until = None
+            return False
+
+        return True
+
     async def start(self):
         """Start the OVERMIND Brain processing loop"""
         logger.info("Starting OVERMIND Brain processing loop")

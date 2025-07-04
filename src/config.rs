@@ -37,6 +37,22 @@ pub struct SolanaConfig {
     // Multi-wallet support
     pub multi_wallet_enabled: bool,
     pub default_wallet_id: Option<String>,
+    // RPC Failover support
+    pub rpc_endpoints: Vec<RpcEndpoint>,
+    pub failover_enabled: bool,
+    pub health_check_interval_ms: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RpcEndpoint {
+    pub url: String,
+    pub name: String,
+    pub priority: u8, // 1 = highest priority
+    pub timeout_ms: u64,
+    pub max_retries: u32,
+    pub is_healthy: bool,
+    pub last_health_check: Option<chrono::DateTime<chrono::Utc>>,
+    pub avg_latency_ms: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -75,6 +91,86 @@ pub struct OvermindConfig {
 
 #[allow(dead_code)]
 impl Config {
+    /// Get multiple RPC endpoints with failover configuration
+    fn get_rpc_endpoints() -> Result<Vec<RpcEndpoint>> {
+        let app_env = env::var("APP_ENV").unwrap_or_else(|_| "development".to_string());
+
+        let endpoints = match app_env.as_str() {
+            "development" => vec![
+                RpcEndpoint {
+                    url: env::var("QUICKNODE_DEVNET_RPC_URL")
+                        .unwrap_or_else(|_| "https://api.devnet.solana.com".to_string()),
+                    name: "QuickNode Devnet".to_string(),
+                    priority: 1,
+                    timeout_ms: 5000,
+                    max_retries: 3,
+                    is_healthy: true,
+                    last_health_check: None,
+                    avg_latency_ms: None,
+                },
+                RpcEndpoint {
+                    url: "https://api.devnet.solana.com".to_string(),
+                    name: "Solana Devnet".to_string(),
+                    priority: 2,
+                    timeout_ms: 8000,
+                    max_retries: 2,
+                    is_healthy: true,
+                    last_health_check: None,
+                    avg_latency_ms: None,
+                },
+            ],
+            "production" | "live" => vec![
+                RpcEndpoint {
+                    url: env::var("QUICKNODE_MAINNET_RPC_URL").unwrap_or_else(|_| {
+                        env::var("SOLANA_RPC_URL")
+                            .unwrap_or_else(|_| "https://api.mainnet-beta.solana.com".to_string())
+                    }),
+                    name: "QuickNode Mainnet".to_string(),
+                    priority: 1,
+                    timeout_ms: 3000,
+                    max_retries: 3,
+                    is_healthy: true,
+                    last_health_check: None,
+                    avg_latency_ms: None,
+                },
+                RpcEndpoint {
+                    url: env::var("HELIUS_RPC_URL")
+                        .unwrap_or_else(|_| "https://mainnet.helius-rpc.com".to_string()),
+                    name: "Helius Mainnet".to_string(),
+                    priority: 2,
+                    timeout_ms: 4000,
+                    max_retries: 2,
+                    is_healthy: true,
+                    last_health_check: None,
+                    avg_latency_ms: None,
+                },
+                RpcEndpoint {
+                    url: "https://api.mainnet-beta.solana.com".to_string(),
+                    name: "Solana Mainnet".to_string(),
+                    priority: 3,
+                    timeout_ms: 8000,
+                    max_retries: 2,
+                    is_healthy: true,
+                    last_health_check: None,
+                    avg_latency_ms: None,
+                },
+            ],
+            _ => vec![RpcEndpoint {
+                url: env::var("SOLANA_RPC_URL")
+                    .unwrap_or_else(|_| "https://api.mainnet-beta.solana.com".to_string()),
+                name: "Default RPC".to_string(),
+                priority: 1,
+                timeout_ms: 5000,
+                max_retries: 3,
+                is_healthy: true,
+                last_health_check: None,
+                avg_latency_ms: None,
+            }],
+        };
+
+        Ok(endpoints)
+    }
+
     /// Get dynamic RPC URL based on APP_ENV
     fn get_dynamic_rpc_url() -> Result<String> {
         let app_env = env::var("APP_ENV").unwrap_or_else(|_| "development".to_string());
@@ -135,6 +231,15 @@ impl Config {
                     .parse()
                     .unwrap_or(false),
                 default_wallet_id: env::var("OVERMIND_DEFAULT_WALLET").ok(),
+                rpc_endpoints: Self::get_rpc_endpoints()?,
+                failover_enabled: env::var("SOLANA_RPC_FAILOVER_ENABLED")
+                    .unwrap_or_else(|_| "true".to_string())
+                    .parse()
+                    .unwrap_or(true),
+                health_check_interval_ms: env::var("SOLANA_RPC_HEALTH_CHECK_INTERVAL_MS")
+                    .unwrap_or_else(|_| "30000".to_string())
+                    .parse()
+                    .unwrap_or(30000),
             },
             api: ApiConfig {
                 helius_api_key: env::var("SNIPER_HELIUS_API_KEY")
@@ -250,6 +355,9 @@ mod tests {
                 wallet_private_key: "test_key".to_string(),
                 multi_wallet_enabled: false,
                 default_wallet_id: None,
+                rpc_endpoints: vec![],
+                failover_enabled: false,
+                health_check_interval_ms: 30000,
             },
             api: ApiConfig {
                 helius_api_key: "test_key".to_string(),
@@ -294,6 +402,9 @@ mod tests {
                 wallet_private_key: "test".to_string(),
                 multi_wallet_enabled: false,
                 default_wallet_id: None,
+                rpc_endpoints: vec![],
+                failover_enabled: false,
+                health_check_interval_ms: 30000,
             },
             api: ApiConfig {
                 helius_api_key: "test".to_string(),

@@ -18,6 +18,8 @@ pub mod metrics;
 pub mod real_price_fetcher;
 pub mod real_sell_executor;
 pub mod tensorzero_client;
+// RPC Failover Module
+pub mod rpc_failover;
 // THE OVERMIND PROTOCOL - Multi-Wallet Support
 pub mod dynamic_wallet_generator;
 pub mod multi_wallet_config;

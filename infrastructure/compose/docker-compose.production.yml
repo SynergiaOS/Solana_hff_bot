@@ -154,16 +154,19 @@ services:
   # OVERMIND Python Brain - Strategic Decision Making
   overmind-brain:
     build:
-      context: ./brain
+      context: ../../brain
       dockerfile: Dockerfile
     container_name: overmind-brain-prod
     restart: unless-stopped
     environment:
-      # AI Configuration
+      # AI Configuration - DeepSeek V2 Primary
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - GROQ_API_KEY=${GROQ_API_KEY}
       - MISTRAL_API_KEY=${MISTRAL_API_KEY}
-      - FINANCIAL_DATASETS_API_KEY=${FINANCIAL_DATASETS_API_KEY}
+      - PERPLEXITY_API_KEY=${PERPLEXITY_API_KEY}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - JINA_API_KEY=${JINA_API_KEY}
+      - HELIUS_API_KEY=${HELIUS_API_KEY}
       
       # Communication
       - DRAGONFLY_URL=redis://overmind-dragonfly:6379
@@ -176,7 +179,7 @@ services:
       - OVERMIND_CONFIDENCE_THRESHOLD=0.7
       - PYTHONPATH=/app/src
     volumes:
-      - ./brain/src:/app/src
+      - ../../brain/src:/app/src
       - brain_logs:/app/logs
     depends_on:
       - overmind-dragonfly
@@ -226,14 +229,23 @@ services:
       - QUICKNODE_API_KEY=${QUICKNODE_API_KEY}
       - SOLANA_WALLET_PRIVATE_KEY=${SOLANA_WALLET_PRIVATE_KEY}
       
-      # Risk Management
-      - SNIPER_MAX_POSITION_SIZE=10000
-      - SNIPER_MAX_DAILY_LOSS=1000
-      - OVERMIND_AI_CONFIDENCE_THRESHOLD=0.7
+      # Risk Management (REALISTIC)
+      - SNIPER_MAX_POSITION_SIZE=1.0
+      - SNIPER_MAX_DAILY_LOSS=0.5
+      - OVERMIND_AI_CONFIDENCE_THRESHOLD=0.75
       
       # Performance
       - RUST_LOG=info
       - TOKIO_WORKER_THREADS=6
+      
+      # Performance Optimization for 8-core/32GB (CORRECTED)
+      - OVERMIND_MAX_THREADS=${OVERMIND_MAX_THREADS:-32}
+      - OVERMIND_TX_BUFFER=${OVERMIND_TX_BUFFER:-100}
+      - OVERMIND_MAX_TPS=${OVERMIND_MAX_TPS:-25}
+      - OVERMIND_DAILY_TX_CAP=${OVERMIND_DAILY_TX_CAP:-2000}
+      - OVERMIND_AUTO_THROTTLE=${OVERMIND_AUTO_THROTTLE:-true}
+      - OVERMIND_MEMORY_POOL_GB=${OVERMIND_MEMORY_POOL_GB:-8}
+      - OVERMIND_JITO_ENDPOINT=${OVERMIND_JITO_ENDPOINT:-https://amsterdam.mainnet.block-engine.jito.wtf}
     volumes:
       - executor_logs:/app/logs
     depends_on:
@@ -251,8 +263,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 6G
-          cpus: '4.0'
+          memory: 12G  # Realistic allocation for trading bot
+          cpus: '4.0'  # Conservative CPU allocation
 
   # ============================================================================
   # MONITORING LAYER - Observability and Alerting

@@ -189,6 +189,16 @@ class MasterControlSystem:
         """Check health of specific system"""
         # Simulate health check - in real implementation, check actual metrics
         return 0.95  # High performance
+
+    async def optimize_system(self, system_name: str):
+        """Optimize specific system performance"""
+        optimization = {
+            'system': system_name,
+            'action': 'performance_optimization',
+            'timestamp': datetime.utcnow().isoformat()
+        }
+        self.redis_client.lpush(f"overmind:{system_name}_optimizations", json.dumps(optimization))
+        logger.info(f"🎯 Optimizing {system_name} performance")
     
     async def analyze_performance(self) -> Dict[str, Any]:
         """Analyze performance across all systems"""
@@ -219,22 +229,94 @@ class MasterControlSystem:
     async def calculate_portfolio_risk(self) -> float:
         """Calculate overall portfolio risk"""
         return 0.3  # Moderate risk
-    
+
+    async def calculate_system_risk(self, system_name: str) -> float:
+        """Calculate risk for specific system"""
+        # Simulate system-specific risk calculation
+        risk_levels = {
+            'multi_wallet': 0.2,
+            'multi_strategy': 0.4,
+            'multi_exchange': 0.3,
+            'multi_ai': 0.1,
+            'multi_timeframe': 0.35
+        }
+        return risk_levels.get(system_name, 0.3)
+
+    async def apply_risk_controls(self, system_name: str):
+        """Apply risk controls to specific system"""
+        risk_control = {
+            'system': system_name,
+            'action': 'reduce_exposure',
+            'timestamp': datetime.utcnow().isoformat()
+        }
+        self.redis_client.lpush(f"overmind:{system_name}_risk_controls", json.dumps(risk_control))
+        logger.warning(f"🛡️ Applied risk controls to {system_name}")
+
+    async def reduce_risk_exposure(self):
+        """Reduce overall portfolio risk exposure"""
+        risk_reduction = {
+            'action': 'portfolio_risk_reduction',
+            'reduction_percentage': 0.2,
+            'timestamp': datetime.utcnow().isoformat()
+        }
+        self.redis_client.lpush("overmind:portfolio_risk_controls", json.dumps(risk_reduction))
+        logger.warning("🚨 Portfolio risk exposure reduced")
+
     async def scan_opportunities(self) -> List[Dict[str, Any]]:
         """Scan for trading opportunities across all systems"""
         return [
             {'type': 'arbitrage', 'profit_potential': 0.02, 'risk': 0.1, 'timeframe': 'short'},
-            {'type': 'momentum', 'profit_potential': 0.05, 'risk': 0.3, 'timeframe': 'medium'}
+            {'type': 'momentum', 'profit_potential': 0.05, 'risk': 0.3, 'timeframe': 'medium'},
+            {'type': 'token_sniping', 'profit_potential': 0.15, 'risk': 0.2, 'timeframe': 'short'},
+            {'type': 'yield_farming', 'profit_potential': 0.08, 'risk': 0.1, 'timeframe': 'long'}
         ]
-    
+
     async def select_optimal_system(self, opportunity: Dict[str, Any]) -> str:
         """Select optimal system for opportunity execution"""
         if opportunity['type'] == 'arbitrage':
             return 'multi_exchange'
+        elif opportunity['type'] == 'token_sniping':
+            return 'multi_strategy'
         elif opportunity['timeframe'] == 'short':
             return 'multi_timeframe'
         else:
             return 'multi_strategy'
+
+    async def execute_opportunity(self, opportunity: Dict[str, Any], system: str):
+        """Execute trading opportunity via selected system"""
+        execution_command = {
+            'opportunity': opportunity,
+            'system': system,
+            'timestamp': datetime.utcnow().isoformat(),
+            'execution_id': f"exec_{int(time.time())}"
+        }
+        self.redis_client.lpush(f"overmind:{system}_executions", json.dumps(execution_command))
+        logger.info(f"⚡ Executed {opportunity['type']} via {system}")
+
+    async def calculate_system_load(self, system_name: str) -> float:
+        """Calculate current load for specific system"""
+        # Simulate system load calculation
+        import random
+        base_loads = {
+            'multi_wallet': 0.3,
+            'multi_strategy': 0.6,
+            'multi_exchange': 0.8,
+            'multi_ai': 0.4,
+            'multi_timeframe': 0.7
+        }
+        base_load = base_loads.get(system_name, 0.5)
+        # Add some randomness to simulate real load variation
+        return min(1.0, base_load + random.uniform(-0.2, 0.2))
+
+    async def rebalance_systems(self, system_loads: Dict[str, float]):
+        """Rebalance load across systems"""
+        rebalance_command = {
+            'action': 'system_rebalance',
+            'current_loads': system_loads,
+            'timestamp': datetime.utcnow().isoformat()
+        }
+        self.redis_client.lpush("overmind:system_rebalancing", json.dumps(rebalance_command))
+        logger.info("⚖️ System rebalancing initiated")
     
     def get_ecosystem_status(self) -> Dict[str, Any]:
         """Get complete ecosystem status - analogicznie do wallet portfolio summary"""
