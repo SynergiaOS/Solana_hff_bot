@@ -1,0 +1,171 @@
+version: '3.8'
+
+# THE OVERMIND PROTOCOL - Vault Integration
+# Secure multi-wallet management with HashiCorp Vault
+
+services:
+  # HashiCorp Vault - Secrets Management
+  vault:
+    image: hashicorp/vault:1.20.0
+    container_name: overmind-vault
+    restart: unless-stopped
+    ports:
+      - "8200:8200"
+      - "8201:8201"
+    environment:
+      VAULT_ADDR: "https://0.0.0.0:8200"
+      VAULT_API_ADDR: "https://vault.overmind.local:8200"
+      VAULT_CLUSTER_ADDR: "https://vault.overmind.local:8201"
+      VAULT_UI: "true"
+      VAULT_LOG_LEVEL: "INFO"
+      VAULT_LOG_FORMAT: "json"
+    volumes:
+      - vault_data:/vault/data
+      - vault_logs:/vault/logs
+      - ./config/vault/vault-config.hcl:/vault/config/vault.hcl:ro
+      - vault_tls:/vault/tls:ro
+    cap_add:
+      - IPC_LOCK
+    command: >
+      vault server 
+      -config=/vault/config/vault.hcl
+    healthcheck:
+      test: ["CMD", "vault", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - overmind_network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.vault.rule=Host(`vault.overmind.local`)"
+      - "traefik.http.routers.vault.tls=true"
+      - "traefik.http.services.vault.loadbalancer.server.port=8200"
+
+  # Vault Init Container - Initialize and unseal Vault
+  vault-init:
+    image: hashicorp/vault:1.20.0
+    container_name: overmind-vault-init
+    depends_on:
+      vault:
+        condition: service_healthy
+    environment:
+      VAULT_ADDR: "https://vault:8200"
+      VAULT_SKIP_VERIFY: "true"
+    volumes:
+      - vault_keys:/vault/keys
+      - ./scripts/vault/init-vault.sh:/init-vault.sh:ro
+    command: ["/init-vault.sh"]
+    networks:
+      - overmind_network
+    restart: "no"
+
+  # Vault Agent - Auto-authentication for applications
+  vault-agent:
+    image: hashicorp/vault:1.20.0
+    container_name: overmind-vault-agent
+    depends_on:
+      vault-init:
+        condition: service_completed_successfully
+    environment:
+      VAULT_ADDR: "https://vault:8200"
+      VAULT_SKIP_VERIFY: "true"
+    volumes:
+      - vault_agent_config:/vault/config
+      - vault_agent_cache:/vault/cache
+      - ./config/vault/agent-config.hcl:/vault/config/agent.hcl:ro
+    command: >
+      vault agent 
+      -config=/vault/config/agent.hcl
+    networks:
+      - overmind_network
+    restart: unless-stopped
+
+  # Vault Exporter - Prometheus metrics
+  vault-exporter:
+    image: grapeshot/vault_exporter:latest
+    container_name: overmind-vault-exporter
+    depends_on:
+      vault:
+        condition: service_healthy
+    environment:
+      VAULT_ADDR: "https://vault:8200"
+      VAULT_SKIP_VERIFY: "true"
+    ports:
+      - "9410:9410"
+    networks:
+      - overmind_network
+    restart: unless-stopped
+
+  # THE OVERMIND PROTOCOL - Trading Engine with Vault Integration
+  overmind-core:
+    build:
+      context: ../..
+      dockerfile: Dockerfile.vault
+    container_name: overmind-core-vault
+    depends_on:
+      vault-agent:
+        condition: service_started
+    environment:
+      # Vault Configuration
+      VAULT_ADDR: "https://vault:8200"
+      VAULT_SKIP_VERIFY: "true"
+      VAULT_MOUNT_PATH: "overmind-secrets"
+      VAULT_ROLE_ID_FILE: "/vault/cache/role-id"
+      VAULT_SECRET_ID_FILE: "/vault/cache/secret-id"
+      
+      # Trading Configuration
+      OVERMIND_MODE: "production"
+      TRADING_MODE: "live"
+      RUST_LOG: "info"
+      
+      # Security
+      SECURE_WALLET_MODE: "vault"
+      AUDIT_LOGGING: "enabled"
+    volumes:
+      - vault_agent_cache:/vault/cache:ro
+      - overmind_logs:/app/logs
+    networks:
+      - overmind_network
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=100m
+
+volumes:
+  vault_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/vault/data
+  vault_logs:
+    driver: local
+  vault_keys:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/vault/keys
+  vault_tls:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/vault/tls
+  vault_agent_config:
+    driver: local
+  vault_agent_cache:
+    driver: local
+  overmind_logs:
+    driver: local
+
+networks:
+  overmind_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

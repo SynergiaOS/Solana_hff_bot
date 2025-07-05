@@ -17,3 +17,4 @@ pub mod modules;
 pub use config::Config;
 pub use modules::ai_connector::AIConnector;
 pub use modules::hft_engine::HftEngine;
+pub use modules::vault_integration::{VaultClient, VaultMultiWalletManager, WalletSecret};

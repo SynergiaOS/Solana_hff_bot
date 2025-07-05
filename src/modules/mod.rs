@@ -33,6 +33,8 @@ pub mod hardware_wallet_interface;
 pub mod multisig_wallet_manager;
 pub mod secure_wallet_manager;
 pub mod vault_access_manager;
+// HashiCorp Vault Integration
+pub mod vault_integration;
 
 // Advanced strategy modules based on Solana knowledge
 pub mod dev_tracker;

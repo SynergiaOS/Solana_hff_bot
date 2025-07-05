@@ -26,12 +26,18 @@ pub struct PerformanceConfig {
     pub memory_optimization_enabled: bool,
     pub connection_warming_enabled: bool,
     pub adaptive_optimization_enabled: bool,
+    // New fields for 8-core optimization
+    pub max_threads: usize,
+    pub tx_buffer_size: usize,
+    pub max_tx_per_second: u64,
+    pub daily_tx_cap: u64,
+    pub auto_throttle: bool,
 }
 
 impl Default for PerformanceConfig {
     fn default() -> Self {
         Self {
-            target_latency_ms: 25, // Sub-25ms target
+            target_latency_ms: 25,
             connection_pool_size: 10,
             cache_ttl_seconds: 30,
             batch_size: 50,
@@ -39,6 +45,12 @@ impl Default for PerformanceConfig {
             memory_optimization_enabled: true,
             connection_warming_enabled: true,
             adaptive_optimization_enabled: true,
+            // New optimized defaults for 8-core/32GB
+            max_threads: 64,
+            tx_buffer_size: 1000,
+            max_tx_per_second: 150,
+            daily_tx_cap: 22000,
+            auto_throttle: true,
         }
     }
 }
